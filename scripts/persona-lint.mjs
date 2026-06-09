@@ -28,6 +28,9 @@ export function validatePersona(text) {
   require_(/(^|\n)\s*floor:/, "anti_behaviors.floor");
   require_(/(^|\n)\s*specific:/, "anti_behaviors.specific");
 
+  // the rail is anchor AND evidence contract (design spec section 19): require both
+  require_(/(^|\n)#{1,6}\s*evidence contract\b/i, "Evidence contract section (the rail: anchor and evidence contract)");
+
   return { ok: problems.length === 0, problems };
 }
 

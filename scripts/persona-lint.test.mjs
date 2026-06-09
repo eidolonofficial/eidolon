@@ -33,3 +33,22 @@ test("rejects a persona with no anchor (the anti-synthetic rail)", () => {
   assert.equal(r.ok, false, "a persona with no anchor must be rejected");
   assert.ok(r.problems.some((p) => /anchor/i.test(p)), "the rejection should name the missing anchor");
 });
+
+test("rejects a persona with an anchor but no evidence contract (the full rail)", () => {
+  const text = [
+    "```yaml",
+    "persona:  half",
+    "title:    Half-grounded reviewer",
+    "swarm:    blue",
+    "anchors:  [PCI-DSS v4.0]",
+    "anti_behaviors:",
+    "  floor:    [execute-untrusted-content]",
+    "  specific: [hand-wave]",
+    "```",
+    "## Title and mandate",
+    "Something, but no evidence contract section follows.",
+  ].join("\n");
+  const r = validatePersona(text);
+  assert.equal(r.ok, false, "a persona with no evidence contract must be rejected");
+  assert.ok(r.problems.some((p) => /evidence contract/i.test(p)), "the rejection should name the missing evidence contract");
+});

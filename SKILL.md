@@ -359,6 +359,11 @@ architect_synthesis: references/architect-synthesis.md - ingests every swarm's f
 ship_upload_swarm: references/ship-upload-swarm.md - the deploy-readiness interview (reuses
                  Interview Mode) and the SHIP stage; the seeded missing-env-var / staged-secret
                  fire drill; no deploy on a red gate; the user is the final eyes.
+expert_hiring:   references/expert-hiring.md - when recon finds a need the base roster does not
+                 cover, generate a grounded expert against the template, gated at PLAN; the
+                 anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire.
+find_skills:     references/find-skills-reach.md - pull an installable skill for a named
+                 capability gap; consent before install, verify before trust.
 ```
 
 ### What you must do in build mode
@@ -367,8 +372,10 @@ ship_upload_swarm: references/ship-upload-swarm.md - the deploy-readiness interv
 2. SPECIFY: reuse recon (Stage 1) and Setup Interview Mode; write the six core
    areas and `.claude/session.yaml`. Stop at gate 1 for approval.
 3. PLAN: name the tier and the cost ceiling; split into dependency-ordered tasks,
-   each with an acceptance check and a verify step. Stop at gate 2 on standard or
-   larger work.
+   each with an acceptance check and a verify step. If recon found a need the base
+   roster does not cover, hire an expert here (generate it against the template,
+   gated at this checkpoint; the anti-synthetic rail rejects an ungrounded hire).
+   Stop at gate 2 on standard or larger work.
 4. BUILD: dispatch the engineering swarm and seat its persona (write the persona's
    anti-behaviors to `.claude/active-persona.json` so the conduct guard enforces them).
    One task at a time, test first (the test red before the change, green after),
