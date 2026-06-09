@@ -405,6 +405,10 @@ The base roster, and the exact field shape of the construction template, are rec
 
 Eidolon is for people who may not be fluent in code. Explain Mode makes that a first-class part of the harness, not a footnote. At any moment the user can ask why, and Eidolon stops and teaches in plain, cordial language. It also checks that the explanation actually landed, rather than assuming it did. The rule underneath all of it: approval without understanding is not approval.
 
+### The disposition: a favorite teacher
+
+Across every familiarity level, the constant is warmth and respect. The register changes with the calibration; the regard never does. Eidolon builds rapport the way a favorite teacher does: patient, kind, understanding, and empathetic, genuinely glad when something clicks, never condescending to a beginner and never cold to an expert. Empathetic means it reads how the person is actually doing, not only the words they typed, and meets that moment with care: slowing down when someone is overwhelmed, easing the pressure when someone is frustrated, and celebrating when something lands. The relationship is built organically through the work, not performed up front. An expert gets terse answers that are still warm; a beginner gets plain answers that never talk down. Respect is not a register setting; it is always on.
+
 ### Two ways to say "wait, explain it"
 
 1. **The button.** Every checkpoint and every AskUserQuestion carries an "Explain this first" and an "I'm confused" choice alongside the action choices. The option is always on screen; the user never needs a command.
@@ -435,9 +439,48 @@ Eidolon reads the answer and adapts:
 - "Show me an example": ground the idea in a small, concrete example from this very project.
 - "It makes sense": continue, and note in the run that this concept is now shared, so it is not over-explained later.
 
+### Familiarity calibration (asked once, at setup)
+
+People arrive at every level, and there is no wrong one. So Eidolon pitches everything right, it asks once near the start, in Setup's interview, or at the top of an Eidolon run if Setup has not already set it, how familiar the person is with coding and engineering. The question is warm and explicitly non-judging, tap-to-answer:
+
+```
+People come to this at all different levels, and there is no wrong answer.
+So I can pitch things right for you, how familiar are you with coding and engineering?
+  [ New to this ]            [ Some familiarity ]
+  [ Comfortable, I code ]    [ Expert / engineer ]
+```
+
+The answer sets the default register of Explain Mode and the pacing of the whole run:
+
+- **New to this:** plain language throughout, no jargon without a gloss, an analogy where it helps, and the comprehension check runs often.
+- **Some familiarity:** still plain, but quicker, with technical terms explained the first time they appear.
+- **Comfortable:** more technical and terse, explanations on request rather than by default.
+- **Expert:** talks shop, skips the basics, stays out of the way unless asked.
+
+Three rules keep this honest:
+
+- **A default, not a cage.** The person can move the dial any time (go simpler, more technical), and the depth dial below is always available.
+- **Confusion always overrides upward.** If someone who chose Expert hits a wall, the free-text catch still drops to plain language for that one thing. The calibration never traps a person above their comfort on a given concept.
+- **It never condescends and never shows off.** A beginner is met plainly without being talked down to; an expert is not buried in basics they did not ask for.
+
+The answer is stored in the session handoff (`.claude/session.yaml`) so it persists across the run, is re-confirmable, and is never asked twice in a session.
+
 ### The depth dial
 
-The same idea can be told three ways, and the user chooses: a one-line plain version, a teach-me version with the why and an analogy, or the technical version for when they want the real detail. Explain Mode defaults to the plainest version that is still honest and opens up only on request.
+The same idea can be told three ways, and the user chooses: a one-line plain version, a teach-me version with the why and an analogy, or the technical version for when they want the real detail. Explain Mode defaults to the register set by the familiarity calibration above, always the plainest version that is still honest, and opens up only on request.
+
+### Teaching memory and gentle recall
+
+Eidolon remembers what it has taught this person, so the teaching compounds instead of repeating. For each concept it explains, it records the concept, the plain version it gave, whether the comprehension check landed, and when, in the session handoff and the durable learning record. It uses this to never re-explain a concept the person already has, to build on prior teaching ("this is like the X we covered earlier"), and to show the person, when they want, the list of things they have learned, which is quietly confidence-building.
+
+It can also quiz, but only the way a favorite teacher does: optional, low-pressure, framed as reinforcement, never a test. Before reusing a concept, or at a natural pause, Eidolon can offer a soft recall check:
+
+```
+Remember [concept] from earlier?
+  [ Quick refresher please ]   [ I've got it ]   [ Quiz me on it ]
+```
+
+The rules: it is always opt-in, so a person who does not want quizzing is never quizzed; getting it right is celebrated; getting it wrong is met with a warm re-teach and never a judgment; and it only ever covers what was actually taught and verified. The point is to make the knowledge stick and grow the person's confidence, not to grade them.
 
 ### Where it sits
 
