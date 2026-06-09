@@ -260,6 +260,10 @@ The pattern grows from his agent-skills harness, so folding his public work in i
 
 Every folded or modeled-on repo is credited in the target repo's CREDITS, with its license named. MIT and Apache repos may be adapted with attribution; CC BY-NC-ND is reference-only; archived or deprecated repos are flagged; org-owned repos are folded from the owning org. This is the same consent-first, credit-everyone rule the rest of the project runs on.
 
+### Reaching beyond the installed set (find-skills)
+
+The loadout is not limited to what is already installed. When recon or a hired expert needs a capability the installed-skill registry does not have, for a niche language, a specific framework, or a regulatory domain unique to the codebase, Eidolon invokes find-skills to discover an installable skill that fills the gap. The same rails apply: the skill must serve a named need (no speculative installs to look thorough), the user consents before anything is installed, and a newly installed skill is verified before its findings are trusted, exactly as any other skill is. So a codebase with an unusual need can pull in the right tool instead of being served by an approximate one, and the loadout still does not become a junk drawer.
+
 ---
 
 ## 17. Per-swarm hardening (defense in depth)
