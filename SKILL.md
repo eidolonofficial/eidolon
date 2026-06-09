@@ -289,7 +289,8 @@ state, stated before CLOSE runs.
     ->  PLAN      (components, order, risk tier, cost ceiling)   ->  the plan
         [gate 2: approve the plan on standard or larger work]
     ->  BUILD     (engineering swarm builds against the spec, one task at a time, test first)
-    ->  REVIEW    (security swarm: red finds, blue hardens)      ->  findings
+    ->  REVIEW    (by tier: security red/blue, trust-and-safety, code-review)  ->  findings
+    ->  SYNTHESIZE (solutions architect: one ordered disposition of every finding)
     ->  VERIFY    (cold-context: rubric + independent second signal) ->  PASS | red
         red and under three tries  ->  FIX (bounded); 3rd red  ->  re-plan, do not re-fix
         [gate 3: visual or runtime check; the user is the final eyes]
@@ -317,8 +318,10 @@ surface_one:         findings are surfaced one at a time via AskUserQuestion, ne
 
 ```yaml
 # why: scale the pipeline to the change so the cure does not become its own drift
-trivial:    one file, no new surface              ->  BUILD + VERIFY only; no security swarm
-standard:   a feature or surface change           ->  add the security swarm at small fan-out
+trivial:    one file, no new surface              ->  BUILD, code-review tidy, VERIFY;
+                                                       no security, trust-and-safety, or architect
+standard:   a feature or surface change           ->  add security, trust-and-safety, and
+                                                       code-review swarms at small fan-out, plus the architect
 high_risk:  auth / payments / PII / public surface ->  full fan-out, full antibehavior pass,
                                                        escalate to independent review where the trust tree says so
 ceiling:    each tier states a max subagent count and token budget at PLAN.
@@ -345,6 +348,12 @@ engineering_swarm: references/engineering-swarm.md - builds against the spec, TD
                  with the seeded-failing-test fire drill and the no-stub closeout gate.
 conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona against its own
                  declared anti-behaviors (.claude/active-persona.json); halts and names the line.
+trust_safety_swarm: references/trust-safety-swarm.md - harm, abuse, privacy/PII, a11y, fairness
+                 (GDPR, CCPA, WCAG 2.2); the seeded-PII fire drill and the coverage manifest.
+code_review_swarm: references/code-review-swarm.md - behavior-preserving only; a behavior change
+                 is a finding for engineering; the suite-guards-behavior fire drill.
+architect_synthesis: references/architect-synthesis.md - ingests every swarm's findings plus the
+                 three logs in one pass; the disposition table; no finding silently dropped.
 ```
 
 ### What you must do in build mode
@@ -359,11 +368,16 @@ conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona again
    anti-behaviors to `.claude/active-persona.json` so the conduct guard enforces them).
    One task at a time, test first (the test red before the change, green after),
    against the spec. No scope drift; new ideas go to the work queue, never the live diff.
-5. REVIEW: run the security swarm when the tier calls for it. Each red finding
-   becomes a blue hardening task, closed only when its post-fix verify passes.
-6. VERIFY: spawn the cold-context verifier with only the diff, spec, and rubric.
+5. REVIEW: by tier, run the security swarm (red finds, blue hardens), the
+   trust-and-safety swarm, and the code-review swarm, in parallel. Each red finding
+   becomes a blue hardening task, closed only when its post-fix verify passes; a
+   code-review behavior change is a finding for engineering, not a silent edit.
+6. SYNTHESIZE: the solutions architect ingests every swarm's findings plus the three
+   logs in one pass and produces one ordered disposition table; no finding is
+   dropped. The plan it commits to is gated before continuing.
+7. VERIFY: spawn the cold-context verifier with only the diff, spec, and rubric.
    Red under three tries enters the bounded fix loop; a third red re-plans.
-7. Gate 3: hand the visual or runtime result to the user as the final eyes. A
+8. Gate 3: hand the visual or runtime result to the user as the final eyes. A
    screenshot proves the render happened, not that it is right.
-8. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
+9. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
    Do not declare done while any finding is unverified or any AMBIGUOUS stands.
