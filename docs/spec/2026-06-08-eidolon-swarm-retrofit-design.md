@@ -37,6 +37,7 @@ The discipline is borrowed from three things the user already built and trusts: 
 - **Memory sync**: at closeout, git, MemPalace (prose memory), and Graphify (structural map) are updated together so all three agree on one HEAD.
 - **Cold-context verify**: a verifier spawned with only the diff, the spec, and the rubric. It cannot inherit the optimism of the code it judges.
 - **Two-signal rule**: a finding or a claim is a hypothesis until a second, independent signal confirms it.
+- **Attribution record**: the running list of the open-source projects and skills a build uses, each credited in CREDITS with its author, license, and link.
 
 ## 4. Pipeline backbone
 
@@ -177,6 +178,7 @@ Eidolon generates and wires these, neutral-named. Advisory hooks inject context;
 | append-only record guard | PreToolUse (Write, Edit) | Reminds on a shrinking edit to any of the three logs; blocks silent deletion. |
 | deletion guard | PreToolUse | Walls outright deletion of the records. |
 | conduct guard | PreToolUse | Trips on deferring-doable-work, stub-instead-of-fix, and unverified-claim language. |
+| persona-conduct guard | PreToolUse | Checks a seated persona's action against its own declared anti-behaviors (Section 19); halts and names the persona and the line it crossed. |
 | commit-quality guard | PreToolUse (Bash) | Blocks `--no-verify`, `--force`, history surgery to dodge a hook. |
 | hook-integrity guard | PreToolUse | Blocks disabling, moving, or chmod of any hook, or changing the hooks path. |
 | drift guard | PreToolUse | Counts consecutive scaffold-only actions, resets on real deliverable work, blocks at the wall and points back to the file tree. |
@@ -192,6 +194,8 @@ The pipeline is tiered to the change so the cure does not become its own drift.
 - **High-risk or broad (auth, payments, PII, public surface):** full fan-out, larger swarms, the full antibehavior pass, escalation to independent review where the trust tree says so.
 
 The orchestrator picks the tier at PLAN and states it. A tier is a checkpoint decision the user can override.
+
+Each tier also carries a stated cost ceiling: an upper bound on the number of subagents and the token budget for the run, set at PLAN and shown to the user. When a run approaches its ceiling, Eidolon pauses and asks whether to raise it or narrow scope, rather than spending without limit. The ceiling is what keeps the swarm from becoming its own runaway cost.
 
 ## 13. Encoding and output discipline
 
@@ -332,6 +336,8 @@ Real scanners, not described checks. Two tools (Trivy, Checkov) each span severa
 - **Supply chain:** OpenSSF Scorecard and syft (SBOM generation).
 
 **License isolation rule.** trufflehog is AGPL-3.0 and Brakeman is dual-licensed. Both are invoked as isolated subprocesses, never linked into the swarm, consistent with the project's existing AGPL subprocess rule. Brakeman's terms are checked before any commercial use.
+
+**Static always, dynamic only with a target.** The static tools (SAST, secret scanning, SCA, IaC, supply chain) run against the working tree and always apply. The dynamic tools (OWASP ZAP, nuclei) need a running, reachable application, so the dynamic pass runs only when the build has a deployed target to point at. When there is no target, the red swarm records the dynamic categories as not-run in the coverage manifest rather than skipping them silently.
 
 ### Anti-handwave enforcement (how you stay certain it ran)
 
@@ -499,3 +505,27 @@ The rules: it is always opt-in, so a person who does not want quizzing is never 
 ### Where it sits
 
 Explain Mode wraps the whole pipeline. Every gate (Sections 4, 8, 17, 18, 19) carries the explain affordance and the comprehension check, so a user is never carried past a step they did not understand. A checkpoint is not just "approve or not," it is "do you understand this well enough to approve."
+
+---
+
+## 21. v1 scope: the first buildable slice
+
+This document describes the full system. v1 is a thin slice that proves the spine, with everything else sequenced behind it. This is frozen before building, so the design does not sprawl past what one slice can prove.
+
+**In v1:**
+
+- Setup's Interview Mode, the familiarity calibration, and the `session.yaml` handoff.
+- The spec-driven pipeline skeleton: Specify, Plan, Build, Verify, Close, with the cold-context verifier, the bounded fix loop, and the two human gates.
+- Exactly one review swarm: security (red and blue), because it is the differentiator, with its coverage manifest, its seeded-defect fire drill, and the five anti-handwave gates (Section 18).
+- Explain Mode: the explain affordance, the comprehension check, and the favorite-teacher disposition.
+- A minimal hook suite: the verification guard, the commit-quality guard, and the append-only record guard.
+
+**Deferred to v2 and beyond:**
+
+- The other swarms (engineering, trust-and-safety, code-review, and ship-and-upload as distinct swarms) and the full base persona roster.
+- Expert hiring and per-persona generation.
+- find-skills reach beyond the installed set.
+- The full antibehavior catalog and the complete hook suite.
+- Cross-session swarms and the higher scaling tiers.
+
+**v1 is done when:** a canary run on a small real change produces a spec, builds it, the security swarm catches a seeded defect at the right `file:line`, the fix loop bounds at three, Explain Mode answers a "what does this mean" with a verified explanation, and Close commits with a decision-log entry. That is the proof the spine works. Everything else layers onto a thing that already runs.
