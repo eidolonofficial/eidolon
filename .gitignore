@@ -34,5 +34,8 @@ graphify-out/
 # Logs
 *.log
 
-# Eidolon runtime state (which persona is seated; transient, not committed)
+# Eidolon runtime state (transient, not committed)
 .claude/active-persona.json
+.claude/.drift-count
+.claude/.session-state
+.claude/.memory-synced-head

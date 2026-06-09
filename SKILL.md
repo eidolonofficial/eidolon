@@ -364,6 +364,13 @@ expert_hiring:   references/expert-hiring.md - when recon finds a need the base 
                  anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire.
 find_skills:     references/find-skills-reach.md - pull an installable skill for a named
                  capability gap; consent before install, verify before trust.
+antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplicated drift
+                 catalog (section 10); each row names its owning stage and enforcing hook.
+hook_suite:      hooks/README.md - the full governance hook suite (section 11): the
+                 verification, commit-quality, append-only, persona-conduct, hook-integrity,
+                 deletion, protected-paths, visual-evidence, conduct, and drift guards.
+scaling:         references/scaling.md - the three risk tiers, the cost ceiling, and the
+                 in-session vs cross-session decision (section 12).
 ```
 
 ### What you must do in build mode
