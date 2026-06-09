@@ -395,9 +395,23 @@ Anti-behaviors nest with the rest, so drift is caught at every granularity:
 - each swarm's anti-handwave hardening (Section 17),
 - each persona's own anti-behaviors, base or hired.
 
-### Status
+### The base roster
 
-The base roster, and the exact field shape of the construction template, are reconciled against a set of existing hand-built personas (generalized, no source named). The mechanism above is fixed; the base roster content folds in once that reconciliation completes.
+The standing team, generalized from existing hand-built personas (no source named) into reusable review and build roles, mapped to the swarms. Each is fully built from the construction template above; what follows is the role and its one-line mandate. Eidolon seats them by the tier of the change.
+
+- **Engineering:** a backend and data engineer (data models, services, and the integrity of what is stored and moved); a frontend engineer (the interface, its state, and how it renders); a full-stack engineer (the elegant minimal change across the seam, allergic to both laziness and over-engineering); an interaction and UX designer (the flow a person actually moves through); an information architect (how things are named, organized, and found); a developer-experience engineer (the ergonomics of working in the codebase).
+- **Solutions architect:** a tech lead and codebase architect (module boundaries, dependency direction, decision records); a sprint architect and planner (the dependency-ordered plan, and what ships in what order).
+- **Red team:** a security architect (attack surface, threat model, fail-closed defaults, blast radius); an adversarial reviewer (breaks the work the way a real attacker would, including prompt-injection and abuse of the build itself); a reconnaissance reviewer (maps what the codebase exposes and where an attacker would start).
+- **Blue team:** a security and compliance engineer (hardening, attestation, key custody, and the regulatory floor for the codebase's domain).
+- **Trust and safety:** a trust-and-safety and accessibility architect (the person on the steepest gradient is the design floor; names who is excluded and defends the most vulnerable user).
+- **Code review:** a QA and test lead (behavior coverage, the seams between components, and proof the suite actually guards behavior).
+- **Ship and upload:** a devops and release engineer (build, deploy, rollback, and the readiness gates); a documentation architect (the docs a newcomer needs to understand and run it).
+
+### The oversight layer
+
+Over the roster sits a process-and-verification discipline, not another domain seat. It verifies that each persona's work cleared its own gate, applies a simplify-and-reduce pass (is there a smaller, simpler form that does the same work), and coaches toward one growth edge rather than a pile of criticism. It never overrides a persona's domain call, never ranks personas against each other, and never manipulates. It is the orchestrator's own discipline, and it runs both ways: a persona can flag the oversight layer drifting, and that flag is recorded. This is how the roster stays a team rather than a stack of critics.
+
+Every persona, base or hired, also carries the engineering disposition: no laziness (root cause, not a symptom patch), no over-engineering (the smallest change that genuinely solves it), and a bias for the elegant solution, with a mandatory pause on non-trivial work to ask whether a simpler form exists.
 
 ---
 
