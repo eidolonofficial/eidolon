@@ -349,7 +349,8 @@ personas:        references/persona-template.md - the ten-part construction temp
 engineering_swarm: references/engineering-swarm.md - builds against the spec, TDD per task,
                  with the seeded-failing-test fire drill and the no-stub closeout gate.
 conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona against its own
-                 declared anti-behaviors (.claude/active-persona.json); halts and names the line.
+                 declared anti-behaviors (.claude/active-persona.json) and enforces the rail at
+                 the seat boundary (teeth but no anchor does not get to act); halts and names the line.
 trust_safety_swarm: references/trust-safety-swarm.md - harm, abuse, privacy/PII, a11y, fairness
                  (GDPR, CCPA, WCAG 2.2); the seeded-PII fire drill and the coverage manifest.
 code_review_swarm: references/code-review-swarm.md - behavior-preserving only; a behavior change
@@ -395,7 +396,8 @@ process_doctrine: references/process-doctrine.md - the learned operating rules (
    gated at this checkpoint; the anti-synthetic rail rejects an ungrounded hire).
    Stop at gate 2 on standard or larger work.
 4. BUILD: dispatch the engineering swarm and seat its persona (write the persona's
-   anti-behaviors to `.claude/active-persona.json` so the conduct guard enforces them).
+   anchors and anti-behaviors to `.claude/active-persona.json`; the conduct guard enforces
+   the anti-behaviors and refuses to act for a seat that names no anchor: no anchor, no seat).
    One task at a time, test first (the test red before the change, green after),
    against the spec. No scope drift; new ideas go to the work queue, never the live diff.
 5. REVIEW: by tier, run the security swarm (red finds, blue hardens), the

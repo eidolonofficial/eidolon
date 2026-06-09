@@ -80,7 +80,9 @@ append-only-record-guard:
   shrink a record > 50%:   block (exit 2)
   shrink a record:         advise (exit 0)
 persona-conduct-guard:     block (exit 2) - a seated persona crossed its own declared
-                           anti-behavior; a no-op (exit 0) when no persona is seated
+                           anti-behavior, or was seated with anti-behaviors but no
+                           framework anchor (no anchor, no seat); a no-op (exit 0) when
+                           no persona is seated or the seat declares no anti-behaviors
 hook-integrity-guard:      block (exit 2) - disable / move / chmod a hook, or change the hooks path
 deletion-guard:            block (exit 2) - rm / del of an append-only record
 protected-paths-guard:     block (exit 2) - a destructive op on a protected path
@@ -106,10 +108,17 @@ decision, never a silent overwrite.
 
 The persona-conduct guard reads the seated persona from `.claude/active-persona.json`,
 which Eidolon writes when it seats a persona for a task and clears when it unseats
-it. The file carries the persona's id, title, and its two anti-behavior layers
-(the shared destructive floor and the persona-specific list). The guard enforces
+it. The file carries the persona's id, title, its framework anchors, and its two
+anti-behavior layers (the shared destructive floor and the persona-specific list). The guard enforces
 only the anti-behaviors a single tool action can reveal (a shipped stub, a
 destructive op, history surgery, a hook bypass); the process-level ones
 (skip-test-first, over-engineer, leave-failing-build) are caught by the
-engineering swarm's closeout gate and the cold-context verifier. This file is
-transient runtime state and is git-ignored, never committed.
+engineering swarm's closeout gate and the cold-context verifier.
+
+Before any of that, the guard enforces the anti-synthetic rail at the seat boundary: a
+persona seated with anti-behaviors but no framework anchor is the synthetic persona the
+rail forbids, so the guard blocks every governed action until the seat is anchored or
+unseated (no anchor, no seat). The anchor is also enforced on persona definition files
+(scripts/persona-lint.mjs) and at hire time; this gate closes the seat boundary so the
+rail holds there too. This file is transient runtime state and is git-ignored, never
+committed.
