@@ -222,7 +222,7 @@ The orchestrator picks the tier at PLAN and states it. A tier is a checkpoint de
 
 ## 16. Swarm skill loadout
 
-Each swarm carries a named toolkit. Installed skills come first, then Addy Osmani's public repos that strengthen a swarm, with license and attribution.
+Each swarm carries a named toolkit. Installed skills come first, then public open-source repos that strengthen a swarm, with license and attribution.
 
 ### Correction on the multi- skills (verified)
 
@@ -245,16 +245,16 @@ They are not blue-team tools. Blue team is bolstered with real defense instead.
 - **Solutions architect**: architect / code-architect, planning-and-task-breakdown, multi-plan, documentation-and-adrs, graphify, mempalace, what-if-oracle, consciousness-council.
 - **Setup Interview Mode**: brainstorming, prompting-partnership, request-refactor-plan, spec-driven-development.
 
-### Addy Osmani fold-ins (verified URLs and licenses)
+### Open-source skills and tools (verified, with attribution)
 
-The pattern grows from his agent-skills harness, so folding his public work in is natural. Permissive repos are foldable with attribution; one is reference-only.
+These public repos strengthen specific swarms, with a lifecycle agent-skills harness as the structural reference the pattern grows from. Permissive ones are usable with attribution; one is reference-only. The named list, with authors, licenses, and links, lives in the repo's CREDITS, not threaded through the spec.
 
-- **agent-skills** (MIT) https://github.com/addyosmani/agent-skills. Lifecycle commands (/spec /plan /build /test /review /code-simplify /ship) and three personas: code-reviewer, test-engineer, security-auditor. The personas map onto the swarms directly, and the security-auditor feeds red and blue. Structural reference for the whole pipeline. Strengthens: engineering, code-review, red, blue, ship.
-- **web-quality-skills** (MIT) https://github.com/addyosmani/web-quality-skills. Skills over 150-plus Lighthouse audits plus Core Web Vitals (performance, a11y, SEO, best practices). Strengthens: ship-and-upload, code-review; the a11y audits feed trust-and-safety.
-- **agent-engineer** (Apache-2.0) https://github.com/addyosmani/agent-engineer. AI-agents engineering course. Strengthens: engineering (reference).
-- **learning-jsdp** (MIT) https://github.com/addyosmani/learning-jsdp. Current design-pattern examples. Strengthens: solutions architect.
-- **essential-js-design-patterns** (CC BY-NC-ND) https://github.com/addyosmani/essential-js-design-patterns. The book source. Reference only: non-commercial, no-derivatives, so it is read, never adapted or redistributed. Strengthens: solutions architect (reference).
-- Engineering performance toolkit: **critical** (Apache-2.0), **squish** (MIT), **timing.js** (MIT), **tmi** (Apache-2.0), **puppeteer-webperf** (Apache-2.0). Noted but low value: **psi** (archived), **webpack-lighthouse-plugin** (deprecated). **loadCSS** (MIT) is a fork. **quicklink** (Apache-2.0) is GoogleChromeLabs-owned and folds from that org, not his account.
+By capability, and which swarm each strengthens:
+
+- A lifecycle agent-skills harness (the structural reference for the pipeline) with reviewer, test-engineer, and security-auditor personas: engineering, code-review, red, blue, ship.
+- A web-quality skill set over 150-plus Lighthouse audits and Core Web Vitals: ship-and-upload and code-review, and its accessibility audits feed trust-and-safety.
+- Design-pattern references for the solutions architect (one is reference-only: non-commercial, no-derivatives, so read, never adapted).
+- A web-performance toolkit (critical-path CSS, image compression, timing instrumentation) for engineering, with archived or deprecated entries flagged and not used for new work.
 
 ### Attribution and licensing discipline
 
