@@ -1,6 +1,6 @@
 ---
 name: eidolon
-description: Sets up a project so Claude Code understands it from the first message. Eidolon reads your repo, works out which languages and tools you use, and writes the files Claude needs to work well: a CLAUDE.md, helper skills and slash commands, sub-agents, safety hooks, MCP setup, and the memory wiring (a written memory store plus a code map). Use this whenever someone wants to set up, configure, or get a repo ready for Claude Code, even if they do not say the word eidolon.
+description: Sets up a project so Claude Code understands it from the first message, and runs a spec-driven build pipeline for real work on it. In setup mode Eidolon reads your repo, works out which languages and tools you use, and writes the files Claude needs to work well: a CLAUDE.md, helper skills and slash commands, sub-agents, safety hooks, MCP setup, and the memory wiring (a written memory store plus a code map). In build mode it carries a work item from a spec through plan, build, a security review swarm, a cold-context verify, and a committed close, with human gates along the way. Use this whenever someone wants to set up, configure, or get a repo ready for Claude Code, or to build, change, or fix something in it, even if they do not say the word eidolon.
 trigger: /eidolon
 ---
 
@@ -51,6 +51,20 @@ pairing:                                                # ai-pairing-playbook is
   tells:  structural-izable drift-tells → hooks (Stage 6); judgment/comms tells → partner-notes doc
   lanes:  name the playbook's lane (mechanical|judgment|closure) at each checkpoint
 ```
+
+## Modes
+
+Eidolon runs in one of two modes. Pick by what was asked; state which at the top.
+
+```yaml
+setup:  no work item, or "set up / configure this repo"  ->  run the ten stages below (install the room)
+build:  a work item to build, change, or fix             ->  run the Build pipeline (work in the room)
+```
+
+Setup installs the environment once. Build runs each time there is real work.
+Build's SPECIFY stage reuses Setup's recon and Interview Mode; it does not
+re-install. If both apply (a fresh repo plus a first work item), run setup, then
+build.
 
 ## What You Must Do When Invoked
 
@@ -258,3 +272,89 @@ logs:
 
 Print a final summary: artifacts written, anything left AMBIGUOUS, next action.
 Do not declare done while any AMBIGUOUS item is unresolved.
+
+---
+
+## Build pipeline (spec-driven mode)
+
+The staged line from a work item to a committed change. Each arrow is a gate
+where a human can approve, edit, or stop. Only CLOSE commits; everything before
+it lives in the working tree, so the rollback for a bad run is the pre-run git
+state, stated before CLOSE runs.
+
+```
+  work item
+    ->  SPECIFY   (reuse Stage 1 recon + Setup Interview Mode)   ->  the spec
+        [gate 1: approve the spec before any tokens burn]
+    ->  PLAN      (components, order, risk tier, cost ceiling)   ->  the plan
+        [gate 2: approve the plan on standard or larger work]
+    ->  BUILD     (build against the spec, one task at a time, test first)
+    ->  REVIEW    (security swarm: red finds, blue hardens)      ->  findings
+    ->  VERIFY    (cold-context: rubric + independent second signal) ->  PASS | red
+        red and under three tries  ->  FIX (bounded); 3rd red  ->  re-plan, do not re-fix
+        [gate 3: visual or runtime check; the user is the final eyes]
+    ->  CLOSE     (commit of record + decision-log entry + memory sync)
+```
+
+### The load-bearing rules
+
+```yaml
+# why: these four are the spine; everything else is detail layered on them
+cold_context:        VERIFY is spawned with only the diff, the spec, and the rubric.
+                     It cannot inherit BUILD's reasoning; it re-derives PASS or red itself.
+fix_loop:            bounded at three. A third red means the plan was wrong: re-plan,
+                     do not grind fixes. If the re-plan also fails, surface the open
+                     findings to the user. Never exhaust the loop and ship.
+only_close_commits:  nothing commits before CLOSE. State the pre-run git SHA as the
+                     rollback path before CLOSE runs.
+human_gates:         gate 1 (approve the spec) and gate 3 (visual/runtime) are required;
+                     gate 2 (approve the plan) is required on standard or larger work.
+surface_one:         findings are surfaced one at a time via AskUserQuestion, never a
+                     typed menu, each with a liability line (who is harmed if wrong).
+```
+
+### Tier and cost ceiling (picked at PLAN, shown to the user)
+
+```yaml
+# why: scale the pipeline to the change so the cure does not become its own drift
+trivial:    one file, no new surface              ->  BUILD + VERIFY only; no security swarm
+standard:   a feature or surface change           ->  add the security swarm at small fan-out
+high_risk:  auth / payments / PII / public surface ->  full fan-out, full antibehavior pass,
+                                                       escalate to independent review where the trust tree says so
+ceiling:    each tier states a max subagent count and token budget at PLAN.
+            on approach, pause and ask: raise the ceiling or narrow scope. never spend without limit.
+```
+
+### Governance (referenced, not restated here)
+
+```yaml
+decision_tree:   docs/spec design § 8 - severity = base x blast radius; two signals or it is
+                 not a finding; HIGH/CRITICAL need root cause; bypass double-gated; a circuit
+                 breaker halts a run when most of four-plus findings are bypassed.
+uncertainty:     docs/spec design § 9 - subagents return literal evidence (file excerpt, tool
+                 output, URL + response), never "I checked"; the orchestrator inspects that
+                 evidence itself and names the second signal; hedged language is refused.
+security_swarm:  references/security-swarm.md - red/blue methodology, the coverage manifest,
+                 the seeded-defect fire drill, the five anti-handwave gates.
+explain_mode:    references/explain-mode.md - plain-language teaching, comprehension checks,
+                 the favorite-teacher disposition; available at every stage on request.
+```
+
+### What you must do in build mode
+
+1. Confirm the mode out loud and state the pre-run git SHA as the rollback path.
+2. SPECIFY: reuse recon (Stage 1) and Setup Interview Mode; write the six core
+   areas and `.claude/session.yaml`. Stop at gate 1 for approval.
+3. PLAN: name the tier and the cost ceiling; split into dependency-ordered tasks,
+   each with an acceptance check and a verify step. Stop at gate 2 on standard or
+   larger work.
+4. BUILD: one task at a time, test first, against the spec. No scope drift; new
+   ideas go to the work queue, never the live diff.
+5. REVIEW: run the security swarm when the tier calls for it. Each red finding
+   becomes a blue hardening task, closed only when its post-fix verify passes.
+6. VERIFY: spawn the cold-context verifier with only the diff, spec, and rubric.
+   Red under three tries enters the bounded fix loop; a third red re-plans.
+7. Gate 3: hand the visual or runtime result to the user as the final eyes. A
+   screenshot proves the render happened, not that it is right.
+8. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
+   Do not declare done while any finding is unverified or any AMBIGUOUS stands.
