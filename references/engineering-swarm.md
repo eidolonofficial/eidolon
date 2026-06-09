@@ -3,7 +3,10 @@
 The swarm that builds, so BUILD is a disciplined crew instead of a generic stage.
 It builds against the spec one task at a time, a test written first per task, and
 it is staffed by engineering personas constructed from the persona template
-(references/persona-template.md). Slice 1 seats one: the full-stack engineer.
+(references/persona-template.md). The swarm carries six, each seated by the tier
+and surface of the change: full-stack engineer, backend and data engineer,
+frontend engineer, interaction and UX designer, information architect, and
+developer-experience engineer.
 
 Like every swarm, it follows the two-signal rule, returns literal evidence (never
 "I built it and it works"), and every claim carries `file:line`, what was checked,
