@@ -51,6 +51,9 @@ deferred:   cross-session swarms (each swarm in its own session for genuinely
 decision:   resolved for now as in-session with a cold-context verifier; the
             cross-session graduation is confirmed per run when the risk tier and the
             cost ceiling justify the extra isolation.
+mechanism:  the handoff is a self-contained verify packet (scripts/verify-packet.mjs):
+            the diff, the spec, the rubric, and a content-hashed manifest. A cold
+            session verifies from that packet alone (references/cross-session.md).
 ```
 
 ## How scaling composes with the rest

@@ -371,6 +371,9 @@ hook_suite:      hooks/README.md - the full governance hook suite (section 11): 
                  deletion, protected-paths, visual-evidence, conduct, and drift guards.
 scaling:         references/scaling.md - the three risk tiers, the cost ceiling, and the
                  in-session vs cross-session decision (section 12).
+cross_session:   references/cross-session.md - the higher isolation tier: a separate session
+                 verifies from a self-contained packet (scripts/verify-packet.mjs), graduated
+                 per run on high-risk work.
 ```
 
 ### What you must do in build mode
@@ -395,7 +398,9 @@ scaling:         references/scaling.md - the three risk tiers, the cost ceiling,
    logs in one pass and produces one ordered disposition table; no finding is
    dropped. The plan it commits to is gated before continuing.
 7. VERIFY: spawn the cold-context verifier with only the diff, spec, and rubric.
-   Red under three tries enters the bounded fix loop; a third red re-plans.
+   On a high-risk graduated run, assemble a verify packet (scripts/verify-packet.mjs)
+   and verify in a separate session (references/cross-session.md). Red under three
+   tries enters the bounded fix loop; a third red re-plans.
 8. Gate 3: hand the visual or runtime result to the user as the final eyes. A
    screenshot proves the render happened, not that it is right.
 9. SHIP (when the change deploys): the ship-and-upload swarm runs a deploy-readiness

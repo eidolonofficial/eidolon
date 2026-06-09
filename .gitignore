@@ -39,3 +39,7 @@ graphify-out/
 .claude/.drift-count
 .claude/.session-state
 .claude/.memory-synced-head
+
+# Transient cold-context verify packets
+verify-packet/
+.firedrill-packet/
