@@ -25,6 +25,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { runHook, touchesHookSuite } from "./lib.mjs";
 
 const CODE = /\.(mjs|cjs|js|jsx|ts|tsx|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift)$/i;
 
@@ -42,8 +43,15 @@ const DETECTORS = {
   },
   "disable-or-route-around-hook": (name, ti) => {
     if (name !== "Bash") return null;
-    const m = firstMatch(/core\.hooksPath\s*=|chmod\s+[0-7+rwx-]+\s+\S*hooks\b|\b(mv|rm)\b\s+\S*hooks\//i, ti.command || "");
-    return m ? m.text : null;
+    const cmd = String(ti.command || "");
+    const m = firstMatch(/core\.hooksPath\s*=|git\s+config\b[^|;&\n]*hooksPath/i, cmd);
+    if (m) return m.text;
+    // flags between the verb and the path must not hide the target (rm -rf hooks)
+    if (/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && touchesHookSuite(cmd)) {
+      const verb = firstMatch(/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i, cmd);
+      return verb.text + " on the hook suite";
+    }
+    return null;
   },
   "rewrite-history-to-dodge-gate": (name, ti) => {
     if (name !== "Bash") return null;
@@ -114,13 +122,7 @@ export function evaluateSeat(seat, toolName, toolInput) {
 // Hook entry (only when this module is the entry point, never when imported by a test).
 const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("persona-conduct-guard.mjs");
 if (invokedDirectly) {
-  let raw = "";
-  process.stdin.on("data", (c) => (raw += c));
-  process.stdin.on("end", () => {
-    let j;
-    try { j = JSON.parse((raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw).trim()); }
-    catch { process.exit(0); }
-
+  runHook((j) => {
     const cwd = String(j.cwd || process.cwd());
     const seatFile = join(cwd, ".claude", "active-persona.json");
     if (!existsSync(seatFile)) process.exit(0); // no persona seated, nothing to enforce

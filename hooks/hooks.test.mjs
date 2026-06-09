@@ -1,0 +1,376 @@
+// hooks/hooks.test.mjs
+//
+// End-to-end tests for the Eidolon hook suite. Each guard is exercised the way
+// Claude Code runs it: a child process with the hook JSON on stdin, asserting
+// the exit code (0 allow / advise, 2 block) and the block/advise output.
+// Stateful guards get throwaway temp dirs; the visual-evidence gate gets a
+// throwaway git repo. The regression cases each name the bug they pin.
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync, execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { GIT_COMMIT, commitMessageOf, withoutMessage, touchesHookSuite } from "./lib.mjs";
+
+const HOOKS = dirname(fileURLToPath(import.meta.url));
+
+function run(hook, payload) {
+  return spawnSync(process.execPath, [join(HOOKS, hook)], {
+    input: typeof payload === "string" ? payload : JSON.stringify(payload),
+    encoding: "utf8",
+  });
+}
+const bash = (command, cwd) => ({ tool_name: "Bash", tool_input: { command }, ...(cwd ? { cwd } : {}) });
+const blocked = (r, label) => {
+  assert.equal(r.status, 2, "expected a block, got exit " + r.status + "\nstderr: " + r.stderr);
+  assert.match(r.stderr, new RegExp(label));
+};
+const allowed = (r) => assert.equal(r.status, 0, "expected allow, got exit " + r.status + "\nstderr: " + r.stderr);
+const advised = (r, label) => {
+  allowed(r);
+  const out = JSON.parse(r.stdout);
+  assert.match(out.systemMessage, new RegExp(label));
+  assert.match(out.hookSpecificOutput.additionalContext, new RegExp(label));
+};
+const silent = (r) => { allowed(r); assert.equal(r.stdout, ""); };
+const tmp = () => mkdtempSync(join(tmpdir(), "eidolon-hooks-"));
+
+// ---------------------------------------------------------------- lib.mjs
+
+test("lib: GIT_COMMIT catches the real invocations and ignores mere substrings", () => {
+  assert.ok(GIT_COMMIT.test('git commit -m "x"'));
+  assert.ok(GIT_COMMIT.test('git -C /some/repo commit -m "x"'), "the -C spelling is a commit");
+  assert.ok(GIT_COMMIT.test('GIT_AUTHOR_NAME=x git commit -m "x"'));
+  assert.ok(GIT_COMMIT.test('cd repo && git commit -m "x"'));
+  assert.ok(!GIT_COMMIT.test('echo "git commit is a command"'));
+  assert.ok(!GIT_COMMIT.test("git log && echo done"));
+});
+
+test("lib: commitMessageOf joins every -m paragraph and reads combined/long forms", () => {
+  assert.equal(commitMessageOf("git commit -m 'one'"), "one");
+  assert.equal(commitMessageOf("git commit -m 'one' -m 'two'"), "one\n\ntwo", "a second -m paragraph must not be dropped");
+  assert.equal(commitMessageOf('git commit -am "all"'), "all");
+  assert.equal(commitMessageOf('git commit --message="long"'), "long");
+  assert.match(commitMessageOf("git commit"), /git commit/, "no message flag: fall back to the whole command");
+});
+
+test("lib: withoutMessage strips the quoted message but keeps the flags", () => {
+  const s = withoutMessage("git commit -n -m 'do not use --no-verify'");
+  assert.ok(!s.includes("--no-verify"));
+  assert.ok(/-n\b/.test(s));
+});
+
+test("lib: touchesHookSuite means the governance suite, not application hooks dirs", () => {
+  assert.ok(touchesHookSuite("rm -rf hooks"), "the bare hooks dir is the suite");
+  assert.ok(touchesHookSuite("mv hooks hooks-disabled"));
+  assert.ok(touchesHookSuite("chmod -R 000 ./hooks/"));
+  assert.ok(touchesHookSuite("rm .git/hooks/pre-push"));
+  assert.ok(touchesHookSuite("rm /abs/clone/hooks/drift-guard.mjs"), "a governance hook file by extension, any path");
+  assert.ok(!touchesHookSuite("rm src/hooks/useAuth.ts"), "a React hooks dir is application code");
+  assert.ok(!touchesHookSuite("rm react-hooks.md"));
+  // a bare "hooks" operand always matches - the matcher cannot know it names a
+  // script and not the dir; precision comes from the guards requiring a
+  // destructive verb (see the npm-run case in the hook-integrity tests)
+  assert.ok(touchesHookSuite("npm run hooks"));
+});
+
+// ---------------------------------------------------- verification-guard
+
+test("verification-guard: an unbacked 'works now' claim in a commit is blocked", () => {
+  blocked(run("verification-guard.mjs", bash('git commit -m "dashboard works now"')), "VERIFICATION GUARD");
+});
+
+test("verification-guard: the same claim with named evidence passes", () => {
+  allowed(run("verification-guard.mjs", bash('git commit -m "dashboard works now, evidence: docs/shot.png"')));
+});
+
+test("verification-guard: evidence in a SECOND -m paragraph counts (regression: only the first -m was read)", () => {
+  allowed(run("verification-guard.mjs", bash('git commit -m "dashboard works now" -m "evidence: docs/shot.png"')));
+});
+
+test("verification-guard: the git -C spelling is still a commit (regression)", () => {
+  blocked(run("verification-guard.mjs", bash('git -C /some/repo commit -m "renders correctly"')), "VERIFICATION GUARD");
+});
+
+test("verification-guard: a non-commit command and bad input both pass (fail open)", () => {
+  silent(run("verification-guard.mjs", bash("npm test")));
+  silent(run("verification-guard.mjs", "not json at all"));
+  silent(run("verification-guard.mjs", bash('echo "git commit -m \'works now\'"')));
+});
+
+// --------------------------------------------------- commit-quality-guard
+
+test("commit-quality-guard: --no-verify and its -n short form are blocked on commit", () => {
+  blocked(run("commit-quality-guard.mjs", bash('git commit --no-verify -m "x"')), "COMMIT QUALITY GUARD");
+  blocked(run("commit-quality-guard.mjs", bash('git commit -n -m "x"')), "COMMIT QUALITY GUARD");
+});
+
+test("commit-quality-guard: --no-verify on push is blocked (it skips the pre-push hooks)", () => {
+  blocked(run("commit-quality-guard.mjs", bash("git push --no-verify origin main")), "COMMIT QUALITY GUARD");
+});
+
+test("commit-quality-guard: a flag quoted inside the -m message is not a flag (regression)", () => {
+  allowed(run("commit-quality-guard.mjs", bash("git commit -m 'docs: explain why --no-verify is forbidden'")));
+  allowed(run("commit-quality-guard.mjs", bash("git commit -m 'use -n later for dry runs'")));
+});
+
+test("commit-quality-guard: non-lease force push blocked, lease passes", () => {
+  blocked(run("commit-quality-guard.mjs", bash("git push --force origin main")), "COMMIT QUALITY GUARD");
+  blocked(run("commit-quality-guard.mjs", bash("git push -f")), "COMMIT QUALITY GUARD");
+  allowed(run("commit-quality-guard.mjs", bash("git push --force-with-lease origin main")));
+});
+
+test("commit-quality-guard: hooksPath override blocked in both spellings (regression: space form passed)", () => {
+  blocked(run("commit-quality-guard.mjs", bash("git -c core.hooksPath=/dev/null commit -m x")), "COMMIT QUALITY GUARD");
+  blocked(run("commit-quality-guard.mjs", bash("git config core.hooksPath /tmp/empty")), "COMMIT QUALITY GUARD");
+});
+
+test("commit-quality-guard: history surgery blocked; --no-gpg-sign is signing, not a suite bypass (intent fix)", () => {
+  blocked(run("commit-quality-guard.mjs", bash("git filter-branch --force --all")), "COMMIT QUALITY GUARD");
+  allowed(run("commit-quality-guard.mjs", bash('git commit --no-gpg-sign -m "x"')));
+});
+
+test("commit-quality-guard: a plain commit passes", () => {
+  silent(run("commit-quality-guard.mjs", bash('git commit -m "feat: parser"')));
+});
+
+// ----------------------------------------------- append-only-record-guard
+
+test("append-only-record-guard: empty / halve / shrink / grow on a record", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "docs", "decisions"), { recursive: true });
+  const rec = join(dir, "docs", "decisions", "log.md");
+  writeFileSync(rec, "0123456789"); // 10 bytes
+
+  const w = (content) => run("append-only-record-guard.mjs", { tool_name: "Write", tool_input: { file_path: rec, content }, cwd: dir });
+  blocked(w(""), "APPEND-ONLY RECORD GUARD");           // emptying
+  blocked(w("0123"), "APPEND-ONLY RECORD GUARD");       // more than half gone
+  advised(w("012345678"), "APPEND-ONLY RECORD GUARD");  // shrinking: advise, allow
+  silent(w("0123456789 + appended entry"));             // growing: silent allow
+});
+
+test("append-only-record-guard: a relative record path resolves against the payload cwd (regression)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "docs", "fixes"), { recursive: true });
+  writeFileSync(join(dir, "docs", "fixes", "FIX-x.md"), "a fix record with body");
+  const r = run("append-only-record-guard.mjs", { tool_name: "Write", tool_input: { file_path: "docs/fixes/FIX-x.md", content: "" }, cwd: dir });
+  blocked(r, "APPEND-ONLY RECORD GUARD");
+});
+
+test("append-only-record-guard: emptying an already-empty record is not an emptying (regression)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "docs", "insights"), { recursive: true });
+  const rec = join(dir, "docs", "insights", "INSIGHT-x.md");
+  writeFileSync(rec, "");
+  allowed(run("append-only-record-guard.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "" }, cwd: dir }));
+});
+
+test("append-only-record-guard: Edit that deletes a span blocks; shorter replacement advises", () => {
+  const edit = (old_string, new_string) =>
+    run("append-only-record-guard.mjs", { tool_name: "Edit", tool_input: { file_path: "docs/decisions/log.md", old_string, new_string } });
+  blocked(edit("a recorded decision", ""), "APPEND-ONLY RECORD GUARD");
+  advised(edit("a recorded decision", "decision"), "APPEND-ONLY RECORD GUARD");
+  silent(edit("decision", "decision, expanded"));
+});
+
+test("append-only-record-guard: a non-record file is none of its business", () => {
+  silent(run("append-only-record-guard.mjs", { tool_name: "Write", tool_input: { file_path: "src/app.js", content: "" } }));
+});
+
+// ----------------------------------------------------------- deletion-guard
+
+test("deletion-guard: delete verbs on a record are walled; reads are not", () => {
+  blocked(run("deletion-guard.mjs", bash("rm docs/fixes/FIX-2026-01-01-x.md")), "DELETION GUARD");
+  blocked(run("deletion-guard.mjs", bash("rmdir docs/decisions")), "DELETION GUARD");
+  blocked(run("deletion-guard.mjs", bash("shred DECISIONS.md")), "DELETION GUARD");
+  allowed(run("deletion-guard.mjs", bash("ls docs/fixes")));
+  allowed(run("deletion-guard.mjs", bash("rm /tmp/scratch.md")));
+});
+
+// ----------------------------------------------------- hook-integrity-guard
+
+test("hook-integrity-guard: removing the WHOLE hooks dir is blocked (regression: only files by extension were)", () => {
+  blocked(run("hook-integrity-guard.mjs", bash("rm -rf hooks")), "HOOK INTEGRITY GUARD");
+  blocked(run("hook-integrity-guard.mjs", bash("mv hooks hooks-disabled")), "HOOK INTEGRITY GUARD");
+});
+
+test("hook-integrity-guard: chmod, file moves, and hooksPath changes are blocked", () => {
+  blocked(run("hook-integrity-guard.mjs", bash("chmod -R 000 hooks")), "HOOK INTEGRITY GUARD");
+  blocked(run("hook-integrity-guard.mjs", bash("rm hooks/verification-guard.mjs")), "HOOK INTEGRITY GUARD");
+  blocked(run("hook-integrity-guard.mjs", bash("rm /abs/clone/hooks/drift-guard.mjs")), "HOOK INTEGRITY GUARD");
+  blocked(run("hook-integrity-guard.mjs", bash("git config core.hooksPath /dev/null")), "HOOK INTEGRITY GUARD");
+});
+
+test("hook-integrity-guard: application hooks dirs are not the suite (regression: chmod over-blocked src/hooks)", () => {
+  allowed(run("hook-integrity-guard.mjs", bash("rm src/hooks/useAuth.ts")));
+  allowed(run("hook-integrity-guard.mjs", bash("chmod 644 src/hooks/useAuth.ts")));
+  allowed(run("hook-integrity-guard.mjs", bash("npm run hooks")));
+});
+
+// ---------------------------------------------------- protected-paths-guard
+
+test("protected-paths-guard: destructive ops on protected paths are blocked", () => {
+  blocked(run("protected-paths-guard.mjs", bash("rm -rf .git")), "PROTECTED PATHS GUARD");
+  blocked(run("protected-paths-guard.mjs", bash("truncate -s 0 .claude/settings.json")), "PROTECTED PATHS GUARD");
+  blocked(run("protected-paths-guard.mjs", bash("rm DECISIONS.md")), "PROTECTED PATHS GUARD");
+  blocked(run("protected-paths-guard.mjs", bash("rm -rf hooks")), "PROTECTED PATHS GUARD");
+  blocked(run("protected-paths-guard.mjs", bash("rm references/persona-template.md")), "PROTECTED PATHS GUARD");
+});
+
+test("protected-paths-guard: ordinary destructive work passes", () => {
+  allowed(run("protected-paths-guard.mjs", bash("rm -rf build/")));
+  allowed(run("protected-paths-guard.mjs", bash("rm src/hooks/useAuth.ts")));
+  allowed(run("protected-paths-guard.mjs", bash("git status")));
+});
+
+// --------------------------------------------------- persona-conduct-guard
+// (the seat-boundary unit tests live in persona-conduct-guard.test.mjs; these
+// run the hook end-to-end against a real seat file)
+
+test("persona-conduct-guard: end-to-end seat enforcement", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  const seatFile = join(dir, ".claude", "active-persona.json");
+  const seat = {
+    persona: "fullstack-engineer",
+    title: "Full-stack engineer",
+    anchors: ["TDD"],
+    anti_behaviors: { floor: ["irreversible-without-safety-net", "disable-or-route-around-hook"], specific: [] },
+  };
+
+  writeFileSync(seatFile, JSON.stringify(seat));
+  allowed(run("persona-conduct-guard.mjs", bash("ls -la", dir)));
+  blocked(run("persona-conduct-guard.mjs", bash("rm -rf build", dir)), "irreversible-without-safety-net");
+  // mv carries no rm -rf, so it reaches the hook detector; rm -rf hooks would
+  // (correctly) trip irreversible-without-safety-net first
+  blocked(run("persona-conduct-guard.mjs", bash("mv hooks hooks-bak", dir)), "disable-or-route-around-hook");
+
+  writeFileSync(seatFile, JSON.stringify({ ...seat, anchors: [] }));
+  blocked(run("persona-conduct-guard.mjs", bash("ls", dir)), "no framework anchor");
+
+  rmSync(seatFile);
+  allowed(run("persona-conduct-guard.mjs", bash("rm -rf build", dir)));
+});
+
+// ------------------------------------------------------- visual-evidence-gate
+
+function gitRepo(t) {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const git = (...args) => execFileSync("git", args, { cwd: dir, encoding: "utf8" });
+  git("init", "-q");
+  git("config", "user.email", "test@example.invalid");
+  git("config", "user.name", "Hook Test");
+  git("config", "commit.gpgsign", "false"); // a host-level signing setup must not fail the seed commits
+  return { dir, git };
+}
+
+test("visual-evidence-gate: an already-staged visual with no evidence blocks; named evidence passes", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "shot.png"), "not really a png");
+  git("add", "shot.png");
+  blocked(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+  allowed(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render, user confirmed in review"', dir)));
+});
+
+test("visual-evidence-gate: a visual staged BY the same command is gated (regression: the index check ran too early)", (t) => {
+  const { dir } = gitRepo(t);
+  writeFileSync(join(dir, "shot.png"), "not really a png");
+  blocked(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render"', dir)), "VISUAL EVIDENCE GATE");
+  allowed(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render: screenshot reviewed"', dir)));
+});
+
+test("visual-evidence-gate: commit -am sweeps in a modified tracked visual (regression)", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "logo.svg"), "<svg>v1</svg>");
+  git("add", "logo.svg");
+  git("commit", "-q", "-m", "seed");
+  writeFileSync(join(dir, "logo.svg"), "<svg>v2</svg>");
+  blocked(run("visual-evidence-gate.mjs", bash('git commit -am "tweak logo"', dir)), "VISUAL EVIDENCE GATE");
+});
+
+test("visual-evidence-gate: naming a screenshot AS evidence in -m is not a staged visual", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "parser.js"), "export const x = 1;");
+  git("add", "parser.js");
+  allowed(run("visual-evidence-gate.mjs", bash('git commit -m "fix parser, verified, see docs/shot.png"', dir)));
+});
+
+test("visual-evidence-gate: a text-only commit passes untouched", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "a.txt"), "text");
+  git("add", "a.txt");
+  silent(run("visual-evidence-gate.mjs", bash('git commit -m "add notes"', dir)));
+});
+
+// --------------------------------------------------------------- conduct-guard
+
+test("conduct-guard: drift language advises; clean text is silent", () => {
+  advised(run("conduct-guard.mjs", { tool_name: "Write", tool_input: { file_path: "src/api.mjs", content: "// TODO: implement retry\n" } }), "stub instead of fix");
+  silent(run("conduct-guard.mjs", { tool_name: "Write", tool_input: { file_path: "src/api.mjs", content: "export const retry = () => {};" } }));
+});
+
+test("conduct-guard: META files that enumerate the phrases are never flagged", () => {
+  silent(run("conduct-guard.mjs", { tool_name: "Write", tool_input: { file_path: "hooks/conduct-guard.mjs", content: "TODO: implement" } }));
+  silent(run("conduct-guard.mjs", { tool_name: "Write", tool_input: { file_path: "references/antibehavior-catalog.md", content: "stub it out" } }));
+});
+
+test("conduct-guard: a deferring commit message advises, including the git -C spelling (regression)", () => {
+  advised(run("conduct-guard.mjs", bash("git -C /repo commit -m \"I'll fix this later\"")), "deferring doable work");
+});
+
+// ----------------------------------------------------------------- drift-guard
+
+test("drift-guard: counts scaffold edits, advises at 6, blocks at 10, resets on deliverable work", (t) => {
+  const dir = tmp(); // deliberately no .claude dir: the guard must create it (regression)
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const edit = (file_path) => run("drift-guard.mjs", { tool_name: "Edit", tool_input: { file_path }, cwd: dir });
+
+  for (let i = 1; i <= 5; i++) silent(edit("scripts/setup-" + i + ".sh"));
+  assert.ok(existsSync(join(dir, ".claude", ".drift-count")), "the counter must persist even when .claude did not exist");
+
+  for (let i = 6; i <= 9; i++) advised(edit(".github/workflows/ci-" + i + ".yml"), "DRIFT GUARD");
+  blocked(edit("Makefile"), "DRIFT GUARD");
+
+  silent(edit("src/feature.js")); // deliverable work resets the counter
+  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "0");
+  silent(edit("scripts/again.sh")); // back to 1, far from the warn line
+});
+
+// --------------------------------------------------- session save / restore
+
+test("session-save: writes the snapshot even when .claude does not exist yet (regression)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  allowed(run("session-save.mjs", { cwd: dir, trigger: "auto" }));
+  const state = JSON.parse(readFileSync(join(dir, ".claude", ".session-state"), "utf8"));
+  assert.match(state.saved_before, /PreCompact, auto/);
+  assert.equal(state.cwd, dir);
+});
+
+test("session-restore: replays the saved note as SessionStart context; silent when there is none", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  silent(run("session-restore.mjs", { cwd: dir }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", ".session-state"), '{"stage":"VERIFY"}');
+  const r = run("session-restore.mjs", { cwd: dir });
+  allowed(r);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(out.hookSpecificOutput.additionalContext, /VERIFY/);
+});
+
+test("process-doctrine: injects the doctrine regardless of input", () => {
+  const r = run("process-doctrine.mjs", "");
+  allowed(r);
+  assert.match(JSON.parse(r.stdout).hookSpecificOutput.additionalContext, /process doctrine/);
+});

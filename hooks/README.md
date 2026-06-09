@@ -4,18 +4,21 @@ Neutral-named governance gates. Advisory hooks inject context; hard blocks exit
 non-zero. This is the full suite (design spec section 11), and it enforces the
 unified antibehavior catalog (references/antibehavior-catalog.md, section 10).
 Each hook reads the Claude Code hook JSON on stdin, fails open on bad input, and
-follows the I/O contract proven by the lineage's `uncertainty-guard.mjs`.
+follows the I/O contract proven by the lineage's `uncertainty-guard.mjs`. The
+contract itself (stdin parsing, the git-commit detector, the commit-message
+extractor, block/advise) lives once, in `hooks/lib.mjs`, so the guards cannot
+drift into divergent parsers again.
 
 | Hook | Event | Enforcement |
 |---|---|---|
 | verification-guard | PreToolUse (Bash, `git commit`) | Blocks a commit message that claims a visual or runtime result works without naming evidence. The most insistent guard. |
-| commit-quality-guard | PreToolUse (Bash) | Blocks `--no-verify`, a non-lease `--force` push, `core.hooksPath` override, and `filter-branch` / `filter-repo` history surgery. |
-| append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying one (silent deletion). |
+| commit-quality-guard | PreToolUse (Bash) | Blocks `--no-verify` (and commit's `-n` short form) on commit and push, a non-lease `--force` push, a `core.hooksPath` override, and `filter-branch` / `filter-repo` history surgery. |
+| append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying or more-than-half-shrinking one (silent deletion). |
 | persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. A no-op when none seated. |
-| hook-integrity-guard | PreToolUse (Bash) | Blocks disabling, moving, or chmod of any hook, or changing the hooks path. |
-| deletion-guard | PreToolUse (Bash) | Walls outright `rm` / `del` of an append-only record (fix / insight / decision log). |
+| hook-integrity-guard | PreToolUse (Bash) | Blocks disabling, moving, or chmod of any hook - or of the hooks directory as a whole - or changing the hooks path. |
+| deletion-guard | PreToolUse (Bash) | Walls outright `rm` / `del` of an append-only record (fix / insight / decision log, the root DECISIONS.md). |
 | protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op on a protected path (.git, a record, a hook, settings.json, the persona template). |
-| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Blocks a commit that stages a visual file without naming evidence it was looked at. |
+| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Blocks a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. |
 | conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
@@ -34,8 +37,12 @@ permission-rule conditional; it fails open (runs the hook) on an unparseable
 command.
 
 The full wired PreToolUse set is in `.claude/settings.json`: eight Bash guards and
-four Write/Edit guards, all in the same exec form, with `"if": "Bash(git commit *)"`
-on the commit-scoped ones (verification, visual-evidence, conduct). One entry:
+four Write/Edit guards, all in the same exec form, with `"if": "Bash(git *)"` on the
+commit-scoped ones (verification, visual-evidence, conduct). Deliberately `git *`,
+not `git commit *`: a narrower pattern would skip the guard entirely for the
+`git -C <path> commit` and `git -c k=v commit` spellings that the guards' own
+commit detector (lib.mjs `GIT_COMMIT`) is written to catch - the `if` is a cheap
+prefilter, and the hook itself decides what is a commit. One entry:
 
 ```json
 {
@@ -74,7 +81,10 @@ advise:   write { systemMessage, hookSpecificOutput.additionalContext } to stdou
 
 ```yaml
 verification-guard:        block (exit 2) - an unbacked visual/runtime claim in a commit
-commit-quality-guard:      block (exit 2) - a bypass of the suite or history surgery
+commit-quality-guard:      block (exit 2) - a bypass of the suite (--no-verify / -n on
+                           commit or push, a non-lease force push, a hooksPath override)
+                           or history surgery. Flags are read with the -m message spans
+                           stripped, so quoting a flag in a message never trips it.
 append-only-record-guard:
   empty a record:          block (exit 2)
   shrink a record > 50%:   block (exit 2)
@@ -92,6 +102,20 @@ drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaff
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
 memory-sync:               no block - post-commit prose + graph fan-out, resource-guarded (template)
 ```
+
+## Tests
+
+The suite is tested at two levels, both with `node:test`:
+
+```
+node --test 'hooks/*.test.mjs'
+```
+
+`hooks.test.mjs` exercises every guard as Claude Code does - a child process, the
+hook JSON on stdin - and asserts the exit code and the block/advise output, in
+throwaway temp dirs (and a throwaway git repo for the visual-evidence gate).
+`persona-conduct-guard.test.mjs` unit-tests the seat-boundary anchor gate through
+the module's exported functions.
 
 The transient runtime-state files the suite reads or writes are all git-ignored:
 `.claude/active-persona.json` (the seated persona), `.claude/.drift-count` (the

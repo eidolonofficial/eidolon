@@ -4,29 +4,23 @@
 // records (the fix, insight, and decision logs) via a shell command (design spec
 // sections 10, 11). The records never retire, cap, or auto-archive; removal requires
 // an explicit human decision, never a command. (The append-only-record-guard covers
-// Write/Edit; this covers rm/del/Remove-Item.)
+// Write/Edit; this covers the delete verbs.)
 //
-// I/O contract mirrors uncertainty-guard.mjs: fail open; block via stderr + exit 2.
+// I/O contract lives in hooks/lib.mjs: fail open; block via stderr + exit 2.
 
-let raw = "";
-process.stdin.on("data", (c) => (raw += c));
-process.stdin.on("end", () => {
-  let j;
-  try { j = JSON.parse((raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw).trim()); }
-  catch { process.exit(0); }
-  if (j.tool_name && j.tool_name !== "Bash") process.exit(0);
+import { runHook, block } from "./lib.mjs";
+
+const RECORD = /docs[\/\\](fixes|insights|decisions)\b|(^|[\/\\\s'"])DECISIONS?\.md\b/i;
+const DELETE = /\b(rm|rmdir|del|Remove-Item|shred|unlink)\b/i;
+
+runHook((j) => {
+  if (j.tool_name && j.tool_name !== "Bash") return;
   const cmd = String((j.tool_input || {}).command || "");
 
-  const RECORD = /docs[\/\\](fixes|insights|decisions)\b|(^|[\/\\\s'"])DECISIONS?\.md\b/i;
-  const DELETE = /\b(rm|del|Remove-Item)\b/i;
-
   if (DELETE.test(cmd) && RECORD.test(cmd)) {
-    process.stderr.write(
-      "DELETION GUARD [BLOCKED - fix and retry]: this deletes an append-only record " +
-      "(a fix, insight, or decision log).\n" +
+    block("DELETION GUARD",
+      "this deletes an append-only record (a fix, insight, or decision log).\n" +
       "The records never retire, cap, or auto-archive. Removal requires an explicit " +
-      "human decision, never a command.\n");
-    process.exit(2);
+      "human decision, never a command.");
   }
-  process.exit(0);
 });

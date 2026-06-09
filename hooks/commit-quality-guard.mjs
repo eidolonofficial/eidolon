@@ -4,35 +4,33 @@
 // suite or rewrite history to hide it (design spec sections 10, 11). A wrong gate
 // gets fixed in the open, not quietly routed around.
 //
-// Wire under PreToolUse matcher "Bash". I/O contract mirrors uncertainty-guard.mjs:
+// Blocks: --no-verify (and commit's -n short form) on commit and push, a
+// non-lease --force push, a core.hooksPath override, and filter-branch /
+// filter-repo history surgery. Flag scanning runs on the command with its -m
+// message spans stripped, so quoting a flag in a commit message never trips it.
+//
+// Wire under PreToolUse matcher "Bash". I/O contract lives in hooks/lib.mjs:
 // fail open on bad input; block via stderr + exit 2.
 
-let raw = "";
-process.stdin.on("data", (c) => (raw += c));
-process.stdin.on("end", () => {
-  let j;
-  try { j = JSON.parse((raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw).trim()); }
-  catch { process.exit(0); }
+import { runHook, withoutMessage, block } from "./lib.mjs";
 
-  const ti = (j && j.tool_input) || {};
-  const cmd = String(ti.command || "");
-  if ((j.tool_name && j.tool_name !== "Bash") || !/\bgit\b/.test(cmd)) process.exit(0);
+runHook((j) => {
+  const cmd = String((j.tool_input || {}).command || "");
+  if ((j.tool_name && j.tool_name !== "Bash") || !/\bgit\b/.test(cmd)) return;
 
-  const block = (why) => {
-    process.stderr.write("COMMIT QUALITY GUARD [BLOCKED - fix and retry]: " + why + "\n");
-    process.exit(2);
-  };
+  // flags live outside the quoted message; [^|;&\n]* keeps each check inside
+  // one subcommand so a flag in a later `echo` does not blame the commit
+  const flags = withoutMessage(cmd);
+  const B = (why) => block("COMMIT QUALITY GUARD", why);
 
-  if (/git\s+commit\b[^]*--no-verify\b/.test(cmd))
-    block("git commit --no-verify skips the hooks. Fix the underlying issue instead of bypassing the gate.");
-  if (/--no-gpg-sign\b/.test(cmd))
-    block("--no-gpg-sign bypasses signing. Do not skip it unless the user explicitly asked.");
-  if (/git\s+push\b[^]*(?:--force\b|\s-f\b)/.test(cmd) && !/--force-with-lease\b/.test(cmd))
-    block("git push --force can clobber remote history. Use --force-with-lease, and only with an independent backup.");
-  if (/core\.hooksPath\s*=/.test(cmd))
-    block("overriding core.hooksPath disables the hook suite. The hooks are not optional.");
-  if (/git\s+(?:filter-branch\b|filter-repo\b)/.test(cmd))
-    block("history surgery (filter-branch / filter-repo) rewrites the record. Do this only in the open, with a backup, when explicitly asked.");
-
-  process.exit(0);
+  if (/git\s+commit\b[^|;&\n]*(?:--no-verify\b|\s-[a-zA-Z]*n\b)/.test(flags))
+    B("git commit --no-verify (-n) skips the hooks. Fix the underlying issue instead of bypassing the gate.");
+  if (/git\s+push\b[^|;&\n]*--no-verify\b/.test(flags))
+    B("git push --no-verify skips the pre-push hooks. Fix the underlying issue instead of bypassing the gate.");
+  if (/git\s+push\b[^|;&\n]*(?:--force\b|\s-f\b)/.test(flags) && !/--force-with-lease\b/.test(flags))
+    B("git push --force can clobber remote history. Use --force-with-lease, and only with an independent backup.");
+  if (/core\.hooksPath\s*=|git\s+config\b[^|;&\n]*core\.hooksPath/i.test(flags))
+    B("overriding core.hooksPath disables the hook suite. The hooks are not optional.");
+  if (/git\s+(?:filter-branch|filter-repo)\b/.test(flags))
+    B("history surgery (filter-branch / filter-repo) rewrites the record. Do this only in the open, with a backup, when explicitly asked.");
 });
