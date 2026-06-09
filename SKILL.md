@@ -374,6 +374,9 @@ scaling:         references/scaling.md - the three risk tiers, the cost ceiling,
 cross_session:   references/cross-session.md - the higher isolation tier: a separate session
                  verifies from a self-contained packet (scripts/verify-packet.mjs), graduated
                  per run on high-risk work.
+process_doctrine: references/process-doctrine.md - the learned operating rules (calibrate
+                 verification to risk; mind background work), surfaced at session start by
+                 hooks/process-doctrine.mjs.
 ```
 
 ### What you must do in build mode

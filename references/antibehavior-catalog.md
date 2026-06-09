@@ -33,6 +33,8 @@ by a swarm's self-proof or the cold-context verifier, not a single hard block.
 | Skill skipping | The trigger table is a contract, not a suggestion. | every stage | advisory (the trigger table) |
 | Resource drift | Every long-lived process pairs with an explicit stop. | every stage | advisory (process-stop pairing) |
 | Exit-code-zero as success | A clean exit proves the command ran; verify the actual state change. | every stage | verification-guard |
+| Over-verification | Match verification weight to risk: a cold-review subagent for risky code, the fast deterministic checks for routine edits; one review pass per unit. | every stage | advisory (process-doctrine) |
+| Unmonitored background work | A launched workflow or task is minded until done or hung (poll plus liveness, intervene); never left running unmonitored. | orchestrator | advisory (process-doctrine + the SessionStart hook) |
 
 ## Conduct rules (the strongest layer)
 

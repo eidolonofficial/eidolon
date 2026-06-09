@@ -20,6 +20,7 @@ follows the I/O contract proven by the lineage's `uncertainty-guard.mjs`.
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
+| process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. Advisory. |
 | memory-sync | git post-commit | Fans out a prose-memory capture and a graph update, resource-guarded (shell template). |
 
 ## Wiring
@@ -50,6 +51,7 @@ on the commit-scoped ones (verification, visual-evidence, conduct). One entry:
 ```yaml
 session-save:    PreCompact event    -> a "PreCompact" key (an event hook, no tool matcher)
 session-restore: SessionStart event  -> a "SessionStart" key
+process-doctrine: SessionStart event -> a "SessionStart" key (advisory; injects the doctrine)
 memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
                  .git/hooks/post-commit and chmod +x, or point the harness at it
 ```
