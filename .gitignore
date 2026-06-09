@@ -29,7 +29,7 @@ npm-debug.log*
 
 # Graphify / build artifacts
 graphify-out/
-.graphify_cache/
+.graphify_*
 
 # Logs
 *.log
