@@ -294,6 +294,7 @@ state, stated before CLOSE runs.
     ->  VERIFY    (cold-context: rubric + independent second signal) ->  PASS | red
         red and under three tries  ->  FIX (bounded); 3rd red  ->  re-plan, do not re-fix
         [gate 3: visual or runtime check; the user is the final eyes]
+    ->  SHIP      (ship-and-upload: deploy-readiness interview, then deploy)   # when the change deploys
     ->  CLOSE     (commit of record + decision-log entry + memory sync)
 ```
 
@@ -324,6 +325,7 @@ standard:   a feature or surface change           ->  add security, trust-and-sa
                                                        code-review swarms at small fan-out, plus the architect
 high_risk:  auth / payments / PII / public surface ->  full fan-out, full antibehavior pass,
                                                        escalate to independent review where the trust tree says so
+# SHIP is a stage (see the pipeline diagram and step 9), not a risk tier: it runs whenever the change deploys
 ceiling:    each tier states a max subagent count and token budget at PLAN.
             on approach, pause and ask: raise the ceiling or narrow scope. never spend without limit.
 ```
@@ -354,6 +356,9 @@ code_review_swarm: references/code-review-swarm.md - behavior-preserving only; a
                  is a finding for engineering; the suite-guards-behavior fire drill.
 architect_synthesis: references/architect-synthesis.md - ingests every swarm's findings plus the
                  three logs in one pass; the disposition table; no finding silently dropped.
+ship_upload_swarm: references/ship-upload-swarm.md - the deploy-readiness interview (reuses
+                 Interview Mode) and the SHIP stage; the seeded missing-env-var / staged-secret
+                 fire drill; no deploy on a red gate; the user is the final eyes.
 ```
 
 ### What you must do in build mode
@@ -379,5 +384,8 @@ architect_synthesis: references/architect-synthesis.md - ingests every swarm's f
    Red under three tries enters the bounded fix loop; a third red re-plans.
 8. Gate 3: hand the visual or runtime result to the user as the final eyes. A
    screenshot proves the render happened, not that it is right.
-9. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
+9. SHIP (when the change deploys): the ship-and-upload swarm runs a deploy-readiness
+   interview, then deploys only when every checklist item is green with its signal and
+   every upstream manifest is clean. The user approves the deploy as the final eyes.
+10. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
    Do not declare done while any finding is unverified or any AMBIGUOUS stands.
