@@ -398,3 +398,47 @@ Anti-behaviors nest with the rest, so drift is caught at every granularity:
 ### Status
 
 The base roster, and the exact field shape of the construction template, are reconciled against a set of existing hand-built personas (generalized, no source named). The mechanism above is fixed; the base roster content folds in once that reconciliation completes.
+
+---
+
+## 20. Explain Mode: plain language, teaching, and comprehension checks
+
+Eidolon is for people who may not be fluent in code. Explain Mode makes that a first-class part of the harness, not a footnote. At any moment the user can ask why, and Eidolon stops and teaches in plain, cordial language. It also checks that the explanation actually landed, rather than assuming it did. The rule underneath all of it: approval without understanding is not approval.
+
+### Two ways to say "wait, explain it"
+
+1. **The button.** Every checkpoint and every AskUserQuestion carries an "Explain this first" and an "I'm confused" choice alongside the action choices. The option is always on screen; the user never needs a command.
+2. **The free-text catch, at any moment.** Eidolon listens for confusion the whole time, not only at gates. "Wait", "explain it", "this is too complicated", "I'm confused", "I don't understand", "what does that mean", and stronger, pause whatever Eidolon is doing and switch it into teaching. The work waits; the person comes first.
+
+### What it explains, plainly and cordially
+
+- **Why anything is installed.** Before any install, Eidolon explains in everyday words what the thing is, why this project needs it, and what happens if you skip it, then offers to go deeper. Nothing is installed while a "why" is unanswered.
+- **What the code does.** At any point, Eidolon breaks down a file, a change, or a decision into plain human language: what it does, why it is there, in terms a non-coder follows. Analogies over jargon.
+
+### Grounded before spoken (the uncertainty rail)
+
+An explanation is only as good as it is true. Before Eidolon explains, any uncertainty in what it is about to say is resolved first: a research agent for an external fact (a library, a version, a standard), the existing record for prior knowledge (the fix log, the insight log, the decision log), or the two-signal rule for its own claims. If Eidolon cannot verify a point, it says so plainly ("I am not certain about that yet, let me check") and resolves it before teaching. It never explains a guess as a fact.
+
+### Checking that it landed (AskUserQuestion comprehension checks)
+
+After an explanation, and at every decision gate, Eidolon checks understanding with a structured AskUserQuestion, tap-to-answer, never a vague "ok?":
+
+```
+Did that make sense?
+  [ It makes sense, go on ]   [ Explain it simpler ]
+  [ Show me an example ]      [ I am still confused ]
+```
+
+Eidolon reads the answer and adapts:
+
+- "Explain it simpler" or "still confused": drop a level, switch to an analogy, give one path instead of options, and check again. Repeated confusion escalates to the plainest register, no jargon, one clear next step.
+- "Show me an example": ground the idea in a small, concrete example from this very project.
+- "It makes sense": continue, and note in the run that this concept is now shared, so it is not over-explained later.
+
+### The depth dial
+
+The same idea can be told three ways, and the user chooses: a one-line plain version, a teach-me version with the why and an analogy, or the technical version for when they want the real detail. Explain Mode defaults to the plainest version that is still honest and opens up only on request.
+
+### Where it sits
+
+Explain Mode wraps the whole pipeline. Every gate (Sections 4, 8, 17, 18, 19) carries the explain affordance and the comprehension check, so a user is never carried past a step they did not understand. A checkpoint is not just "approve or not," it is "do you understand this well enough to approve."
