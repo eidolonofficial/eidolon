@@ -34,8 +34,9 @@ export function validatePersona(text) {
   return { ok: problems.length === 0, problems };
 }
 
-// CLI
-const path = process.argv[2];
+// CLI (only when this module is the entry point, never when imported)
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("persona-lint.mjs");
+const path = invokedDirectly ? process.argv[2] : undefined;
 if (path) {
   try {
     const r = validatePersona(readFileSync(path, "utf8"));
