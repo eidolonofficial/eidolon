@@ -374,6 +374,11 @@ scaling:         references/scaling.md - the three risk tiers, the cost ceiling,
 cross_session:   references/cross-session.md - the higher isolation tier: a separate session
                  verifies from a self-contained packet (scripts/verify-packet.mjs), graduated
                  per run on high-risk work.
+review_receipt:  references/review-receipt.md - a signed, re-judgeable attestation of a review
+                 verdict over a verify packet (scripts/review-receipt.mjs); the anti-synthetic
+                 rail applies (no anchor, no receipt). Verify is deterministic (the evidence
+                 re-hashes bit-identically, the Ed25519 signature is valid for a trusted key);
+                 the verdict stays an AI judgment, re-judged within a declared agreement band.
 process_doctrine: references/process-doctrine.md - the learned operating rules (calibrate
                  verification to risk; mind background work), surfaced at session start by
                  hooks/process-doctrine.mjs.
@@ -410,4 +415,7 @@ process_doctrine: references/process-doctrine.md - the learned operating rules (
    interview, then deploys only when every checklist item is green with its signal and
    every upstream manifest is clean. The user approves the deploy as the final eyes.
 10. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
+   On a review anchored to a named framework, emit a signed review receipt
+   (scripts/review-receipt.mjs) over the verify packet, so the verdict travels with the
+   change as a tamper-evident, attributable record (references/review-receipt.md).
    Do not declare done while any finding is unverified or any AMBIGUOUS stands.
