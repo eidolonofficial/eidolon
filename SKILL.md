@@ -288,7 +288,7 @@ state, stated before CLOSE runs.
         [gate 1: approve the spec before any tokens burn]
     ->  PLAN      (components, order, risk tier, cost ceiling)   ->  the plan
         [gate 2: approve the plan on standard or larger work]
-    ->  BUILD     (build against the spec, one task at a time, test first)
+    ->  BUILD     (engineering swarm builds against the spec, one task at a time, test first)
     ->  REVIEW    (security swarm: red finds, blue hardens)      ->  findings
     ->  VERIFY    (cold-context: rubric + independent second signal) ->  PASS | red
         red and under three tries  ->  FIX (bounded); 3rd red  ->  re-plan, do not re-fix
@@ -338,6 +338,13 @@ security_swarm:  references/security-swarm.md - red/blue methodology, the covera
                  the seeded-defect fire drill, the five anti-handwave gates.
 explain_mode:    references/explain-mode.md - plain-language teaching, comprehension checks,
                  the favorite-teacher disposition; available at every stage on request.
+personas:        references/persona-template.md - the ten-part construction template, the
+                 two anti-behavior layers, the anti-synthetic rail. references/personas/*.md
+                 are the built personas (slice 1 ships the full-stack engineer).
+engineering_swarm: references/engineering-swarm.md - builds against the spec, TDD per task,
+                 with the seeded-failing-test fire drill and the no-stub closeout gate.
+conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona against its own
+                 declared anti-behaviors (.claude/active-persona.json); halts and names the line.
 ```
 
 ### What you must do in build mode
@@ -348,8 +355,10 @@ explain_mode:    references/explain-mode.md - plain-language teaching, comprehen
 3. PLAN: name the tier and the cost ceiling; split into dependency-ordered tasks,
    each with an acceptance check and a verify step. Stop at gate 2 on standard or
    larger work.
-4. BUILD: one task at a time, test first, against the spec. No scope drift; new
-   ideas go to the work queue, never the live diff.
+4. BUILD: dispatch the engineering swarm and seat its persona (write the persona's
+   anti-behaviors to `.claude/active-persona.json` so the conduct guard enforces them).
+   One task at a time, test first (the test red before the change, green after),
+   against the spec. No scope drift; new ideas go to the work queue, never the live diff.
 5. REVIEW: run the security swarm when the tier calls for it. Each red finding
    becomes a blue hardening task, closed only when its post-fix verify passes.
 6. VERIFY: spawn the cold-context verifier with only the diff, spec, and rubric.
