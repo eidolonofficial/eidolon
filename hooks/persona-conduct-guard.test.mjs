@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hasAnchor, evaluateSeat } from "./persona-conduct-guard.mjs";
+import { hasAnchor, evaluateSeat, isExpediterSeat } from "./persona-conduct-guard.mjs";
 
 const anchored = {
   persona: "fullstack-engineer",
@@ -72,4 +72,51 @@ test("preserved: an anchored persona blocks a shipped stub in a code file", () =
 test("the anchor gate precedes anti-behavior detection: unanchored + rm -rf reports no-anchor first", () => {
   const v = evaluateSeat(unanchored, "Bash", { command: "rm -rf /" });
   assert.equal(v.kind, "no-anchor", "an ungrounded persona should not act at all, regardless of the specific action");
+});
+
+// --- The Expediter lock: the controller's persona is never a subagent's seat ---
+
+const expediterSeat = {
+  persona: "expediter",
+  title: "The Expediter",
+  anchors: ["DMAIC"],
+  anti_behaviors: { floor: ["irreversible-without-safety-net"], specific: [] },
+};
+const bareExpediterSeat = { persona: "the-expediter", title: "", anchors: [], anti_behaviors: { floor: [], specific: [] } };
+
+test("isExpediterSeat recognizes the persona under its plain spellings, and nothing else", () => {
+  assert.equal(isExpediterSeat({ persona: "expediter" }), true);
+  assert.equal(isExpediterSeat({ persona: "the-expediter" }), true);
+  assert.equal(isExpediterSeat({ persona: "x", title: "The Expediter (orchestration)" }), true);
+  assert.equal(isExpediterSeat({ persona: "backend-data-engineer" }), false);
+  assert.equal(isExpediterSeat(null), false);
+});
+
+test("THE LOCK: a subagent seated as the Expediter is hard-stopped on ANY action", () => {
+  const v = evaluateSeat(expediterSeat, "Bash", { command: "ls" }, { isSubagent: true });
+  assert.ok(v, "a subagent must never act under the Expediter seat");
+  assert.equal(v.kind, "subagent-expediter");
+});
+
+test("the lock does not require teeth: a bare Expediter seat in a subagent is still blocked", () => {
+  const v = evaluateSeat(bareExpediterSeat, "Bash", { command: "ls" }, { isSubagent: true });
+  assert.ok(v, "the lock is identity-based, not teeth-based");
+  assert.equal(v.kind, "subagent-expediter");
+});
+
+test("the lock precedes the seat-repair carve-out: a subagent cannot keep the seat by editing the seat file", () => {
+  const v = evaluateSeat(expediterSeat, "Write", { file_path: ".claude/active-persona.json", content: "{}" }, { isSubagent: true });
+  assert.ok(v, "seat repair must not be an escape hatch for the lock");
+  assert.equal(v.kind, "subagent-expediter");
+});
+
+test("the main session keeps full Expediter use: no ctx or isSubagent:false changes nothing", () => {
+  assert.equal(evaluateSeat(expediterSeat, "Bash", { command: "ls" }), null);
+  assert.equal(evaluateSeat(expediterSeat, "Bash", { command: "ls" }, { isSubagent: false }), null);
+});
+
+test("a subagent under any non-Expediter persona is judged by the ordinary rules only", () => {
+  assert.equal(evaluateSeat(anchored, "Bash", { command: "ls" }, { isSubagent: true }), null);
+  const v = evaluateSeat(anchored, "Bash", { command: "rm -rf build" }, { isSubagent: true });
+  assert.equal(v.kind, "anti-behavior", "the lock must not weaken existing enforcement for other personas");
 });

@@ -23,7 +23,7 @@
 // I/O contract mirrors the lineage uncertainty-guard.mjs: fail open on bad input;
 // block via stderr + exit 2.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { runHook, touchesHookSuite } from "./lib.mjs";
 
@@ -86,6 +86,19 @@ export function hasAnchor(seat) {
   return false;
 }
 
+// The Expediter is the CONTROLLER'S persona: the orchestrating session that defines
+// done-criteria, measures before dispatch, and holds sole authority over hooks and
+// loops. It is locked to the main session by design. A dispatched subagent that seats
+// or claims the Expediter has stepped outside its mandate (a worker conducting the
+// orchestra), so the guard hard-stops the action AND deactivates the seat itself.
+// True when the seated persona identifies as the Expediter under any plain spelling.
+export function isExpediterSeat(seat) {
+  if (!seat) return false;
+  const id = String(seat.persona || "").toLowerCase();
+  const title = String(seat.title || "").toLowerCase();
+  return /^(the[-_ ])?expediter$/.test(id) || /\bexpediter\b/.test(title);
+}
+
 // a Write/Edit that targets the seat file itself is always allowed: it is how an
 // operator repairs an unanchored seat (adds an anchor) or unseats. Without this, the
 // no-anchor gate would block the very recovery the block message documents.
@@ -98,12 +111,18 @@ function isSeatRepair(toolName, toolInput) {
 
 // Decide what to do for a seated persona and a proposed action.
 //   null              -> allow (exit 0)
+//   { kind: "subagent-expediter" }              -> block: a subagent is seated as the Expediter (controller-only persona)
 //   { kind: "no-anchor" }                       -> block: seat has teeth but no anchor
 //   { kind: "anti-behavior", behavior, hit }    -> block: action crosses a declared anti-behavior
-// The guard only acts when a persona with teeth is seated (declared anti-behaviors). At
-// that point the anchor gate runs FIRST: an ungrounded persona does not get to act at
-// all, regardless of the specific action (no anchor, no seat).
-export function evaluateSeat(seat, toolName, toolInput) {
+// The Expediter lock runs FIRST and unconditionally: it does not require declared
+// anti-behaviors (a bare expediter seat is still a violation in a subagent), and it is
+// deliberately checked BEFORE the seat-repair carve-out, so a subagent cannot use the
+// repair allowance to keep operating under the seat it is forbidden to hold.
+// After that, the guard acts only when a persona with teeth is seated. The anchor gate
+// runs before the detectors: an ungrounded persona does not get to act at all,
+// regardless of the specific action (no anchor, no seat).
+export function evaluateSeat(seat, toolName, toolInput, ctx = {}) {
+  if (ctx.isSubagent && isExpediterSeat(seat)) return { kind: "subagent-expediter" };
   const ab = (seat && seat.anti_behaviors) || {};
   const declared = [...(ab.floor || []), ...(ab.specific || [])];
   if (declared.length === 0) return null; // no persona teeth seated, nothing to enforce
@@ -134,8 +153,30 @@ if (invokedDirectly) {
     const ti = (j && j.tool_input) || {};
     const who = (seat.title || seat.persona || "the seated persona") + " (" + (seat.persona || "?") + ")";
 
-    const verdict = evaluateSeat(seat, name, ti);
+    // Subagent detection: the harness writes dispatched agents' transcripts under a
+    // "subagents" directory; the main session's transcript never lives there. Absent
+    // or unrecognized transcript_path fails open (treated as the main session) so a
+    // harness that omits the field never bricks normal work.
+    const isSubagent = /[\\/]subagents[\\/]/i.test(String(j.transcript_path || ""));
+
+    const verdict = evaluateSeat(seat, name, ti, { isSubagent });
     if (!verdict) process.exit(0);
+
+    if (verdict.kind === "subagent-expediter") {
+      // Automatic deactivation: the guard clears the seat itself, so the very next
+      // action by this subagent runs unseated. Failure to unlink is tolerated (the
+      // block below still stands); it is never a reason to let the action through.
+      try { unlinkSync(seatFile); } catch { /* seat may be locked or already gone */ }
+      process.stderr.write(
+        "PERSONA CONDUCT GUARD [HARD STOP - seat cleared]: a dispatched subagent is seated as " + who + ".\n" +
+        "The Expediter is the controller's persona and is locked to the main session: it holds sole\n" +
+        "authority over hooks and loops, defines done-criteria, and dispatches the waves. A subagent\n" +
+        "that claims it has stepped outside its mandate, so this action is blocked and the seat has\n" +
+        "been deactivated (.claude/active-persona.json removed). Continue the task unseated, or seat a\n" +
+        "persona from references/personas/ that matches the work. Do not re-seat the Expediter.\n"
+      );
+      process.exit(2);
+    }
 
     if (verdict.kind === "no-anchor") {
       process.stderr.write(

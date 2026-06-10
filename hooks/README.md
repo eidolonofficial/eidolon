@@ -14,12 +14,13 @@ drift into divergent parsers again.
 | verification-guard | PreToolUse (Bash, `git commit`) | Blocks a commit message that claims a visual or runtime result works without naming evidence. The most insistent guard. |
 | commit-quality-guard | PreToolUse (Bash) | Blocks `--no-verify` (and commit's `-n` short form) on commit and push, a non-lease `--force` push, a `core.hooksPath` override, and `filter-branch` / `filter-repo` history surgery. |
 | append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying or more-than-half-shrinking one (silent deletion). |
-| persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. A no-op when none seated. |
+| persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. A no-op when none seated. Carries the Expediter lock: the Expediter is the controller's persona, and a dispatched subagent seated as it is HARD STOPPED on any action and the seat is automatically deactivated (the guard clears the seat file itself); detection reads the harness `transcript_path`, which places subagent transcripts under a `subagents` directory, and fails open as the main session when the field is absent. |
 | hook-integrity-guard | PreToolUse (Bash) | Blocks disabling, moving, or chmod of any hook - or of the hooks directory as a whole - or changing the hooks path. |
 | deletion-guard | PreToolUse (Bash) | Walls outright `rm` / `del` of an append-only record (fix / insight / decision log, the root DECISIONS.md). |
 | protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op on a protected path (.git, a record, a hook, settings.json, the persona template). |
 | visual-evidence-gate | PreToolUse (Bash, `git commit`) | Blocks a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. |
 | conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). |
+| advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
@@ -36,8 +37,10 @@ location and across macOS, Linux, and Windows. The `if` field is the documented
 permission-rule conditional; it fails open (runs the hook) on an unparseable
 command.
 
-The full wired PreToolUse set is in `.claude/settings.json`: eight Bash guards and
-four Write/Edit guards, all in the same exec form, with `"if": "Bash(git *)"` on the
+The full wired PreToolUse set is in `.claude/settings.json`: eight Bash guards,
+four Write/Edit guards, and one `.*advisor.*` matcher entry (advisor-guard, so the
+ban follows the tool name wherever it appears, including MCP-prefixed spellings),
+all in the same exec form, with `"if": "Bash(git *)"` on the
 commit-scoped ones (verification, visual-evidence, conduct). Deliberately `git *`,
 not `git commit *`: a narrower pattern would skip the guard entirely for the
 `git -C <path> commit` and `git -c k=v commit` spellings that the guards' own
