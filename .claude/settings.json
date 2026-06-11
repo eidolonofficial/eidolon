@@ -1,4 +1,17 @@
 {
+  "permissions": {
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push * --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f *)",
+      "Bash(git config*core.hooksPath*)",
+      "Bash(git filter-branch *)",
+      "Bash(git filter-repo *)",
+      "Write(**/.claude/settings.local.json)",
+      "Edit(**/.claude/settings.local.json)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -20,7 +33,8 @@
           { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/append-only-record-guard.mjs"], "timeout": 10 },
           { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/persona-conduct-guard.mjs"], "timeout": 10 },
           { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/drift-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/conduct-guard.mjs"], "timeout": 10 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/conduct-guard.mjs"], "timeout": 10 },
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/settings-integrity-guard.mjs"], "timeout": 10 }
         ]
       },
       {

@@ -20,12 +20,57 @@ drift into divergent parsers again.
 | protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op on a protected path (.git, a record, a hook, settings.json, the persona template). |
 | visual-evidence-gate | PreToolUse (Bash, `git commit`) | Blocks a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. |
 | conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). |
+| settings-integrity-guard | PreToolUse (Write, Edit) | Blocks a settings edit that silences the suite from inside: introducing `disableAllHooks: true` into a Claude settings file, or dropping a hook entry that the target's manifest (`.claude/eidolon-manifest.yaml`) lists as wired. The content half of the two-layer floor (see "The two-layer floor" below). |
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. Advisory. |
 | memory-sync | git post-commit | Fans out a prose-memory capture and a graph update, resource-guarded (shell template). |
+
+## The two-layer floor
+
+Hooks alone have a hole: a single settings edit (`disableAllHooks: true`, or
+deleting the wired entries) silences every gate at once. The floor is therefore
+two layers, because each does what the other cannot.
+
+**Layer A - permission deny rules** (`.claude/settings.json` `permissions.deny`).
+Evaluated by Claude Code's own permission parser, so they hold even with hooks
+disabled: deny rules outrank allow at every settings level, and hook decisions
+cannot bypass them (verified against the official permissions docs, 2026-06-11).
+They match tool + command/path, never file content.
+
+```json
+"permissions": {
+  "deny": [
+    "Bash(git push --force *)",
+    "Bash(git push * --force *)",
+    "Bash(git push -f *)",
+    "Bash(git push * -f *)",
+    "Bash(git config*core.hooksPath*)",
+    "Bash(git filter-branch *)",
+    "Bash(git filter-repo *)",
+    "Write(**/.claude/settings.local.json)",
+    "Edit(**/.claude/settings.local.json)"
+  ]
+}
+```
+
+Pattern notes, verified by the documented glob semantics rather than assumed: a
+space before a trailing `*` enforces a word boundary, so `git push --force *`
+matches `git push --force` and `git push --force origin main` but never
+`git push --force-with-lease` (which commit-quality-guard deliberately allows);
+a bare `*` spans spaces, so `git push * --force *` catches the flag in any later
+position. The settings.local.json denials close the unreviewed side door: that
+file outranks the project settings and is gitignored, so nothing gets to write
+one. Exotic spellings the prefix rules cannot express (`git -C x filter-branch`,
+`git -c core.hooksPath=...`) stay covered by the hook layer.
+
+**Layer B - content checks** stay hooks, because "this write introduces
+`disableAllHooks: true`" is a content fact no permission rule can see. That is
+settings-integrity-guard, including its manifest cross-check (a settings write
+that drops a hook the manifest lists as wired is refused; unwiring is an explicit
+human decision made by updating the manifest first, in the open).
 
 ## Wiring
 
@@ -101,6 +146,8 @@ deletion-guard:            block (exit 2) - rm / del of an append-only record
 protected-paths-guard:     block (exit 2) - a destructive op on a protected path
 visual-evidence-gate:      block (exit 2) - a commit stages a visual file with no evidence named
 conduct-guard:             advise (exit 0) - conduct-drift language in a file or a commit message
+settings-integrity-guard:  block (exit 2) - a settings edit that introduces disableAllHooks:true
+                           or drops a manifest-wired hook entry
 drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaffold-only edits
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
 memory-sync:               no block - post-commit prose + graph fan-out, resource-guarded (template)

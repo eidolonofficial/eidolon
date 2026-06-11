@@ -345,6 +345,43 @@ test("drift-guard: counts scaffold edits, advises at 6, blocks at 10, resets on 
   silent(edit("scripts/again.sh")); // back to 1, far from the warn line
 });
 
+// ----------------------------------------------- settings-integrity-guard
+
+test("settings-integrity-guard: introducing disableAllHooks:true into a settings file is blocked", () => {
+  blocked(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": true }' } }), "SETTINGS INTEGRITY GUARD");
+  blocked(run("settings-integrity-guard.mjs", { tool_name: "Edit", tool_input: { file_path: ".claude/settings.local.json", old_string: "{}", new_string: '{ "disableAllHooks": true }' } }), "SETTINGS INTEGRITY GUARD");
+});
+
+test("settings-integrity-guard: a clean settings write passes; other files are not its business", () => {
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "hooks": {} }' } }));
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: "src/config.json", content: '{ "disableAllHooks": true }' } }));
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": false }' } }));
+});
+
+test("settings-integrity-guard: dropping a manifest-wired hook from settings is blocked (the delete-the-entry variant)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", "eidolon-manifest.yaml"),
+    "artifacts:\n  - path: hooks/guard-bash.mjs\n    kind: hook\n");
+  writeFileSync(join(dir, ".claude", "settings.json"),
+    '{ "hooks": { "PreToolUse": [{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"] }] } }');
+  const w = (content) => run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content }, cwd: dir });
+  blocked(w('{ "hooks": {} }'), "SETTINGS INTEGRITY GUARD");
+  // an Edit that deletes the wired entry is the same attack
+  blocked(run("settings-integrity-guard.mjs", { tool_name: "Edit", tool_input: { file_path: ".claude/settings.json", old_string: "hooks/guard-bash.mjs", new_string: "" }, cwd: dir }), "SETTINGS INTEGRITY GUARD");
+  // a rewiring that KEEPS the hook passes (e.g. changing its timeout)
+  silent(w('{ "hooks": { "PreToolUse": [{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"], "timeout": 20 }] } }'));
+});
+
+test("settings-integrity-guard: no manifest means no cross-check (fail open in a fresh target)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", "settings.json"), '{ "hooks": { "x": "hooks/old-guard.mjs" } }');
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: "{}" }, cwd: dir }));
+});
+
 // --------------------------------------------------- session save / restore
 
 test("session-save: writes the snapshot even when .claude does not exist yet (regression)", (t) => {
