@@ -1,0 +1,2 @@
+# Bash hook templates must check out LF on every platform; CRLF breaks bash on Windows (autocrlf=true would otherwise convert them).
+*.sh text eol=lf
