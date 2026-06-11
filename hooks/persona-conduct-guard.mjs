@@ -188,6 +188,22 @@ export function evalPersonaConduct(j) {
   const hit = verdict.hit;
   const where = typeof hit === "object" ? hit.where : "the command";
   const text = typeof hit === "object" ? hit.text : hit;
+
+  // The consent tier: 'irreversible-without-safety-net' asks instead of blocking,
+  // because the declared anti-behavior is conditional (never WITHOUT the safety
+  // nets) and the operator may genuinely hold them - an independent backup, a
+  // rollback path, a post-op verify - where no guard can see. The human's yes is
+  // the attestation. Hook tampering, history surgery, and shipped stubs are
+  // unconditional lines, so they stay hard blocks.
+  if (verdict.behavior === "irreversible-without-safety-net") {
+    return { kind: "ask", label: "PERSONA CONDUCT GUARD", why:
+      "the seated persona " + who +
+      " forbids '" + verdict.behavior + "'. This action crosses it at " + where + ": " + text + ". " +
+      "Approve only if the two-safety-net pattern holds: an independent backup, a rollback " +
+      "path stated before it runs, and a post-op verify. Otherwise honor the persona's line " +
+      "or unseat before acting." };
+  }
+
   return { kind: "block", label: "PERSONA CONDUCT GUARD", why:
     "the seated persona " + who +
     " forbids '" + verdict.behavior + "'.\n" +

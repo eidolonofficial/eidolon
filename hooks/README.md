@@ -14,11 +14,11 @@ drift into divergent parsers again.
 | verification-guard | PreToolUse (Bash, `git commit`) | Blocks a commit message that claims a visual or runtime result works without naming evidence. The most insistent guard. |
 | commit-quality-guard | PreToolUse (Bash) | Blocks `--no-verify` (and commit's `-n` short form) on commit and push, a non-lease `--force` push, a `core.hooksPath` override, and `filter-branch` / `filter-repo` history surgery. |
 | append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying or more-than-half-shrinking one (silent deletion). |
-| persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. A no-op when none seated. Carries the Expediter lock: the Expediter is the controller's persona, and a dispatched subagent seated as it is HARD STOPPED on any action and the seat is automatically deactivated (the guard clears the seat file itself); detection reads the harness `transcript_path`, which places subagent transcripts under a `subagents` directory, and fails open as the main session when the field is absent. |
+| persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. One carve-out to the consent tier: `irreversible-without-safety-net` ASKS instead of blocking, because the line is conditional (never without the safety nets) and the operator may genuinely hold them; their yes attests the backup, the rollback path, and the post-op verify. A no-op when none seated. Carries the Expediter lock: the Expediter is the controller's persona, and a dispatched subagent seated as it is HARD STOPPED on any action and the seat is automatically deactivated (the guard clears the seat file itself); detection reads the harness `transcript_path`, which places subagent transcripts under a `subagents` directory, and fails open as the main session when the field is absent. |
 | hook-integrity-guard | PreToolUse (Bash) | Blocks disabling, moving, or chmod of any hook - or of the hooks directory as a whole - or changing the hooks path. |
 | deletion-guard | PreToolUse (Bash) | Walls outright `rm` / `del` of an append-only record (fix / insight / decision log, the root DECISIONS.md). |
 | protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op on a protected path (.git, a record, a hook, settings.json, the persona template). |
-| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Blocks a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. |
+| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Escalates (ask) a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. The consent tier on purpose: the human being asked is the final eyes, and their yes is the missing evidence. |
 | conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). |
 | settings-integrity-guard | PreToolUse (Write, Edit) | Blocks a settings edit that silences the suite from inside: introducing `disableAllHooks: true` into a Claude settings file, or dropping a hook entry that the target's manifest (`.claude/eidolon-manifest.yaml`) lists as wired. The content half of the two-layer floor (see "The two-layer floor" below). |
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
@@ -153,11 +153,15 @@ append-only-record-guard:
 persona-conduct-guard:     block (exit 2) - a seated persona crossed its own declared
                            anti-behavior, or was seated with anti-behaviors but no
                            framework anchor (no anchor, no seat); a no-op (exit 0) when
-                           no persona is seated or the seat declares no anti-behaviors
+                           no persona is seated or the seat declares no anti-behaviors.
+                           Exception: irreversible-without-safety-net ASKS (consent
+                           tier) - the operator's yes attests the safety nets the
+                           guard cannot see
 hook-integrity-guard:      block (exit 2) - disable / move / chmod a hook, or change the hooks path
 deletion-guard:            block (exit 2) - rm / del of an append-only record
 protected-paths-guard:     block (exit 2) - a destructive op on a protected path
-visual-evidence-gate:      block (exit 2) - a commit stages a visual file with no evidence named
+visual-evidence-gate:      ask (consent tier) - a commit stages a visual file with no
+                           evidence named; the human approving IS the final eyes
 conduct-guard:             advise (exit 0) - conduct-drift language in a file or a commit message
 settings-integrity-guard:  block (exit 2) - a settings edit that introduces disableAllHooks:true
                            or drops a manifest-wired hook entry

@@ -1,8 +1,10 @@
 // hooks/visual-evidence-gate.mjs
 //
-// Eidolon hook suite - PreToolUse(Bash, git commit). Blocks a commit that stages a
-// visual file (image, video, pdf) without naming evidence it was looked at (design
-// spec section 11). A render must be seen, not assumed; the user is the final eyes.
+// Eidolon hook suite - PreToolUse(Bash, git commit). Escalates (ask) a commit that
+// stages a visual file (image, video, pdf) without naming evidence it was looked at
+// (design spec section 11). A render must be seen, not assumed; the user is the
+// final eyes - which is exactly why this is the consent tier, not a hard block: the
+// human being asked IS the final eyes, and their yes is the missing evidence.
 //
 // Looks in three places, because a PreToolUse hook runs before the command does:
 //   1. what is already staged (git diff --cached, execFile with an argument array),
@@ -53,12 +55,13 @@ export function evalVisualEvidence(j) {
   if (EVIDENCE.test(msg)) return null;
 
   const list = [...visuals];
-  return { kind: "block", label: "VISUAL EVIDENCE GATE", why:
+  return { kind: "ask", label: "VISUAL EVIDENCE GATE", why:
     "this commit stages a visual file (" +
     list.slice(0, 3).join(", ") + (list.length > 3 ? ", ..." : "") +
-    ") but names no evidence it was looked at.\n" +
-    "A render must be seen, not assumed; the user is the final eyes. Reference the " +
-    "evidence (a screenshot, that the user confirmed it) or restate the message." };
+    ") but names no evidence it was looked at. " +
+    "A render must be seen, not assumed; the user is the final eyes. Approve only if " +
+    "you have actually looked at it; otherwise have the message reference the evidence " +
+    "(a screenshot, that the user confirmed it) or restate it." };
 }
 
 const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("visual-evidence-gate.mjs");

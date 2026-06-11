@@ -37,6 +37,13 @@ const advised = (r, label) => {
   assert.match(out.hookSpecificOutput.additionalContext, new RegExp(label));
 };
 const silent = (r) => { allowed(r); assert.equal(r.stdout, ""); };
+// the consent tier: exit 0 with the documented permissionDecision "ask" JSON
+const asked = (r, label) => {
+  allowed(r);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.hookSpecificOutput.permissionDecision, "ask");
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, new RegExp(label));
+};
 const tmp = () => mkdtempSync(join(tmpdir(), "eidolon-hooks-"));
 
 // ---------------------------------------------------------------- lib.mjs
@@ -248,9 +255,11 @@ test("persona-conduct-guard: end-to-end seat enforcement", (t) => {
 
   writeFileSync(seatFile, JSON.stringify(seat));
   allowed(run("persona-conduct-guard.mjs", bash("ls -la", dir)));
-  blocked(run("persona-conduct-guard.mjs", bash("rm -rf build", dir)), "irreversible-without-safety-net");
-  // mv carries no rm -rf, so it reaches the hook detector; rm -rf hooks would
-  // (correctly) trip irreversible-without-safety-net first
+  // the consent tier: the anti-behavior is conditional (never WITHOUT the safety
+  // nets), and the operator may genuinely hold them, so this asks instead of blocks
+  asked(run("persona-conduct-guard.mjs", bash("rm -rf build", dir)), "irreversible-without-safety-net");
+  // mv carries no rm -rf, so it reaches the hook detector; an unconditional line
+  // stays a hard block
   blocked(run("persona-conduct-guard.mjs", bash("mv hooks hooks-bak", dir)), "disable-or-route-around-hook");
 
   writeFileSync(seatFile, JSON.stringify({ ...seat, anchors: [] }));
@@ -273,18 +282,18 @@ function gitRepo(t) {
   return { dir, git };
 }
 
-test("visual-evidence-gate: an already-staged visual with no evidence blocks; named evidence passes", (t) => {
+test("visual-evidence-gate: an already-staged visual with no evidence escalates to the human; named evidence passes", (t) => {
   const { dir, git } = gitRepo(t);
   writeFileSync(join(dir, "shot.png"), "not really a png");
   git("add", "shot.png");
-  blocked(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
   allowed(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render, user confirmed in review"', dir)));
 });
 
 test("visual-evidence-gate: a visual staged BY the same command is gated (regression: the index check ran too early)", (t) => {
   const { dir } = gitRepo(t);
   writeFileSync(join(dir, "shot.png"), "not really a png");
-  blocked(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render"', dir)), "VISUAL EVIDENCE GATE");
   allowed(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render: screenshot reviewed"', dir)));
 });
 
@@ -294,7 +303,7 @@ test("visual-evidence-gate: commit -am sweeps in a modified tracked visual (regr
   git("add", "logo.svg");
   git("commit", "-q", "-m", "seed");
   writeFileSync(join(dir, "logo.svg"), "<svg>v2</svg>");
-  blocked(run("visual-evidence-gate.mjs", bash('git commit -am "tweak logo"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("visual-evidence-gate.mjs", bash('git commit -am "tweak logo"', dir)), "VISUAL EVIDENCE GATE");
 });
 
 test("visual-evidence-gate: naming a screenshot AS evidence in -m is not a staged visual", (t) => {
@@ -367,11 +376,19 @@ test("guard-bash: advisories ride along when nothing blocks", () => {
   advised(run("guard-bash.mjs", bash("git -C /repo commit -m \"I'll fix this later\"")), "deferring doable work");
 });
 
-test("guard-bash: a staged visual with no evidence is gated through the dispatcher too", (t) => {
+test("guard-bash: a staged visual with no evidence escalates through the dispatcher too", (t) => {
   const { dir, git } = gitRepo(t);
   writeFileSync(join(dir, "shot.png"), "not really a png");
   git("add", "shot.png");
-  blocked(run("guard-bash.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("guard-bash.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+});
+
+test("guard-bash: a block outranks an ask (a bypass cannot be consented through)", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "shot.png"), "not really a png");
+  git("add", "shot.png");
+  // the same staged visual would ask, but the --no-verify bypass blocks first
+  blocked(run("guard-bash.mjs", bash('git commit --no-verify -m "add render"', dir)), "COMMIT QUALITY GUARD");
 });
 
 test("guard-write: one spawn, the whole Write/Edit suite", (t) => {
