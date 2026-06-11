@@ -20,11 +20,11 @@
 // cross-check: fail open, like the rest of the suite.
 //
 // I/O contract lives in hooks/lib.mjs: fail open on bad input; block via
-// stderr + exit 2.
+// stderr + exit 2. Wire standalone or via hooks/guard-write.mjs.
 
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
-import { runHook, block } from "./lib.mjs";
+import { runHook, emitVerdict } from "./lib.mjs";
 
 const SETTINGS = /(^|[\/\\])\.claude[\/\\]settings(\.local)?\.json$/i;
 
@@ -39,17 +39,18 @@ function manifestHooks(cwd) {
   } catch { return []; }
 }
 
-runHook((j) => {
+// Pure verdict for one payload.
+export function evalSettingsIntegrity(j) {
   const name = String(j.tool_name || "");
-  if (name !== "Write" && name !== "Edit") return;
+  if (name !== "Write" && name !== "Edit") return null;
   const ti = j.tool_input || {};
   const given = String(ti.file_path || ti.path || "");
-  if (!SETTINGS.test(given)) return;
+  if (!SETTINGS.test(given)) return null;
   const next = String(ti.content != null ? ti.content : ti.new_string != null ? ti.new_string : "");
-  const B = (why) => block("SETTINGS INTEGRITY GUARD", why);
+  const B = (why) => ({ kind: "block", label: "SETTINGS INTEGRITY GUARD", why });
 
   if (/"disableAllHooks"\s*:\s*true/.test(next))
-    B("this introduces disableAllHooks: true, which silences the entire hook suite. " +
+    return B("this introduces disableAllHooks: true, which silences the entire hook suite. " +
       "The hooks are not optional; fix a wrong gate in the open instead of switching the suite off.");
 
   // For a Write the before-state is the file on disk; for an Edit it is the
@@ -58,12 +59,16 @@ runHook((j) => {
   const prev = name === "Edit"
     ? String(ti.old_string || "")
     : (() => { try { return readFileSync(resolve(cwd, given), "utf8"); } catch { return ""; } })();
-  if (!prev) return;
+  if (!prev) return null;
 
   for (const hook of manifestHooks(cwd)) {
     if (prev.includes(hook) && !next.includes(hook))
-      B("this drops the wired hook " + hook + " from the settings file, and the manifest " +
+      return B("this drops the wired hook " + hook + " from the settings file, and the manifest " +
         "(.claude/eidolon-manifest.yaml) says it is part of the suite. Unwiring a hook is an " +
         "explicit human decision: update the manifest first, in the open.");
   }
-});
+  return null;
+}
+
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("settings-integrity-guard.mjs");
+if (invokedDirectly) runHook((j) => emitVerdict(evalSettingsIntegrity(j)));

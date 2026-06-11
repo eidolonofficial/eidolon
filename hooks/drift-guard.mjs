@@ -8,21 +8,25 @@
 // State: .claude/.drift-count (gitignored; the .claude dir is created if missing,
 // otherwise the counter would silently never persist). I/O contract lives in
 // hooks/lib.mjs: fail open; advise via stdout JSON; hard block via stderr + exit 2.
+// Wire standalone or via hooks/guard-write.mjs.
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { runHook, block, advise } from "./lib.mjs";
+import { runHook, emitVerdict } from "./lib.mjs";
 
 const WALL = 10; // hard block at this many consecutive scaffold-only edits
 const WARN = 6;  // advise from here up
 const SCAFFOLD = /(^|[\/\\])(hooks[\/\\]|\.claude[\/\\]|scripts[\/\\]|\.github[\/\\]|Dockerfile|Makefile|\.gitignore$|[^\/\\]*\.(ya?ml|toml|ini|cfg)$|[^\/\\]*\.config\.[jt]s$)/i;
 
-runHook((j) => {
+// Verdict for one payload. Stateful by design: each call advances or resets the
+// counter, so it must run exactly once per Write/Edit (the dispatcher and the
+// standalone wiring are alternatives, never both).
+export function evalDrift(j) {
   const name = String(j.tool_name || "");
-  if (name !== "Write" && name !== "Edit") return;
+  if (name !== "Write" && name !== "Edit") return null;
   const ti = j.tool_input || {};
   const path = String(ti.file_path || ti.path || "");
-  if (!path) return;
+  if (!path) return null;
 
   const cwd = String(j.cwd || process.cwd());
   const stateDir = join(cwd, ".claude");
@@ -35,16 +39,20 @@ runHook((j) => {
   count = isScaffold ? count + 1 : 0;
   try { mkdirSync(stateDir, { recursive: true }); writeFileSync(stateFile, String(count)); } catch {}
 
-  if (!isScaffold) return; // deliverable work: counter reset, allow
+  if (!isScaffold) return null; // deliverable work: counter reset, allow
 
   if (count >= WALL) {
-    block("DRIFT GUARD",
+    return { kind: "block", label: "DRIFT GUARD", why:
       count + " consecutive scaffold-only edits (config, hooks, scripts, CI).\n" +
       "The deliverable owns the run. Move the actual feature forward, or state plainly " +
-      "why the scaffolding is the deliverable this run.");
+      "why the scaffolding is the deliverable this run." };
   }
   if (count >= WARN) {
-    advise("DRIFT GUARD",
-      count + " scaffold-only edits in a row. The deliverable owns the run; the wall is at " + WALL + ".");
+    return { kind: "advise", label: "DRIFT GUARD", why:
+      count + " scaffold-only edits in a row. The deliverable owns the run; the wall is at " + WALL + "." };
   }
-});
+  return null;
+}
+
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("drift-guard.mjs");
+if (invokedDirectly) runHook((j) => emitVerdict(evalDrift(j)));

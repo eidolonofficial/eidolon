@@ -14,18 +14,20 @@
 // is never mistaken for staging one.
 //
 // I/O contract lives in hooks/lib.mjs: fail open; block via stderr + exit 2.
+// Wire standalone or via hooks/guard-bash.mjs.
 
 import { execFileSync } from "node:child_process";
-import { runHook, isGitCommit, commitMessageOf, withoutMessage, block } from "./lib.mjs";
+import { runHook, isGitCommit, commitMessageOf, withoutMessage, emitVerdict } from "./lib.mjs";
 
 const VISUAL = /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|pdf)$/i;
 const VISUAL_TOKEN = /[\w.\/\\~-]+\.(?:png|jpe?g|gif|webp|svg|mp4|mov|webm|pdf)\b/gi;
 const EVIDENCE = /(screenshot|looked at it|viewed it|verified visually|see\s+\S+\.(png|jpe?g|gif|webp|mp4)|evidence:|user (confirmed|approved|saw))/i;
 
-runHook((j) => {
-  if (j.tool_name && j.tool_name !== "Bash") return;
+// Pure verdict for one payload (the git reads are read-only probes of the index).
+export function evalVisualEvidence(j) {
+  if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
-  if (!isGitCommit(cmd)) return;
+  if (!isGitCommit(cmd)) return null;
   const cwd = String(j.cwd || process.cwd());
 
   const git = (args) => {
@@ -45,16 +47,19 @@ runHook((j) => {
     for (const f of git(["diff", "--name-only", "--diff-filter=M"]).split(/\r?\n/))
       if (f && VISUAL.test(f)) visuals.add(f);
 
-  if (visuals.size === 0) return;
+  if (visuals.size === 0) return null;
 
   const msg = commitMessageOf(cmd, cwd);
-  if (EVIDENCE.test(msg)) return;
+  if (EVIDENCE.test(msg)) return null;
 
   const list = [...visuals];
-  block("VISUAL EVIDENCE GATE",
+  return { kind: "block", label: "VISUAL EVIDENCE GATE", why:
     "this commit stages a visual file (" +
     list.slice(0, 3).join(", ") + (list.length > 3 ? ", ..." : "") +
     ") but names no evidence it was looked at.\n" +
     "A render must be seen, not assumed; the user is the final eyes. Reference the " +
-    "evidence (a screenshot, that the user confirmed it) or restate the message.");
-});
+    "evidence (a screenshot, that the user confirmed it) or restate the message." };
+}
+
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("visual-evidence-gate.mjs");
+if (invokedDirectly) runHook((j) => emitVerdict(evalVisualEvidence(j)));

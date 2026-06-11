@@ -10,19 +10,24 @@
 // this guard's business (lib.mjs touchesHookSuite draws that line).
 //
 // I/O contract lives in hooks/lib.mjs: fail open on bad input; block via
-// stderr + exit 2.
+// stderr + exit 2. Wire standalone or via hooks/guard-bash.mjs.
 
-import { runHook, touchesHookSuite, block } from "./lib.mjs";
+import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
 
-runHook((j) => {
-  if (j.tool_name && j.tool_name !== "Bash") return;
+// Pure verdict for one payload; first matching check wins.
+export function evalHookIntegrity(j) {
+  if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
-  const B = (why) => block("HOOK INTEGRITY GUARD", why);
+  const B = (why) => ({ kind: "block", label: "HOOK INTEGRITY GUARD", why });
 
   if (/core\.hooksPath\s*=/.test(cmd) || /git\s+config\b[^|;&\n]*hooksPath/i.test(cmd))
-    B("changing the hooks path disables the suite. The hooks are not optional.");
+    return B("changing the hooks path disables the suite. The hooks are not optional.");
   if (/\bchmod\b/i.test(cmd) && touchesHookSuite(cmd))
-    B("chmod on a hook changes how it runs. Do not alter hook permissions.");
+    return B("chmod on a hook changes how it runs. Do not alter hook permissions.");
   if (/\b(?:mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && touchesHookSuite(cmd))
-    B("moving or deleting a hook (or the hooks directory) disables it. Fix a wrong gate in the open, do not remove it.");
-});
+    return B("moving or deleting a hook (or the hooks directory) disables it. Fix a wrong gate in the open, do not remove it.");
+  return null;
+}
+
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("hook-integrity-guard.mjs");
+if (invokedDirectly) runHook((j) => emitVerdict(evalHookIntegrity(j)));

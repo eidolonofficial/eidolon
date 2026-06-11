@@ -345,6 +345,58 @@ test("drift-guard: counts scaffold edits, advises at 6, blocks at 10, resets on 
   silent(edit("scripts/again.sh")); // back to 1, far from the warn line
 });
 
+// ------------------------------------------------------------- dispatchers
+// guard-bash and guard-write run the same evaluators the standalone files do,
+// one spawn per matcher. These tests prove the consolidation preserved every
+// verdict: same labels, same exit codes, same advisory JSON.
+
+test("guard-bash: one spawn, the whole Bash suite, first block wins in wired order", () => {
+  blocked(run("guard-bash.mjs", bash('git commit -m "dashboard works now"')), "VERIFICATION GUARD");
+  blocked(run("guard-bash.mjs", bash('git commit --no-verify -m "x"')), "COMMIT QUALITY GUARD");
+  blocked(run("guard-bash.mjs", bash("rm -rf hooks")), "HOOK INTEGRITY GUARD");
+  blocked(run("guard-bash.mjs", bash("rm docs/fixes/FIX-x.md")), "DELETION GUARD");
+  blocked(run("guard-bash.mjs", bash("truncate -s 0 .claude/settings.json")), "PROTECTED PATHS GUARD");
+});
+
+test("guard-bash: clean commands and bad input pass silently (fail open)", () => {
+  silent(run("guard-bash.mjs", bash("npm test")));
+  silent(run("guard-bash.mjs", "not json at all"));
+});
+
+test("guard-bash: advisories ride along when nothing blocks", () => {
+  advised(run("guard-bash.mjs", bash("git -C /repo commit -m \"I'll fix this later\"")), "deferring doable work");
+});
+
+test("guard-bash: a staged visual with no evidence is gated through the dispatcher too", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "shot.png"), "not really a png");
+  git("add", "shot.png");
+  blocked(run("guard-bash.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+});
+
+test("guard-write: one spawn, the whole Write/Edit suite", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "docs", "decisions"), { recursive: true });
+  const rec = join(dir, "docs", "decisions", "log.md");
+  writeFileSync(rec, "0123456789");
+  blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
+  advised(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "012345678" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
+  blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": true }' }, cwd: dir }), "SETTINGS INTEGRITY GUARD");
+  silent(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: "src/feature.js", content: "export const x = 1;" }, cwd: dir }));
+});
+
+test("guard-write: the drift counter advances once per call through the dispatcher (stateful guard intact)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const edit = (file_path) => run("guard-write.mjs", { tool_name: "Edit", tool_input: { file_path }, cwd: dir });
+  for (let i = 1; i <= 5; i++) silent(edit("scripts/setup-" + i + ".sh"));
+  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "5");
+  advised(edit("scripts/setup-6.sh"), "DRIFT GUARD");
+  silent(edit("src/feature.js"));
+  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "0");
+});
+
 // ----------------------------------------------- settings-integrity-guard
 
 test("settings-integrity-guard: introducing disableAllHooks:true into a settings file is blocked", () => {

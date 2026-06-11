@@ -25,7 +25,7 @@
 
 import { readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { runHook, touchesHookSuite } from "./lib.mjs";
+import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
 
 const CODE = /\.(mjs|cjs|js|jsx|ts|tsx|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift)$/i;
 
@@ -138,65 +138,63 @@ export function evaluateSeat(seat, toolName, toolInput, ctx = {}) {
   return null;
 }
 
+// The full hook flow as one evaluator: read the seat, judge the action, and on
+// the Expediter lock clear the seat as a side effect. Returns a suite verdict
+// ({ kind, label, why, tag? }) or null, so the dispatchers (hooks/guard-bash.mjs,
+// hooks/guard-write.mjs) and the standalone entry share one behavior.
+export function evalPersonaConduct(j) {
+  const cwd = String(j.cwd || process.cwd());
+  const seatFile = join(cwd, ".claude", "active-persona.json");
+  if (!existsSync(seatFile)) return null; // no persona seated, nothing to enforce
+
+  let seat;
+  try { seat = JSON.parse(readFileSync(seatFile, "utf8")); } catch { return null; }
+
+  const name = String(j.tool_name || "");
+  const ti = (j && j.tool_input) || {};
+  const who = (seat.title || seat.persona || "the seated persona") + " (" + (seat.persona || "?") + ")";
+
+  // Subagent detection: the harness writes dispatched agents' transcripts under a
+  // "subagents" directory; the main session's transcript never lives there. Absent
+  // or unrecognized transcript_path fails open (treated as the main session) so a
+  // harness that omits the field never bricks normal work.
+  const isSubagent = /[\\/]subagents[\\/]/i.test(String(j.transcript_path || ""));
+
+  const verdict = evaluateSeat(seat, name, ti, { isSubagent });
+  if (!verdict) return null;
+
+  if (verdict.kind === "subagent-expediter") {
+    // Automatic deactivation: the guard clears the seat itself, so the very next
+    // action by this subagent runs unseated. Failure to unlink is tolerated (the
+    // block below still stands); it is never a reason to let the action through.
+    try { unlinkSync(seatFile); } catch { /* seat may be locked or already gone */ }
+    return { kind: "block", label: "PERSONA CONDUCT GUARD", tag: "HARD STOP - seat cleared", why:
+      "a dispatched subagent is seated as " + who + ".\n" +
+      "The Expediter is the controller's persona and is locked to the main session: it holds sole\n" +
+      "authority over hooks and loops, defines done-criteria, and dispatches the waves. A subagent\n" +
+      "that claims it has stepped outside its mandate, so this action is blocked and the seat has\n" +
+      "been deactivated (.claude/active-persona.json removed). Continue the task unseated, or seat a\n" +
+      "persona from references/personas/ that matches the work. Do not re-seat the Expediter." };
+  }
+
+  if (verdict.kind === "no-anchor") {
+    return { kind: "block", label: "PERSONA CONDUCT GUARD", why:
+      "the seated persona " + who +
+      " declares anti-behaviors but names no framework anchor.\n" +
+      "The anti-synthetic rail is 'no anchor, no seat': a persona that enforces conduct must name the framework(s) it answers to.\n" +
+      "Add a non-empty \"anchors\" list to .claude/active-persona.json (seat from a persona that passes scripts/persona-lint.mjs), or unseat the persona before acting." };
+  }
+
+  const hit = verdict.hit;
+  const where = typeof hit === "object" ? hit.where : "the command";
+  const text = typeof hit === "object" ? hit.text : hit;
+  return { kind: "block", label: "PERSONA CONDUCT GUARD", why:
+    "the seated persona " + who +
+    " forbids '" + verdict.behavior + "'.\n" +
+    "This action crosses it at " + where + ":\n    " + text + "\n" +
+    "The persona declared this anti-behavior; honor it or unseat the persona before acting." };
+}
+
 // Hook entry (only when this module is the entry point, never when imported by a test).
 const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("persona-conduct-guard.mjs");
-if (invokedDirectly) {
-  runHook((j) => {
-    const cwd = String(j.cwd || process.cwd());
-    const seatFile = join(cwd, ".claude", "active-persona.json");
-    if (!existsSync(seatFile)) process.exit(0); // no persona seated, nothing to enforce
-
-    let seat;
-    try { seat = JSON.parse(readFileSync(seatFile, "utf8")); } catch { process.exit(0); }
-
-    const name = String(j.tool_name || "");
-    const ti = (j && j.tool_input) || {};
-    const who = (seat.title || seat.persona || "the seated persona") + " (" + (seat.persona || "?") + ")";
-
-    // Subagent detection: the harness writes dispatched agents' transcripts under a
-    // "subagents" directory; the main session's transcript never lives there. Absent
-    // or unrecognized transcript_path fails open (treated as the main session) so a
-    // harness that omits the field never bricks normal work.
-    const isSubagent = /[\\/]subagents[\\/]/i.test(String(j.transcript_path || ""));
-
-    const verdict = evaluateSeat(seat, name, ti, { isSubagent });
-    if (!verdict) process.exit(0);
-
-    if (verdict.kind === "subagent-expediter") {
-      // Automatic deactivation: the guard clears the seat itself, so the very next
-      // action by this subagent runs unseated. Failure to unlink is tolerated (the
-      // block below still stands); it is never a reason to let the action through.
-      try { unlinkSync(seatFile); } catch { /* seat may be locked or already gone */ }
-      process.stderr.write(
-        "PERSONA CONDUCT GUARD [HARD STOP - seat cleared]: a dispatched subagent is seated as " + who + ".\n" +
-        "The Expediter is the controller's persona and is locked to the main session: it holds sole\n" +
-        "authority over hooks and loops, defines done-criteria, and dispatches the waves. A subagent\n" +
-        "that claims it has stepped outside its mandate, so this action is blocked and the seat has\n" +
-        "been deactivated (.claude/active-persona.json removed). Continue the task unseated, or seat a\n" +
-        "persona from references/personas/ that matches the work. Do not re-seat the Expediter.\n"
-      );
-      process.exit(2);
-    }
-
-    if (verdict.kind === "no-anchor") {
-      process.stderr.write(
-        "PERSONA CONDUCT GUARD [BLOCKED - fix and retry]: the seated persona " + who +
-        " declares anti-behaviors but names no framework anchor.\n" +
-        "The anti-synthetic rail is 'no anchor, no seat': a persona that enforces conduct must name the framework(s) it answers to.\n" +
-        "Add a non-empty \"anchors\" list to .claude/active-persona.json (seat from a persona that passes scripts/persona-lint.mjs), or unseat the persona before acting.\n"
-      );
-      process.exit(2);
-    }
-
-    const hit = verdict.hit;
-    const where = typeof hit === "object" ? hit.where : "the command";
-    const text = typeof hit === "object" ? hit.text : hit;
-    process.stderr.write(
-      "PERSONA CONDUCT GUARD [BLOCKED - fix and retry]: the seated persona " + who +
-      " forbids '" + verdict.behavior + "'.\n" +
-      "This action crosses it at " + where + ":\n    " + text + "\n" +
-      "The persona declared this anti-behavior; honor it or unseat the persona before acting.\n"
-    );
-    process.exit(2);
-  });
-}
+if (invokedDirectly) runHook((j) => emitVerdict(evalPersonaConduct(j)));

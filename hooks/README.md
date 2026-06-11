@@ -82,21 +82,30 @@ location and across macOS, Linux, and Windows. The `if` field is the documented
 permission-rule conditional; it fails open (runs the hook) on an unparseable
 command.
 
-The full wired PreToolUse set is in `.claude/settings.json`: eight Bash guards,
-four Write/Edit guards, and one `.*advisor.*` matcher entry (advisor-guard, so the
-ban follows the tool name wherever it appears, including MCP-prefixed spellings),
-all in the same exec form, with `"if": "Bash(git *)"` on the
-commit-scoped ones (verification, visual-evidence, conduct). Deliberately `git *`,
-not `git commit *`: a narrower pattern would skip the guard entirely for the
-`git -C <path> commit` and `git -c k=v commit` spellings that the guards' own
-commit detector (lib.mjs `GIT_COMMIT`) is written to catch - the `if` is a cheap
-prefilter, and the hook itself decides what is a commit. One entry:
+The wired PreToolUse set in `.claude/settings.json` is three entries: one
+dispatcher per matcher plus the advisor ban.
+
+```yaml
+Bash:         hooks/guard-bash.mjs    # runs the eight Bash evaluators in the old wired order
+Write|Edit:   hooks/guard-write.mjs   # runs the five Write/Edit evaluators in the old wired order
+.*advisor.*:  hooks/advisor-guard.mjs # keys on the tool NAME (incl. MCP spellings); stays standalone
+```
+
+One spawn per matcher instead of one per guard. Each guard exports a pure
+evaluator (`evalX(payload) -> verdict | null`) that the dispatcher imports, and
+keeps its own standalone entry point, so the per-guard tests exercise the exact
+files and a hand wiring still works. Verdict precedence lives in lib.mjs
+`runSuite`: the first block halts the call (order is the old wiring order, so
+consolidation never changes which guard speaks first), an ask escalates to the
+human, advisories accumulate and ride along together. drift-guard is stateful
+(the consecutive-scaffold counter), so it is wired through the dispatcher OR
+standalone, never both. One entry:
 
 ```json
 {
   "type": "command",
   "command": "node",
-  "args": ["${CLAUDE_PROJECT_DIR}/hooks/hook-integrity-guard.mjs"],
+  "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"],
   "timeout": 10
 }
 ```
@@ -121,6 +130,10 @@ per repo. They are templates: they fail open and ship with placeholders to fill
 input:    Claude Code hook JSON on stdin (tool_name, tool_input, cwd). BOM-stripped.
 fail_open: a parse error exits 0 (allow). A hook bug never bricks the workflow.
 block:    write the reason to stderr, exit 2. Claude sees the reason and retries.
+ask:      write hookSpecificOutput.permissionDecision "ask" with the reason, exit 0.
+          The call neither proceeds nor dies; the human approves or declines with the
+          reason in front of them. The consent tier, for actions an operator may
+          legitimately have a safety net for.
 advise:   write { systemMessage, hookSpecificOutput.additionalContext } to stdout,
           exit 0. The tool proceeds; the note rides along as context.
 ```
