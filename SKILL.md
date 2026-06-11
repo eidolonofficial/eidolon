@@ -203,11 +203,30 @@ For each capability the repo needs, generate
 `.claude/commands/<name>.md`. Add `references/*-template.md` only when the
 skill emits a repeating artifact.
 
+When a named gap is NOT coverable by a generated skill (a niche language, a
+framework with its own idioms, a regulatory domain), reach beyond the installed
+set. Three actors, never collapsed into one (references/find-skills-reach.md):
+
+```
+discover -> dispatch skill-scout (references/agents/skill-scout.md) for the ONE
+            named gap; it returns ranked candidates as evidence, installs nothing
+decide   -> ONE AskUserQuestion per gap: candidate name + source + license +
+            verbatim frontmatter description, with a why/liability line.
+            [Install it] [Skip] [Show me the SKILL.md first] [Find other options]
+install  -> on the explicit yes, the controller installs (marketplace add +
+            plugin install, or copy the folder into .claude/skills/<name>/),
+            VERIFIES before trusting (frontmatter parses, smoke check), then
+            RECORDS (CREDITS.md with license, decision-log row). Note to the
+            operator: the skill activates on the next session restart.
+```
+
 #### Stage 5 - Subagents
 
 Generate `.claude/agents/<name>.md` - scoped, each with its own context window
-and trigger. Default set: a `verifier` (runs the second-signal funnel) and a
-`reviewer` (security/quality pass). Add stack-specific agents as detected.
+and trigger. Default set: a `verifier` (runs the second-signal funnel), a
+`reviewer` (security/quality pass), and the standing `skill-scout` (copy
+references/agents/skill-scout.md into `.claude/agents/`, so later gaps reuse
+the same discover/decide/install path). Add stack-specific agents as detected.
 
 #### Stage 6 - Hooks (governance gates)
 
@@ -409,7 +428,10 @@ expert_hiring:   references/expert-hiring.md - when recon finds a need the base 
                  cover, generate a grounded expert against the template, gated at PLAN; the
                  anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire.
 find_skills:     references/find-skills-reach.md - pull an installable skill for a named
-                 capability gap; consent before install, verify before trust.
+                 capability gap; consent before install, verify before trust. The three-
+                 actor split is structural: skill-scout (references/agents/skill-scout.md)
+                 discovers read-only and returns evidence; the controller holds the
+                 AskUserQuestion gate and the install (a subagent cannot pause the human).
 antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplicated drift
                  catalog (section 10); each row names its owning stage and enforcing hook.
 hook_suite:      hooks/README.md - the full governance hook suite (section 11): the
