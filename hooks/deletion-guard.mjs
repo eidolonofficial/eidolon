@@ -7,20 +7,26 @@
 // Write/Edit; this covers the delete verbs.)
 //
 // I/O contract lives in hooks/lib.mjs: fail open; block via stderr + exit 2.
+// Wire standalone or via hooks/guard-bash.mjs.
 
-import { runHook, block } from "./lib.mjs";
+import { runHook, emitVerdict } from "./lib.mjs";
 
 const RECORD = /docs[\/\\](fixes|insights|decisions)\b|(^|[\/\\\s'"])DECISIONS?\.md\b/i;
 const DELETE = /\b(rm|rmdir|del|Remove-Item|shred|unlink)\b/i;
 
-runHook((j) => {
-  if (j.tool_name && j.tool_name !== "Bash") return;
+// Pure verdict for one payload.
+export function evalDeletion(j) {
+  if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
 
   if (DELETE.test(cmd) && RECORD.test(cmd)) {
-    block("DELETION GUARD",
+    return { kind: "block", label: "DELETION GUARD", why:
       "this deletes an append-only record (a fix, insight, or decision log).\n" +
       "The records never retire, cap, or auto-archive. Removal requires an explicit " +
-      "human decision, never a command.");
+      "human decision, never a command." };
   }
-});
+  return null;
+}
+
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("deletion-guard.mjs");
+if (invokedDirectly) runHook((j) => emitVerdict(evalDeletion(j)));

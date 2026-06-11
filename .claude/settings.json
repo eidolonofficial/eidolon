@@ -1,26 +1,29 @@
 {
+  "permissions": {
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push * --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f *)",
+      "Bash(git config*core.hooksPath*)",
+      "Bash(git filter-branch *)",
+      "Bash(git filter-repo *)",
+      "Write(**/.claude/settings.local.json)",
+      "Edit(**/.claude/settings.local.json)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/verification-guard.mjs"], "if": "Bash(git *)", "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/commit-quality-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/persona-conduct-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/hook-integrity-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/deletion-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/protected-paths-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/visual-evidence-gate.mjs"], "if": "Bash(git *)", "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/conduct-guard.mjs"], "if": "Bash(git *)", "timeout": 10 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"], "timeout": 10 }
         ]
       },
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/append-only-record-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/persona-conduct-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/drift-guard.mjs"], "timeout": 10 },
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/conduct-guard.mjs"], "timeout": 10 }
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-write.mjs"], "timeout": 10 }
         ]
       },
       {

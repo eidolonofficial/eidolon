@@ -14,18 +14,63 @@ drift into divergent parsers again.
 | verification-guard | PreToolUse (Bash, `git commit`) | Blocks a commit message that claims a visual or runtime result works without naming evidence. The most insistent guard. |
 | commit-quality-guard | PreToolUse (Bash) | Blocks `--no-verify` (and commit's `-n` short form) on commit and push, a non-lease `--force` push, a `core.hooksPath` override, and `filter-branch` / `filter-repo` history surgery. |
 | append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying or more-than-half-shrinking one (silent deletion). |
-| persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. A no-op when none seated. Carries the Expediter lock: the Expediter is the controller's persona, and a dispatched subagent seated as it is HARD STOPPED on any action and the seat is automatically deactivated (the guard clears the seat file itself); detection reads the harness `transcript_path`, which places subagent transcripts under a `subagents` directory, and fails open as the main session when the field is absent. |
+| persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. One carve-out to the consent tier: `irreversible-without-safety-net` ASKS instead of blocking, because the line is conditional (never without the safety nets) and the operator may genuinely hold them; their yes attests the backup, the rollback path, and the post-op verify. A no-op when none seated. Carries the Expediter lock: the Expediter is the controller's persona, and a dispatched subagent seated as it is HARD STOPPED on any action and the seat is automatically deactivated (the guard clears the seat file itself); detection reads the harness `transcript_path`, which places subagent transcripts under a `subagents` directory, and fails open as the main session when the field is absent. |
 | hook-integrity-guard | PreToolUse (Bash) | Blocks disabling, moving, or chmod of any hook - or of the hooks directory as a whole - or changing the hooks path. |
 | deletion-guard | PreToolUse (Bash) | Walls outright `rm` / `del` of an append-only record (fix / insight / decision log, the root DECISIONS.md). |
 | protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op on a protected path (.git, a record, a hook, settings.json, the persona template). |
-| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Blocks a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. |
+| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Escalates (ask) a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. The consent tier on purpose: the human being asked is the final eyes, and their yes is the missing evidence. |
 | conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). |
+| settings-integrity-guard | PreToolUse (Write, Edit) | Blocks a settings edit that silences the suite from inside: introducing `disableAllHooks: true` into a Claude settings file, or dropping a hook entry that the target's manifest (`.claude/eidolon-manifest.yaml`) lists as wired. The content half of the two-layer floor (see "The two-layer floor" below). |
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. Advisory. |
 | memory-sync | git post-commit | Fans out a prose-memory capture and a graph update, resource-guarded (shell template). |
+
+## The two-layer floor
+
+Hooks alone have a hole: a single settings edit (`disableAllHooks: true`, or
+deleting the wired entries) silences every gate at once. The floor is therefore
+two layers, because each does what the other cannot.
+
+**Layer A - permission deny rules** (`.claude/settings.json` `permissions.deny`).
+Evaluated by Claude Code's own permission parser, so they hold even with hooks
+disabled: deny rules outrank allow at every settings level, and hook decisions
+cannot bypass them (verified against the official permissions docs, 2026-06-11).
+They match tool + command/path, never file content.
+
+```json
+"permissions": {
+  "deny": [
+    "Bash(git push --force *)",
+    "Bash(git push * --force *)",
+    "Bash(git push -f *)",
+    "Bash(git push * -f *)",
+    "Bash(git config*core.hooksPath*)",
+    "Bash(git filter-branch *)",
+    "Bash(git filter-repo *)",
+    "Write(**/.claude/settings.local.json)",
+    "Edit(**/.claude/settings.local.json)"
+  ]
+}
+```
+
+Pattern notes, verified by the documented glob semantics rather than assumed: a
+space before a trailing `*` enforces a word boundary, so `git push --force *`
+matches `git push --force` and `git push --force origin main` but never
+`git push --force-with-lease` (which commit-quality-guard deliberately allows);
+a bare `*` spans spaces, so `git push * --force *` catches the flag in any later
+position. The settings.local.json denials close the unreviewed side door: that
+file outranks the project settings and is gitignored, so nothing gets to write
+one. Exotic spellings the prefix rules cannot express (`git -C x filter-branch`,
+`git -c core.hooksPath=...`) stay covered by the hook layer.
+
+**Layer B - content checks** stay hooks, because "this write introduces
+`disableAllHooks: true`" is a content fact no permission rule can see. That is
+settings-integrity-guard, including its manifest cross-check (a settings write
+that drops a hook the manifest lists as wired is refused; unwiring is an explicit
+human decision made by updating the manifest first, in the open).
 
 ## Wiring
 
@@ -37,21 +82,30 @@ location and across macOS, Linux, and Windows. The `if` field is the documented
 permission-rule conditional; it fails open (runs the hook) on an unparseable
 command.
 
-The full wired PreToolUse set is in `.claude/settings.json`: eight Bash guards,
-four Write/Edit guards, and one `.*advisor.*` matcher entry (advisor-guard, so the
-ban follows the tool name wherever it appears, including MCP-prefixed spellings),
-all in the same exec form, with `"if": "Bash(git *)"` on the
-commit-scoped ones (verification, visual-evidence, conduct). Deliberately `git *`,
-not `git commit *`: a narrower pattern would skip the guard entirely for the
-`git -C <path> commit` and `git -c k=v commit` spellings that the guards' own
-commit detector (lib.mjs `GIT_COMMIT`) is written to catch - the `if` is a cheap
-prefilter, and the hook itself decides what is a commit. One entry:
+The wired PreToolUse set in `.claude/settings.json` is three entries: one
+dispatcher per matcher plus the advisor ban.
+
+```yaml
+Bash:         hooks/guard-bash.mjs    # runs the eight Bash evaluators in the old wired order
+Write|Edit:   hooks/guard-write.mjs   # runs the five Write/Edit evaluators in the old wired order
+.*advisor.*:  hooks/advisor-guard.mjs # keys on the tool NAME (incl. MCP spellings); stays standalone
+```
+
+One spawn per matcher instead of one per guard. Each guard exports a pure
+evaluator (`evalX(payload) -> verdict | null`) that the dispatcher imports, and
+keeps its own standalone entry point, so the per-guard tests exercise the exact
+files and a hand wiring still works. Verdict precedence lives in lib.mjs
+`runSuite`: the first block halts the call (order is the old wiring order, so
+consolidation never changes which guard speaks first), an ask escalates to the
+human, advisories accumulate and ride along together. drift-guard is stateful
+(the consecutive-scaffold counter), so it is wired through the dispatcher OR
+standalone, never both. One entry:
 
 ```json
 {
   "type": "command",
   "command": "node",
-  "args": ["${CLAUDE_PROJECT_DIR}/hooks/hook-integrity-guard.mjs"],
+  "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"],
   "timeout": 10
 }
 ```
@@ -76,6 +130,10 @@ per repo. They are templates: they fail open and ship with placeholders to fill
 input:    Claude Code hook JSON on stdin (tool_name, tool_input, cwd). BOM-stripped.
 fail_open: a parse error exits 0 (allow). A hook bug never bricks the workflow.
 block:    write the reason to stderr, exit 2. Claude sees the reason and retries.
+ask:      write hookSpecificOutput.permissionDecision "ask" with the reason, exit 0.
+          The call neither proceeds nor dies; the human approves or declines with the
+          reason in front of them. The consent tier, for actions an operator may
+          legitimately have a safety net for.
 advise:   write { systemMessage, hookSpecificOutput.additionalContext } to stdout,
           exit 0. The tool proceeds; the note rides along as context.
 ```
@@ -95,12 +153,18 @@ append-only-record-guard:
 persona-conduct-guard:     block (exit 2) - a seated persona crossed its own declared
                            anti-behavior, or was seated with anti-behaviors but no
                            framework anchor (no anchor, no seat); a no-op (exit 0) when
-                           no persona is seated or the seat declares no anti-behaviors
+                           no persona is seated or the seat declares no anti-behaviors.
+                           Exception: irreversible-without-safety-net ASKS (consent
+                           tier) - the operator's yes attests the safety nets the
+                           guard cannot see
 hook-integrity-guard:      block (exit 2) - disable / move / chmod a hook, or change the hooks path
 deletion-guard:            block (exit 2) - rm / del of an append-only record
 protected-paths-guard:     block (exit 2) - a destructive op on a protected path
-visual-evidence-gate:      block (exit 2) - a commit stages a visual file with no evidence named
+visual-evidence-gate:      ask (consent tier) - a commit stages a visual file with no
+                           evidence named; the human approving IS the final eyes
 conduct-guard:             advise (exit 0) - conduct-drift language in a file or a commit message
+settings-integrity-guard:  block (exit 2) - a settings edit that introduces disableAllHooks:true
+                           or drops a manifest-wired hook entry
 drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaffold-only edits
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
 memory-sync:               no block - post-commit prose + graph fan-out, resource-guarded (template)

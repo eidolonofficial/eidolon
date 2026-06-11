@@ -6,8 +6,9 @@
 // State an independent backup, a rollback path, and a post-op verify, or do not run it.
 //
 // I/O contract lives in hooks/lib.mjs: fail open; block via stderr + exit 2.
+// Wire standalone or via hooks/guard-bash.mjs.
 
-import { runHook, touchesHookSuite, block } from "./lib.mjs";
+import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
 
 const PROTECTED = [
   /(^|[\/\\\s'"])\.git(\b|[\/\\])/i,            // the git dir
@@ -18,15 +19,20 @@ const PROTECTED = [
 ];
 const DESTRUCTIVE = /\b(rm|rmdir|del|Remove-Item|truncate|shred|unlink)\b/i;
 
-runHook((j) => {
-  if (j.tool_name && j.tool_name !== "Bash") return;
+// Pure verdict for one payload.
+export function evalProtectedPaths(j) {
+  if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
 
   if (DESTRUCTIVE.test(cmd) && (PROTECTED.some((re) => re.test(cmd)) || touchesHookSuite(cmd))) {
-    block("PROTECTED PATHS GUARD",
+    return { kind: "block", label: "PROTECTED PATHS GUARD", why:
       "a destructive op on a protected path (.git, a record, a hook, settings.json, " +
       "or the persona template).\n" +
       "State an independent backup, a rollback path before it runs, and a post-op " +
-      "verify, or do not run it.");
+      "verify, or do not run it." };
   }
-});
+  return null;
+}
+
+const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("protected-paths-guard.mjs");
+if (invokedDirectly) runHook((j) => emitVerdict(evalProtectedPaths(j)));

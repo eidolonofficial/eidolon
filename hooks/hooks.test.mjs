@@ -37,6 +37,13 @@ const advised = (r, label) => {
   assert.match(out.hookSpecificOutput.additionalContext, new RegExp(label));
 };
 const silent = (r) => { allowed(r); assert.equal(r.stdout, ""); };
+// the consent tier: exit 0 with the documented permissionDecision "ask" JSON
+const asked = (r, label) => {
+  allowed(r);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.hookSpecificOutput.permissionDecision, "ask");
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, new RegExp(label));
+};
 const tmp = () => mkdtempSync(join(tmpdir(), "eidolon-hooks-"));
 
 // ---------------------------------------------------------------- lib.mjs
@@ -248,9 +255,11 @@ test("persona-conduct-guard: end-to-end seat enforcement", (t) => {
 
   writeFileSync(seatFile, JSON.stringify(seat));
   allowed(run("persona-conduct-guard.mjs", bash("ls -la", dir)));
-  blocked(run("persona-conduct-guard.mjs", bash("rm -rf build", dir)), "irreversible-without-safety-net");
-  // mv carries no rm -rf, so it reaches the hook detector; rm -rf hooks would
-  // (correctly) trip irreversible-without-safety-net first
+  // the consent tier: the anti-behavior is conditional (never WITHOUT the safety
+  // nets), and the operator may genuinely hold them, so this asks instead of blocks
+  asked(run("persona-conduct-guard.mjs", bash("rm -rf build", dir)), "irreversible-without-safety-net");
+  // mv carries no rm -rf, so it reaches the hook detector; an unconditional line
+  // stays a hard block
   blocked(run("persona-conduct-guard.mjs", bash("mv hooks hooks-bak", dir)), "disable-or-route-around-hook");
 
   writeFileSync(seatFile, JSON.stringify({ ...seat, anchors: [] }));
@@ -273,18 +282,18 @@ function gitRepo(t) {
   return { dir, git };
 }
 
-test("visual-evidence-gate: an already-staged visual with no evidence blocks; named evidence passes", (t) => {
+test("visual-evidence-gate: an already-staged visual with no evidence escalates to the human; named evidence passes", (t) => {
   const { dir, git } = gitRepo(t);
   writeFileSync(join(dir, "shot.png"), "not really a png");
   git("add", "shot.png");
-  blocked(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
   allowed(run("visual-evidence-gate.mjs", bash('git commit -m "add dashboard render, user confirmed in review"', dir)));
 });
 
 test("visual-evidence-gate: a visual staged BY the same command is gated (regression: the index check ran too early)", (t) => {
   const { dir } = gitRepo(t);
   writeFileSync(join(dir, "shot.png"), "not really a png");
-  blocked(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render"', dir)), "VISUAL EVIDENCE GATE");
   allowed(run("visual-evidence-gate.mjs", bash('git add shot.png && git commit -m "add render: screenshot reviewed"', dir)));
 });
 
@@ -294,7 +303,7 @@ test("visual-evidence-gate: commit -am sweeps in a modified tracked visual (regr
   git("add", "logo.svg");
   git("commit", "-q", "-m", "seed");
   writeFileSync(join(dir, "logo.svg"), "<svg>v2</svg>");
-  blocked(run("visual-evidence-gate.mjs", bash('git commit -am "tweak logo"', dir)), "VISUAL EVIDENCE GATE");
+  asked(run("visual-evidence-gate.mjs", bash('git commit -am "tweak logo"', dir)), "VISUAL EVIDENCE GATE");
 });
 
 test("visual-evidence-gate: naming a screenshot AS evidence in -m is not a staged visual", (t) => {
@@ -343,6 +352,103 @@ test("drift-guard: counts scaffold edits, advises at 6, blocks at 10, resets on 
   silent(edit("src/feature.js")); // deliverable work resets the counter
   assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "0");
   silent(edit("scripts/again.sh")); // back to 1, far from the warn line
+});
+
+// ------------------------------------------------------------- dispatchers
+// guard-bash and guard-write run the same evaluators the standalone files do,
+// one spawn per matcher. These tests prove the consolidation preserved every
+// verdict: same labels, same exit codes, same advisory JSON.
+
+test("guard-bash: one spawn, the whole Bash suite, first block wins in wired order", () => {
+  blocked(run("guard-bash.mjs", bash('git commit -m "dashboard works now"')), "VERIFICATION GUARD");
+  blocked(run("guard-bash.mjs", bash('git commit --no-verify -m "x"')), "COMMIT QUALITY GUARD");
+  blocked(run("guard-bash.mjs", bash("rm -rf hooks")), "HOOK INTEGRITY GUARD");
+  blocked(run("guard-bash.mjs", bash("rm docs/fixes/FIX-x.md")), "DELETION GUARD");
+  blocked(run("guard-bash.mjs", bash("truncate -s 0 .claude/settings.json")), "PROTECTED PATHS GUARD");
+});
+
+test("guard-bash: clean commands and bad input pass silently (fail open)", () => {
+  silent(run("guard-bash.mjs", bash("npm test")));
+  silent(run("guard-bash.mjs", "not json at all"));
+});
+
+test("guard-bash: advisories ride along when nothing blocks", () => {
+  advised(run("guard-bash.mjs", bash("git -C /repo commit -m \"I'll fix this later\"")), "deferring doable work");
+});
+
+test("guard-bash: a staged visual with no evidence escalates through the dispatcher too", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "shot.png"), "not really a png");
+  git("add", "shot.png");
+  asked(run("guard-bash.mjs", bash('git commit -m "add dashboard render"', dir)), "VISUAL EVIDENCE GATE");
+});
+
+test("guard-bash: a block outranks an ask (a bypass cannot be consented through)", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "shot.png"), "not really a png");
+  git("add", "shot.png");
+  // the same staged visual would ask, but the --no-verify bypass blocks first
+  blocked(run("guard-bash.mjs", bash('git commit --no-verify -m "add render"', dir)), "COMMIT QUALITY GUARD");
+});
+
+test("guard-write: one spawn, the whole Write/Edit suite", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "docs", "decisions"), { recursive: true });
+  const rec = join(dir, "docs", "decisions", "log.md");
+  writeFileSync(rec, "0123456789");
+  blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
+  advised(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "012345678" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
+  blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": true }' }, cwd: dir }), "SETTINGS INTEGRITY GUARD");
+  silent(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: "src/feature.js", content: "export const x = 1;" }, cwd: dir }));
+});
+
+test("guard-write: the drift counter advances once per call through the dispatcher (stateful guard intact)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const edit = (file_path) => run("guard-write.mjs", { tool_name: "Edit", tool_input: { file_path }, cwd: dir });
+  for (let i = 1; i <= 5; i++) silent(edit("scripts/setup-" + i + ".sh"));
+  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "5");
+  advised(edit("scripts/setup-6.sh"), "DRIFT GUARD");
+  silent(edit("src/feature.js"));
+  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "0");
+});
+
+// ----------------------------------------------- settings-integrity-guard
+
+test("settings-integrity-guard: introducing disableAllHooks:true into a settings file is blocked", () => {
+  blocked(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": true }' } }), "SETTINGS INTEGRITY GUARD");
+  blocked(run("settings-integrity-guard.mjs", { tool_name: "Edit", tool_input: { file_path: ".claude/settings.local.json", old_string: "{}", new_string: '{ "disableAllHooks": true }' } }), "SETTINGS INTEGRITY GUARD");
+});
+
+test("settings-integrity-guard: a clean settings write passes; other files are not its business", () => {
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "hooks": {} }' } }));
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: "src/config.json", content: '{ "disableAllHooks": true }' } }));
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": false }' } }));
+});
+
+test("settings-integrity-guard: dropping a manifest-wired hook from settings is blocked (the delete-the-entry variant)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", "eidolon-manifest.yaml"),
+    "artifacts:\n  - path: hooks/guard-bash.mjs\n    kind: hook\n");
+  writeFileSync(join(dir, ".claude", "settings.json"),
+    '{ "hooks": { "PreToolUse": [{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"] }] } }');
+  const w = (content) => run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content }, cwd: dir });
+  blocked(w('{ "hooks": {} }'), "SETTINGS INTEGRITY GUARD");
+  // an Edit that deletes the wired entry is the same attack
+  blocked(run("settings-integrity-guard.mjs", { tool_name: "Edit", tool_input: { file_path: ".claude/settings.json", old_string: "hooks/guard-bash.mjs", new_string: "" }, cwd: dir }), "SETTINGS INTEGRITY GUARD");
+  // a rewiring that KEEPS the hook passes (e.g. changing its timeout)
+  silent(w('{ "hooks": { "PreToolUse": [{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"], "timeout": 20 }] } }'));
+});
+
+test("settings-integrity-guard: no manifest means no cross-check (fail open in a fresh target)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", "settings.json"), '{ "hooks": { "x": "hooks/old-guard.mjs" } }');
+  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: "{}" }, cwd: dir }));
 });
 
 // --------------------------------------------------- session save / restore

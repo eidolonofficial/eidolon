@@ -7,9 +7,11 @@ trigger: /eidolon
 # /eidolon
 
 Any repo → detected stack → a complete, verified Claude Code environment.
-Four phases, ten stages, three operator checkpoints. Nothing is written
-before the plan is approved. Every generated command is verified against an
-independent second signal before it ships.
+Four phases, eleven stages (1 to 10 plus the 2.5 persona interview), three
+operator checkpoints, and four consent-gate moments (install, seat, deploy,
+irreversible). Autonomous execution, consent-gated side effects: nothing is
+written before the plan is approved, and every generated command is verified
+against an independent second signal before it ships.
 
 ## Usage
 
@@ -37,8 +39,14 @@ manifest:
   root:   .claude/eidolon-manifest.yaml
   rule:   every generated artifact carries last_verified + a verify gate    # trust-tree.yaml model
 gating:
-  model:  plan all 10 → approve → execute with checkpoints
+  model:  plan all stages → approve → execute with checkpoints
   gates:  after Stage 2, after Stage 6, after Stage 8
+  consent_gates:                                        # autonomous execution, consent-gated side effects
+    rule:   do ALL the work without asking; pause ONLY where an action is installing,
+            irreversible, deploying, or seating an identity
+    moments: install a skill (Stage 4) | seat the primary persona (Stage 2.5 ratify,
+             Stage 10 seat) | deploy (SHIP) | run an irreversible op (the ask tier)
+    shape:  one AskUserQuestion each, with a why/liability line; never a typed menu
 verification:                                           # the load-bearing discipline
   funnel: REFERENCE trust-but-verify SKILL.md § "what verification MUST be"  # do not restate
   rule:   no generated command ships unverified; tag every claim EXTRACTED|INFERRED|AMBIGUOUS
@@ -164,10 +172,23 @@ Synthesize the tailored 10-stage plan for THIS repo. Mark each artifact
 
 ### PHASE B - Structure
 
+#### Stage 2.5 - Primary persona interview
+
+The house agent for this repo, built by the same machine that builds the
+swarms and held to the same anti-synthetic rail (no anchor, no seat). One
+AskUserQuestion round, proposed from Stage 1 recon and ratified by the user:
+register, mandate, anchors (the rail, satisfied with consent), specific
+anti-behaviors, voice. Assemble against references/persona-template.md, lint
+with scripts/persona-lint.mjs (a FAIL re-prompts the anchors question, never
+seats), then ratify: [Seat it] [Edit] [Explain]. The full contract is
+references/primary-persona.md. Seating itself happens at Stage 10, so the
+guard enforces from the first message of the next session.
+
 #### Stage 3 - CLAUDE.md
 
 Generate declarative core. Facts as config; rules as imperative lines; no prose.
 If CLAUDE.md exists, merge - never overwrite. Reference skills/graph, don't inline them.
+Reference the primary persona (references/personas/<project>-primary.md), never inline it.
 
 ```markdown
 ## Stack
@@ -203,26 +224,68 @@ For each capability the repo needs, generate
 `.claude/commands/<name>.md`. Add `references/*-template.md` only when the
 skill emits a repeating artifact.
 
+When a named gap is NOT coverable by a generated skill (a niche language, a
+framework with its own idioms, a regulatory domain), reach beyond the installed
+set. Three actors, never collapsed into one (references/find-skills-reach.md):
+
+```
+discover -> dispatch skill-scout (references/agents/skill-scout.md) for the ONE
+            named gap; it returns ranked candidates as evidence, installs nothing
+decide   -> ONE AskUserQuestion per gap: candidate name + source + license +
+            verbatim frontmatter description, with a why/liability line.
+            [Install it] [Skip] [Show me the SKILL.md first] [Find other options]
+install  -> on the explicit yes, the controller installs (marketplace add +
+            plugin install, or copy the folder into .claude/skills/<name>/),
+            VERIFIES before trusting (frontmatter parses, smoke check), then
+            RECORDS (CREDITS.md with license, decision-log row). Note to the
+            operator: the skill activates on the next session restart.
+```
+
 #### Stage 5 - Subagents
 
 Generate `.claude/agents/<name>.md` - scoped, each with its own context window
-and trigger. Default set: a `verifier` (runs the second-signal funnel) and a
-`reviewer` (security/quality pass). Add stack-specific agents as detected.
+and trigger. Default set: a `verifier` (runs the second-signal funnel), a
+`reviewer` (security/quality pass), and the standing `skill-scout` (copy
+references/agents/skill-scout.md into `.claude/agents/`, so later gaps reuse
+the same discover/decide/install path). Add stack-specific agents as detected.
 
-#### Stage 6 - Hooks (governance gates)
+#### Stage 6 - Hooks (governance gates, BOTH layers)
 
-Generate `hooks/*.mjs` (Node) + `hooks/*.ps1` (PowerShell) + `hooks/README.md`
-(table). Wire in `.claude/settings.json` under the matching event. Mirror the
-advisory-vs-block pattern: advisory injects `additionalContext`; hard block
-exits `2`.
+Emit two layers, because each does what the other cannot (hooks/README.md,
+"The two-layer floor"):
+
+Layer A - the permission deny floor, into the target's `.claude/settings.json`.
+Evaluated by Claude Code's own parser, so it survives `disableAllHooks`:
+
+```json
+"permissions": {
+  "deny": [
+    "Bash(git push --force *)",  "Bash(git push * --force *)",
+    "Bash(git push -f *)",       "Bash(git push * -f *)",
+    "Bash(git config*core.hooksPath*)",
+    "Bash(git filter-branch *)", "Bash(git filter-repo *)",
+    "Write(**/.claude/settings.local.json)",
+    "Edit(**/.claude/settings.local.json)"
+  ]
+}
+```
+
+Layer B - the hook suite: generate `hooks/*.mjs` (Node) + `hooks/*.ps1`
+(PowerShell) + `hooks/README.md` (table). Wire the consolidated dispatcher
+shape in `.claude/settings.json`: one `guard-bash` entry, one `guard-write`
+entry, the `.*advisor.*` entry. Mirror the verdict tiers: advisory injects
+`additionalContext`; ask emits `permissionDecision "ask"` (the consent tier);
+hard block exits `2`.
 
 ```
 events:    PreToolUse | PostToolUse | SessionStart | PreCompact
 default gates:
-  protected-paths-guard   PreToolUse(Bash)        exit 2 on rm/del of protected paths
-  doc-integrity-guard     PreToolUse(Write/Edit)  exit 2 on shrinking an append-only log
-  commit-quality-guard    PreToolUse(Bash)        exit 2 on --no-verify / --force / DROP
-  verification-reminder   PreToolUse(Write/Edit)  advisory: verify before hedged language ships
+  protected-paths-guard     PreToolUse(Bash)        exit 2 on rm/del of protected paths
+  doc-integrity-guard       PreToolUse(Write/Edit)  exit 2 on shrinking an append-only log
+  commit-quality-guard      PreToolUse(Bash)        exit 2 on --no-verify / --force / DROP
+  settings-integrity-guard  PreToolUse(Write/Edit)  exit 2 on disableAllHooks:true or on
+                                                    dropping a manifest-wired hook entry
+  verification-reminder     PreToolUse(Write/Edit)  advisory: verify before hedged language ships
 ```
 
 ```
@@ -293,13 +356,22 @@ test -f .claude/settings.json && python3 -c "import json;json.load(open('.claude
 for h in hooks/*.mjs; do node --check "$h" && echo "$h: parses [EXTRACTED]"; done
 graphify --update --no-viz >/dev/null 2>&1 && echo "graphify runs [EXTRACTED]" || echo "graphify: [AMBIGUOUS] verify install/PATH"
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "post-commit path valid [EXTRACTED]"
+# the primary persona must pass the rail before Stage 10 may seat it
+node scripts/persona-lint.mjs references/personas/*-primary.md && echo "primary persona: PASS [EXTRACTED]"
+# every Stage 4-installed skill: frontmatter parses + one-line smoke check before its findings are trusted
+for s in .claude/skills/*/SKILL.md; do head -1 "$s" | grep -q '^---$' && echo "$s: frontmatter [EXTRACTED]"; done
 ```
 
 Any `AMBIGUOUS` result blocks closeout until resolved or explicitly waived.
 
-#### Stage 10 - Manifest + self-auditing closeout
+#### Stage 10 - Manifest + seat the persona + self-auditing closeout
 
-Emit the artifact registry and the log scaffolding.
+Emit the artifact registry and the log scaffolding, then seat the ratified
+primary persona: write `.claude/active-persona.json` (persona id, title,
+anchors, both anti-behavior layers), so the conduct guard enforces it from
+message 1 of the next session. Seat only a persona that passed Stage 9's lint;
+the guard's own seat-time gate (no anchor, no seat) is the last line, not the
+plan.
 
 ```yaml
 # .claude/eidolon-manifest.yaml
@@ -391,6 +463,11 @@ explain_mode:    references/explain-mode.md - plain-language teaching, comprehen
 personas:        references/persona-template.md - the ten-part construction template, the
                  two anti-behavior layers, the anti-synthetic rail. references/personas/*.md
                  are the built personas (slice 1 ships the full-stack engineer).
+primary_persona: references/primary-persona.md - Stage 2.5: the user's own house agent,
+                 interviewed into existence from recon + five ratified questions, assembled
+                 against the template, linted by the same rail (a FAIL re-prompts, never
+                 seats), and seated at Stage 10 (.claude/active-persona.json) so the conduct
+                 guard enforces from message 1.
 engineering_swarm: references/engineering-swarm.md - builds against the spec, TDD per task,
                  with the seeded-failing-test fire drill and the no-stub closeout gate.
 conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona against its own
@@ -409,7 +486,10 @@ expert_hiring:   references/expert-hiring.md - when recon finds a need the base 
                  cover, generate a grounded expert against the template, gated at PLAN; the
                  anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire.
 find_skills:     references/find-skills-reach.md - pull an installable skill for a named
-                 capability gap; consent before install, verify before trust.
+                 capability gap; consent before install, verify before trust. The three-
+                 actor split is structural: skill-scout (references/agents/skill-scout.md)
+                 discovers read-only and returns evidence; the controller holds the
+                 AskUserQuestion gate and the install (a subagent cannot pause the human).
 antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplicated drift
                  catalog (section 10); each row names its owning stage and enforcing hook.
 hook_suite:      hooks/README.md - the full governance hook suite (section 11): the

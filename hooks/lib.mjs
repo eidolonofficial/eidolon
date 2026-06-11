@@ -2,7 +2,8 @@
 //
 // Eidolon hook suite - shared plumbing. Every guard reads the same Claude Code
 // hook JSON from stdin, fails open on bad input, blocks via stderr + exit 2,
-// and advises via stdout JSON. Before this module each guard carried its own
+// asks via the documented permissionDecision JSON (the consent tier), and
+// advises via stdout JSON. Before this module each guard carried its own
 // copy of that contract, and three of them had drifted into three different
 // git-commit detectors; the weaker two missed `git -C <path> commit`. One
 // implementation, one behavior.
@@ -80,9 +81,27 @@ export function runHook(fn) {
 }
 
 // Hard block: the reason goes to stderr, exit 2. Claude sees it and retries.
-export function block(label, why) {
-  process.stderr.write(label + " [BLOCKED - fix and retry]: " + why + "\n");
+// The tag is the bracketed disposition; persona-conduct's Expediter lock uses
+// "HARD STOP - seat cleared", everything else the default.
+export function block(label, why, tag = "BLOCKED - fix and retry") {
+  process.stderr.write(label + " [" + tag + "]: " + why + "\n");
   process.exit(2);
+}
+
+// Escalate to the human: the call neither proceeds nor dies; Claude Code shows
+// the reason and waits for an explicit yes. The consent tier between advise and
+// block, for an action the operator may legitimately have a safety net for (a
+// rollback path the guard cannot see). Documented PreToolUse output:
+// hookSpecificOutput.permissionDecision "ask".
+export function ask(label, why) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: label + ": " + why,
+    },
+  }));
+  process.exit(0);
 }
 
 // Advisory: the tool call proceeds; the note rides along as context.
@@ -93,4 +112,37 @@ export function advise(label, why) {
     hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: msg },
   }));
   process.exit(0);
+}
+
+// One verdict ({ kind: "block"|"ask"|"advise", label, why, tag? }), emitted the
+// way the suite speaks. The standalone guard entry points and the dispatchers
+// both speak through this, so a verdict renders identically whether the guard
+// ran alone or in the consolidated suite.
+export function emitVerdict(v) {
+  if (!v) return;
+  if (v.kind === "block") block(v.label, v.why, v.tag);
+  if (v.kind === "ask") ask(v.label, v.why);
+  if (v.kind === "advise") advise(v.label, v.why);
+}
+
+// Run an ordered suite of pure evaluators against one stdin payload: the
+// dispatcher shape, one spawn for a whole matcher instead of one per guard.
+// Precedence: the first block halts the call immediately (wiring order is
+// preserved, so consolidation never changes which guard speaks first); next an
+// ask escalates to the human, its reason carrying every ask that fired; only
+// when nothing blocks or asks do the advisories ride along together.
+export function runSuite(evaluators) {
+  runHook((j) => {
+    const asks = [];
+    const advisories = [];
+    for (const evaluate of evaluators) {
+      const v = evaluate(j);
+      if (!v) continue;
+      if (v.kind === "block") block(v.label, v.why, v.tag);
+      else if (v.kind === "ask") asks.push(v);
+      else advisories.push(v);
+    }
+    if (asks.length) ask(asks[0].label, asks.map((a) => a.why).join(" "));
+    else if (advisories.length) advise(advisories[0].label, advisories.map((a) => a.why).join(" "));
+  });
 }
