@@ -312,21 +312,43 @@ python3 -c "import graphify" 2>/dev/null || echo "AMBIGUOUS: graphify not instal
 command -v mempalace 2>/dev/null || claude plugin list 2>/dev/null | grep -i mempalace || echo "AMBIGUOUS: confirm MemPalace capture invocation before wiring"
 ```
 
-Path 1 - plain git (`.git/hooks/post-commit`), detached + resource-guarded:
+The auto-miner is ONE portable script (`hooks/memory-sync.post-commit.sh`)
+wired on up to two legs. It is hardened against three failure modes that a naive
+"two paths fire the same captures" wiring walks straight into (each lesson
+field-proven; provenance in `docs/decisions/2026-06-11-hardened-automine.md`):
 
-```sh
-#!/bin/sh
-# why: graph rebuilds are CPU-heavy and pile up; guard prevents saturation
-_ok() { :; }   # replace with CPU<=50%/cores + mem>=2GB free + pgrep dedup check
-if _ok; then
-  ( graphify --update >/dev/null 2>&1 &            # default: NO --mode deep
-    <mempalace-capture-cmd> >/dev/null 2>&1 & ) &   # filled after detection above
-fi
+```yaml
+foundation:   git-native (.git/hooks/post-commit or a tracked core.hooksPath dir)
+              is the FOUNDATION, not a co-equal of the Claude Code leg. A
+              PostToolUse(Bash) hook fires only when the commit ran through the
+              agent's tool call, and the harness is NOT guaranteed to invoke it
+              (probe-verified: a wired entry went uninvoked while the script ran
+              clean when driven directly). Human / script / subagent commits never
+              reach it. The git-native hook fires on EVERY commit from ANY source.
+dedup:        two legs firing sub-seconds apart can BOTH start a capture, and
+              concurrent captures corrupt the vector index (HNSW segment desync).
+              Two guards make a double-fire a no-op: (1) already-synced - sentinel
+              head == HEAD -> skip; (2) atomic lock - `mkdir` is atomic on every
+              POSIX fs and Windows git-bash, so exactly one racer proceeds; a stale
+              lock (>15 min) is removed and retried once.
+observability: never silence the cascade into /dev/null. Log the fire, the skip,
+              and each stage exit to .claude/.memory-sync.log - a silenced cascade
+              once hid a non-firing trigger for 13 commits; the silence cost the
+              time, not the bug.
 ```
 
-Path 2 - Claude Code hook (`.claude/settings.json` → `PostToolUse` matching `Bash` `git commit`),
-calling a `hooks/post-commit-capture.ps1` that fires the same two captures.
-Both paths fire the SAME two captures so it works from terminal OR from Claude Code.
+```
+Leg 1 (FOUNDATION) - git-native: copy hooks/memory-sync.post-commit.sh to
+  .git/hooks/post-commit (chmod +x), or into the repo's core.hooksPath dir for a
+  clone-portable, tracked hook. Fires on every commit from any source.
+Leg 2 (OPTIONAL) - Claude Code PostToolUse(Bash, git commit): run the SAME script
+  for in-agent immediacy. The dedup makes the overlap with leg 1 safe.
+```
+
+Fill `<CAPTURE_CMD>` + `<WING>` in the template with the repo's verified MemPalace
+invocation (the detection above); graphify auto-detects on PATH. The template
+ships the lock, the dedup, the logging, and the synced-head sentinel already
+wired - the installer fills only the two capture placeholders.
 
 #### Stage 8 - MCP config
 
