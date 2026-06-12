@@ -73,6 +73,14 @@ orchestration:                                          # running subagents and 
            read-only inventory BEFORE any dispatch. Analyze real scope against noise.
            Improve in small controlled waves. Control by verifying every wave by STATE
            before the next one fires.
+  standard: references/conductor-standard.md - the field-proven operating standard (operator-
+           ordered 2026-06-12): the conductor lanes (conducts, supervises by state, runs gates
+           of record, merge surgery, hook infra - NEVER builds inline what a fenced swarm can),
+           the swarm-first dispatch law, personas on every dispatch with no exceptions, the
+           model cascade, the spec foundry (idle capacity works ahead read-only), and edge-only
+           human gates. Where an older clause here or in any reference permits inline building,
+           optional persona seating, or cost-timid fan-out, the standard SUPERSEDES it; its
+           anti-patterns index maps each replaced clause.
   discipline:                                           # the five operating rules every wave answers to
     done_is_the_outcome:  "done" means the outcome the work exists for is true and observed,
                           never merely that a gate ran green; name the outcome signal before
@@ -530,6 +538,19 @@ review_receipt:  references/review-receipt.md - a signed, re-judgeable attestati
 process_doctrine: references/process-doctrine.md - the learned operating rules (calibrate
                  verification to risk; mind background work), surfaced at session start by
                  hooks/process-doctrine.mjs.
+conductor_standard: references/conductor-standard.md - the 2026-06-12 uplift: conductor lanes,
+                 swarm-first dispatch law, personas-every-dispatch, the model cascade,
+                 supervise-by-state, done-is-the-outcome, the spec foundry, edge-only gates;
+                 closes with the anti-patterns index mapping every clause it replaces.
+process_supervision: references/process-supervision.md - dev-process staleness doctrine
+                 (field-proven 2026-06-11): boot-id health stamps plus a git-sha code stamp as
+                 next hardening, client staleness banners, restart drills with two-view proof;
+                 Stage 1 recon records each dev process's reload/port/supervisor and Stage 9
+                 treats an unsupervised non-reloading dev process as a finding to surface.
+heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing self-rearming
+                 heartbeat at the lease-window cadence: state pulse, zombie reap with
+                 state-injected respawns, one swarm-conducting wave per firing, parks only at
+                 human gates; 25-minute default leases; a stale queue is a defect to re-seed.
 ```
 
 ### What you must do in build mode
