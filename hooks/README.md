@@ -26,6 +26,9 @@ drift into divergent parsers again.
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. Advisory. |
+| seat-surface | SessionStart | Surfaces the seated persona (identity + anchors + enforced anti-behaviors) on every session source, so the agent operates AS the persona instead of only being blocked when it strays. Advisory; pairs with persona-conduct-guard (the teeth). |
+| graphify-orient | SessionStart | Surfaces the code graph's god nodes + key hyperedges + freshness (build-commit vs HEAD) every pass. Advisory, read-only. |
+| mempalace-orient | SessionStart | Surfaces a seeded prose-memory recall (branch + recent commits) every pass. Advisory, fail-open. Template: fill the wing at install. |
 | memory-sync | git post-commit | Fans out a prose-memory capture and a graph update, resource-guarded (shell template). |
 
 ## The two-layer floor
@@ -116,13 +119,22 @@ standalone, never both. One entry:
 session-save:    PreCompact event    -> a "PreCompact" key (an event hook, no tool matcher)
 session-restore: SessionStart event  -> a "SessionStart" key
 process-doctrine: SessionStart event -> a "SessionStart" key (advisory; injects the doctrine)
+seat-surface:     SessionStart event  -> a "SessionStart" key (advisory; surfaces the seated persona every pass)
+graphify-orient:  SessionStart event  -> a "SessionStart" key (advisory; surfaces graph god-nodes + freshness)
+mempalace-orient: SessionStart event  -> a "SessionStart" key (advisory; seeded prose-memory recall; fill <WING>)
 memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
                  .git/hooks/post-commit and chmod +x, or point the harness at it
 ```
 
-These three depend on the target's events and tooling, so the installer wires them
-per repo. They are templates: they fail open and ship with placeholders to fill
-(the MemPalace capture command, the run-state snapshot fields).
+The pass-start orientation trio (seat-surface, graphify-orient, mempalace-orient) is
+the SessionStart RECALL/ORIENT leg that complements Stage 7's dual-capture SYNC: SYNC
+writes memory + graph on commit, ORIENT surfaces the persona, the graph, and the prose
+memory at the START of every session so work never begins seated-but-invisible or blind
+to the codebase it lives in.
+
+These depend on the target's events and tooling, so the installer wires them per repo.
+They are templates: they fail open and ship with placeholders to fill (the MemPalace
+capture command + wing, the run-state snapshot fields).
 
 ## Behavior contract
 
@@ -167,6 +179,9 @@ settings-integrity-guard:  block (exit 2) - a settings edit that introduces disa
                            or drops a manifest-wired hook entry
 drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaffold-only edits
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
+seat-surface / graphify-orient / mempalace-orient:
+                           no block - SessionStart orientation surfaces (persona seat, graph
+                           god-nodes, prose-memory recall); advisory, fail-open (templates)
 memory-sync:               no block - post-commit prose + graph fan-out, resource-guarded (template)
 ```
 
