@@ -232,6 +232,13 @@ For each capability the repo needs, generate
 `.claude/commands/<name>.md`. Add `references/*-template.md` only when the
 skill emits a repeating artifact.
 
+For a skill Eidolon authors for ITSELF from a recurring, PROVEN gap (not generated
+once for the target, not discovered externally), use the gated authoring flow: build
+it against `references/skill-template.md`, lint it with `scripts/skill-lint.mjs` (the
+rail: no trigger, no eval, no skill), independent-test-gate its evals, then consent +
+install. Doctrine: `references/skill-authoring.md`; maker:
+`references/personas/skill-author.md`; worked example: `references/example-skill/SKILL.md`.
+
 When a named gap is NOT coverable by a generated skill (a niche language, a
 framework with its own idioms, a regulatory domain), reach beyond the installed
 set. Three actors, never collapsed into one (references/find-skills-reach.md):
@@ -520,6 +527,12 @@ find_skills:     references/find-skills-reach.md - pull an installable skill for
                  actor split is structural: skill-scout (references/agents/skill-scout.md)
                  discovers read-only and returns evidence; the controller holds the
                  AskUserQuestion gate and the install (a subagent cannot pause the human).
+skill_authoring: references/skill-authoring.md - Eidolon authors a skill for ITSELF from a
+                 recurring PROVEN gap (the skill analog of expert-hiring): build against
+                 references/skill-template.md, lint with scripts/skill-lint.mjs (the rail:
+                 no trigger, no eval, no skill), independent test-gate the evals, human
+                 consent + install, then govern the library. Distilled-from-success only;
+                 one-shot speculation is worse than nothing (EvolveTool-Bench).
 antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplicated drift
                  catalog (section 10); each row names its owning stage and enforcing hook.
 hook_suite:      hooks/README.md - the full governance hook suite (section 11): the

@@ -369,6 +369,9 @@ audit_wave:    a periodic READ-ONLY spec-foundry variant (commits nothing) that 
                wing-tagged mempalace entry, cross-checks it against current code (does the named
                file/pattern still exist? does the fix-log root cause still match the architecture?),
                and emits docs/notes/MEMORY-AUDIT-YYYY-MM-DD.md listing entries to deprecate / update / promote
+skills:        the same wave governs the self-authored SKILL library (references/skill-authoring.md
+               step 6): merge duplicates, prune the consistently-unused, and flag a skill that
+               encoded one run's literals (file names, paths, magic numbers) as stale
 trigger:       operator-triggered, not autonomous -- the output is human-ratifiable (SPECULATIVE
                until the operator accepts it), like every foundry product
                # prov: conductor-standard.md spec foundry (foundry commits nothing, output is speculative);
