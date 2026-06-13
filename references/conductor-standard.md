@@ -83,6 +83,12 @@ subagents_never: a subagent never writes a seat file; the conductor seats, the a
                 (subagents-cannot-edit-hook-dir memory)
 no_anchor_no_seat: a seat that names no anchor does not get to act - teeth without an anchor
                 is rejected at the seat boundary (expert-hiring.md anti-synthetic rail)
+primary_surface: the PRIMARY (house) persona is seated ONCE at Stage 10 and persists; the
+                SessionStart trio (seat-surface + graphify-orient + mempalace-orient)
+                SURFACES it + the code graph + prose memory EVERY pass, so a session starts
+                seated AND oriented, not seated-but-invisible or blind to its codebase. The
+                conduct-guard is the teeth; the surface is what makes the seat operate, not
+                just block (hooks/README.md pass-start orientation, 2026-06-13)
 ```
 
 ```yaml
@@ -118,12 +124,26 @@ proven:         geospatial-viz-engineer hired 2026-06-11 (persona-lint PASS; det
 ```yaml
 # why: the deep tier is for judgment the cheap tier cannot give; spend it where it pays
 # user-ratified dispatch tiers (swarm-model-cascade memory); model passed per agent() call
-fan_out_measure: the cheap tier (Sonnet) for parallel build chains and read-only Measure/research
-deep_lenses:     the deep tier (Opus) for adversarial review lenses and synthesis
-                (ffr-pipeline.js:15-17 N-lens review is why the deep tier exists)
-judgment:        judgment calls and merge surgery stay with the conductor's own tier
-doc_edits_only:  the smallest tier (Haiku) ONLY for small doc edits, never for code or review
+# user-set 2026-06-13 (Fable retired); supersedes the swarm-model-cascade Fable-tier note
+conductor_tier:  the conductor runs inline on Opus 4.8 (1M) as the hivemind - holds the full
+                context and hands each context-less leg exactly the context it needs; synthesis
+                and all delicate/canonical/infra edits stay here, never delegated
+fan_out_top:     opus 4.7 for premium dispatched work - deep single-lens reviews, hard
+                implementation in worktrees, architecture+scale research synthesis,
+                what-if-oracle framing, security/trust-safety lenses
+fan_out_work:    sonnet for the workhorse - build chains, single-dimension reviews,
+                research-swarm breadth legs, test-runners, render/mockup builders
+doc_edits_only:  haiku ONLY for small doc edits (CHANGELOG lines, comment fixes), never code,
+                review, or judgment
+escalation:      a broken opus-4.7 leg (its wave gate red after the bounded fix rounds, or it
+                cannot hold the scope) escalates THAT leg to an Opus 4.8 (1M) agent - the
+                headroom for hard cases; the failing leg only, never the whole wave; a 4.8
+                leg that still fails is a re-plan signal, not a re-spend
 not_ambient:     the tier is passed per agent() call, never assumed; an unstated model is a defect
+dispatch_enum:   the harness dispatch enum is sonnet/opus/haiku (no version granularity); 'opus'
+                IS the premium fan-out tier, 4.7-vs-4.8 is not per-call selectable; escalation
+                pulls the failed leg INLINE to the 4.8 conductor (or re-dispatches 'opus' in a
+                worktree), there being no higher dispatchable opus (user-resolved 2026-06-13)
 ```
 
 ```yaml
@@ -220,6 +240,10 @@ api_research:   API claims are verified against this-session installed docs WITH
 speculative:    foundry output is marked SPECULATIVE and needs human ratification before it
                 affects any queue or plan; idle that merely waits is waste, idle that reads
                 ahead is leverage
+cognition_audit: a foundry VARIANT (read-only, commits nothing): audit mempalace priors against
+                current code and emit docs/notes/MEMORY-AUDIT-*.md (deprecate/update/promote),
+                closing the graphify-auto-refreshes-but-mempalace-grows-only asymmetry
+                (loop-suite.md 2026-06-13 ASI-Evolve cognition-loop uplift, upgrade 4)
 ```
 
 ## 8. Gates - human gates at the edges only
@@ -242,6 +266,28 @@ ask_first:      stop-and-confirm before commit/push, before changing canonical d
                 (ask-first-boundaries memory, all four lines user-set 2026-06-10)
 ```
 
+## 9. Resolve uncertainty by climbing the ladder
+
+```yaml
+# why: a swarm that guesses ships a confident wrong; climb only as far as the stakes require
+# user-set 2026-06-13; folds the research-swarm + what-if-oracle tiers into the uncertainty protocol
+no_guessing:    no swarm or conductor proceeds on an unverified assumption; an unstated
+                assumption surfaced as fact is a defect (FFR CLAUDE.md trust-but-verify)
+tier1_check:    trivially checkable (a flag, file path, API signature, version) -> one
+                research agent / docs-lookup, cited (the existing protocol)
+tier2_swarm:    complex / multi-faceted (deploy target, scaling architecture, a library
+                choice with real tradeoffs, "how do production systems do X") -> DISPATCH A
+                RESEARCH SWARM: N parallel research legs, one per facet, each citing sources;
+                the conductor synthesizes a brief with a recommendation
+tier3_oracle:   an unresolved dilemma - research surfaced options, no dominant answer -
+                goes to what-if-oracle: structured branch analysis (best/worst/likely each)
+tier4_gate:     a true business / irreversible fork (deploy+budget, auth model, canonical
+                data, anything one-way) is a user gate - oracle output + a recommendation,
+                the user picks (section 8 ask_first)
+artifacts:      the research brief and the oracle branches are cited artifacts, not vibes;
+                hedged language in shipped output remains a violation
+```
+
 ## The anti-patterns this standard replaces (index)
 
 ```yaml
@@ -260,4 +306,6 @@ green_gate_as_done:     section 6 - a passing suite beside a stale running proce
 process_staleness:      section 6 - a gate green against the pre-change binary
 idle_capacity_waste:    section 7 - idle capacity that waits instead of reading ahead
 mid_run_permission_stop: section 8 - a human gate fired mid-run instead of at a ticket edge
+guess_over_verify:      section 9 - a swarm proceeding on an unverified assumption instead
+                        of climbing the research-swarm / oracle / gate ladder
 ```
