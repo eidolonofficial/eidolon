@@ -240,6 +240,10 @@ api_research:   API claims are verified against this-session installed docs WITH
 speculative:    foundry output is marked SPECULATIVE and needs human ratification before it
                 affects any queue or plan; idle that merely waits is waste, idle that reads
                 ahead is leverage
+cognition_audit: a foundry VARIANT (read-only, commits nothing): audit mempalace priors against
+                current code and emit docs/notes/MEMORY-AUDIT-*.md (deprecate/update/promote),
+                closing the graphify-auto-refreshes-but-mempalace-grows-only asymmetry
+                (loop-suite.md 2026-06-13 ASI-Evolve cognition-loop uplift, upgrade 4)
 ```
 
 ## 8. Gates - human gates at the edges only

@@ -291,3 +291,99 @@ process_staleness: a feature whose outcome depends on a fresh process carries a 
 - Route idle passes to the spec foundry, not to sleep; the line is never blocked on a missing spec.
 - Hold the idle floor: patrol writes BACKLOG only, the spec foundry commits nothing.
 - Carry a restart drill as the done-signal for any feature whose outcome depends on a fresh process.
+
+# 2026-06-13 ASI-Evolve cognition-loop uplift (research-grounded)
+
+The 2026-06-12 uplift made the loop a swarm-conducting heartbeat. This section adds a
+COGNITION LOOP on top, ported from ASI-Evolve (arXiv 2603.29640, GAIR-NLP): a
+learn -> design -> experiment -> analyze cycle with a COGNITION BASE (accumulated priors
+injected each round) and an ANALYZER (distills outcomes into reusable insights). Eidolon
+already owns the substrates -- mempalace (prose), graphify (code graph), docs/fixes/,
+docs/notes/, /learn -- but the loop never wired them INTO the wave as a closed feedback
+cycle: priors are read by controller habit, not injected per dispatch; failures get
+fix-logs but successes are not distilled; mempalace grows but is never audited. These four
+upgrades close the loop. The "does not transfer" fence at the end is load-bearing.
+
+## 1. Cognition injection at wave-start (cognition base -> mempalace + fix-logs)
+
+```yaml
+# why: a dispatched agent prompt "stands alone" (self_contained) for scope isolation,
+#      which is correct -- but it means zero prior knowledge rides along, so the swarm
+#      re-explores territory the fix-logs already mapped. ASI-Evolve retrieves ~150
+#      curated cognition entries per round; the analogue is a bounded, query-derived prior.
+inject_step:   before dispatch, the CONDUCTOR (never the agent) runs
+               `mempalace search "<task domain + files>" --wing <wing> --results 3-5` plus a
+               filename-keyword glob of docs/fixes/FIX-*.md, and folds the top hits into a
+               `prior_context` stanza alongside the plan_section it already injects
+not_inheritance: this is NOT conversation/context inheritance -- the agent still cannot read
+               the plan file or the transcript; it gets ONLY the retrieved, bounded hits
+once_per_wave: retrieval happens once at the conductor level per wave, not per agent turn
+               # prov: swarm-conducting fences_hard (the wave already INJECTS plan_section);
+               #       ASI-Evolve Cognition section (semantic retrieval of curated priors)
+```
+
+- Inject a bounded `prior_context` (mempalace + fix-log hits) into every dispatch, beside the plan section.
+- The conductor retrieves; the agent receives. Retrieval is query-derived and capped, never a history dump.
+- This does not loosen scope isolation: the prior is curated hits, not the plan file or the conversation.
+
+## 2. Distilled task-analysis record (analyzer -> /learn + structured postmortem)
+
+```yaml
+# why: today failures emit a fix-log and /learn is human-invoked; SUCCESSES vanish. ASI-Evolve's
+#      Analyzer persists a structured record of every trial (motivation, program, result, analysis)
+#      so future rounds retrieve it. The loop's evidence fields (sha, gate_tail, png) are evidence,
+#      not analysis.
+emit_step:     after the wave one-line summary (step 12), every COMPLETED task (not only reds)
+               emits a 4-field record: what_worked (the decision that produced green),
+               what_failed_enroute (red rounds before green), prior_misses (injected cognition
+               that did NOT help -> downweight), new_priors (patterns worth injecting next time)
+persist_to:    docs/notes/ (a machine-written postmortem, distinct from the human INSIGHT notes),
+               mined to mempalace by the existing Stop/post-commit hook
+               # prov: queue.yaml evidence_fields (evidence, not analysis); ASI-Evolve Analyzer section
+```
+
+- Emit a structured analysis record for every completed task, successes included, not just fix-logs on red.
+- Record what_worked / prior_misses / new_priors so upgrade 1's injection sharpens over time.
+
+## 3. Informed re-seed after a halt (experiment DB parent-selection, narrow port only)
+
+```yaml
+# why: at the attempt ceiling a task halts and the human re-plans blind. ASI-Evolve picks a
+#      PARENT to build from (UCB1/greedy/MAP-Elites). Only the narrowest form ports: a one-step
+#      greedy "re-insert after the task this one most depends on", read from the analysis records.
+on_halt:       before the human re-plans a blocked task, the conductor consults the upgrade-2
+               records to find whether an already-completed task's new_priors unblock it, and
+               proposes re-inserting the blocked task after that dependency, not at its old slot
+               # prov: loop-suite step 9 halt; ASI-Evolve Database parent-selection (narrow port)
+```
+
+- After an attempt-ceiling halt, propose an informed re-seed (re-order by discovered dependency), not a blind re-fix.
+
+## 4. Cognition-audit wave (prior-quality hygiene -- closes the mempalace asymmetry)
+
+```yaml
+# why: graphify auto-refreshes the code graph on every commit; mempalace only GROWS -- stale
+#      priors accelerate the swarm in the wrong direction. ASI-Evolve notes wrong priors are worse
+#      than none. This is the missing hygiene pass.
+audit_wave:    a periodic READ-ONLY spec-foundry variant (commits nothing) that queries every
+               wing-tagged mempalace entry, cross-checks it against current code (does the named
+               file/pattern still exist? does the fix-log root cause still match the architecture?),
+               and emits docs/notes/MEMORY-AUDIT-YYYY-MM-DD.md listing entries to deprecate / update / promote
+trigger:       operator-triggered, not autonomous -- the output is human-ratifiable (SPECULATIVE
+               until the operator accepts it), like every foundry product
+               # prov: conductor-standard.md spec foundry (foundry commits nothing, output is speculative);
+               #       eidolon-manifest.yaml graphify-auto-refresh vs mempalace-grows-only asymmetry
+```
+
+- Run a read-only cognition-audit foundry wave to flag stale mempalace priors against current code; the operator ratifies.
+
+## What does NOT transfer (the fence)
+
+ASI-Evolve runs 50-150 exploration rounds scored by a numeric evaluator (perplexity, accuracy),
+with MAP-Elites / UCB1 parent selection over a candidate POPULATION searching a continuous
+improvement space. Eidolon is a DELIVERY machine: bounded waves, a binary gate (green/red) against
+a spec, a human pixel gate. The population-search, numeric-fitness, and island-sampling machinery
+does NOT port -- tasks are ordered delivery steps, not interchangeable variants of one solution.
+Only the cognition-base + analyzer + closed-loop SHAPE ports; upgrade 3 is deliberately the
+narrowest slice of parent-selection that survives that distinction. Source: ASI-Evolve arXiv
+2603.29640 + github.com/GAIR-NLP/ASI-Evolve; mapping grounded in this file + conductor-standard.md.
