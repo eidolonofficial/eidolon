@@ -13,23 +13,23 @@ drift into divergent parsers again.
 |---|---|---|
 | verification-guard | PreToolUse (Bash, `git commit`) | Blocks a commit message that claims a visual or runtime result works without naming evidence. The most insistent guard. |
 | commit-quality-guard | PreToolUse (Bash) | Blocks `--no-verify` (and commit's `-n` short form) on commit and push, a non-lease `--force` push, a `core.hooksPath` override, and `filter-branch` / `filter-repo` history surgery. |
-| append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying or more-than-half-shrinking one (silent deletion). |
+| append-only-record-guard | PreToolUse (Write, Edit) | Advises on a shrinking edit to the fix / insight / decision logs; blocks an emptying. The >50%-shrink block is Write-only; an Edit that shrinks short of emptying advises, not blocks. |
 | persona-conduct-guard | PreToolUse (Bash, Write, Edit) | When a persona is seated (`.claude/active-persona.json`), blocks an action that crosses that persona's declared anti-behaviors, naming the persona and the line. One carve-out to the consent tier: `irreversible-without-safety-net` ASKS instead of blocking, because the line is conditional (never without the safety nets) and the operator may genuinely hold them; their yes attests the backup, the rollback path, and the post-op verify. A no-op when none seated. Carries the Expediter lock: the Expediter is the controller's persona, and a dispatched subagent seated as it is HARD STOPPED on any action and the seat is automatically deactivated (the guard clears the seat file itself); detection reads the harness `transcript_path`, which places subagent transcripts under a `subagents` directory, and fails open as the main session when the field is absent. |
-| hook-integrity-guard | PreToolUse (Bash) | Blocks disabling, moving, or chmod of any hook - or of the hooks directory as a whole - or changing the hooks path. |
-| deletion-guard | PreToolUse (Bash) | Walls outright `rm` / `del` of an append-only record (fix / insight / decision log, the root DECISIONS.md). |
-| protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op on a protected path (.git, a record, a hook, settings.json, the persona template). |
-| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Escalates (ask) a commit that stages a visual file without naming evidence it was looked at - including files staged by the same command (`git add x.png && git commit ...`) and tracked visuals swept in by `commit -a`. The consent tier on purpose: the human being asked is the final eyes, and their yes is the missing evidence. |
-| conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). |
+| hook-integrity-guard | PreToolUse (Bash) | Blocks moving/deleting (`rm`, `rmdir`, `del`, `Remove-Item`) or `chmod` of any hook or the hooks directory, or a `hooksPath` change. Disable-by-deletion fires the rm/mv check; `chmod -x` fires the chmod check (two sub-checks). |
+| deletion-guard | PreToolUse (Bash) | Walls outright deletion (`rm`, `rmdir`, `del`, `Remove-Item`, `shred`, `unlink`) of an append-only record (fix / insight / decision log, root `DECISIONS.md` or `DECISION.md`). |
+| protected-paths-guard | PreToolUse (Bash) | Blocks a destructive op (`rm`/`rmdir`/`del`/`Remove-Item`/`truncate`/`shred`/`unlink`) on a protected path (.git, a record, a hook, settings.json, the persona template). `truncate` is caught here but not by deletion-guard; the two overlap on records (defense-in-depth). |
+| visual-evidence-gate | PreToolUse (Bash, `git commit`) | Escalates (ask) a commit that stages a visual file (png/jpg/gif/webp/svg/mp4/mov/webm/pdf) without naming evidence - including files staged in the same command (`git add x.png && git commit ...`) and tracked visuals swept in by standalone `commit -a`/`--all` (combined `-am` is not caught by the -a sweep). Evidence phrases that pass: screenshot, looked at it, viewed it, verified visually, `see <file>`, `evidence:`, user confirmed/approved/saw. Consent tier: the human approving IS the final eyes. |
+| conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). Silent no-op on hook files, the antibehavior-catalog, persona templates + definitions, CLAUDE.md, and READMEs (so the phrase list never flags itself). |
 | settings-integrity-guard | PreToolUse (Write, Edit) | Blocks a settings edit that silences the suite from inside: introducing `disableAllHooks: true` into a Claude settings file, or dropping a hook entry that the target's manifest (`.claude/eidolon-manifest.yaml`) lists as wired. The content half of the two-layer floor (see "The two-layer floor" below). |
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
-| process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. Advisory. |
-| seat-surface | SessionStart | Surfaces the seated persona (identity + anchors + enforced anti-behaviors) on every session source, so the agent operates AS the persona instead of only being blocked when it strays. Advisory; pairs with persona-conduct-guard (the teeth). |
-| graphify-orient | SessionStart | Surfaces the code graph's god nodes + key hyperedges + freshness (build-commit vs HEAD) every pass. Advisory, read-only. |
-| mempalace-orient | SessionStart | Surfaces a seeded prose-memory recall (branch + recent commits) every pass. Advisory, fail-open. Template: fill the wing at install. |
-| memory-sync | git post-commit | Fans out a prose-memory capture and a graph update, resource-guarded (shell template). |
+| process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. The text is hardcoded inline in the script, not read from references/process-doctrine.md at runtime. Advisory. |
+| seat-surface | SessionStart | Surfaces the seated persona (identity + anchors + enforced anti-behaviors) on every session source, so the agent operates AS the persona instead of only being blocked when it strays. Source-aware: on source=compact it directs continue-in-flight; on other sources it surfaces the ask-first gates. Advisory; pairs with persona-conduct-guard (the teeth). |
+| graphify-orient | SessionStart | Surfaces the code graph's god nodes (capped 12 lines) + key hyperedges (capped 16) + freshness (a prefix comparison of the built-from commit vs HEAD) every pass. Advisory, read-only. |
+| mempalace-orient | SessionStart | Surfaces a seeded prose-memory recall (seed = branch + last-2 commit subjects, <=200 chars) every pass; 12s timeout, output capped 1600 chars, an error-string guard suppresses a broken index. Advisory, fail-open. Template: fill `<WING>` at install (unfilled -> runs without --wing, returns global results). |
+| memory-sync | git post-commit | Fans out a graph update immediately (if graphify is on PATH) + a prose capture once the `<CAPTURE_CMD>`/`<WING>` placeholder is filled (commented out until then); dedup-guarded against double-fire via a sentinel + atomic mkdir lock (shell template). |
 
 ## The two-layer floor
 
@@ -159,9 +159,11 @@ commit-quality-guard:      block (exit 2) - a bypass of the suite (--no-verify /
                            or history surgery. Flags are read with the -m message spans
                            stripped, so quoting a flag in a message never trips it.
 append-only-record-guard:
-  empty a record:          block (exit 2)
-  shrink a record > 50%:   block (exit 2)
-  shrink a record:         advise (exit 0)
+  Write, empty a record:        block (exit 2)
+  Write, shrink a record > 50%: block (exit 2)
+  Write, shrink a record:       advise (exit 0)
+  Edit, delete a span to empty: block (exit 2)
+  Edit, shrink a span:          advise (exit 0)   - no >50% threshold on the Edit path
 persona-conduct-guard:     block (exit 2) - a seated persona crossed its own declared
                            anti-behavior, or was seated with anti-behaviors but no
                            framework anchor (no anchor, no seat); a no-op (exit 0) when
@@ -182,7 +184,9 @@ session-save / restore:    no block - snapshot on PreCompact, restore on Session
 seat-surface / graphify-orient / mempalace-orient:
                            no block - SessionStart orientation surfaces (persona seat, graph
                            god-nodes, prose-memory recall); advisory, fail-open (templates)
-memory-sync:               no block - post-commit prose + graph fan-out, resource-guarded (template)
+memory-sync:               no block - post-commit graph update + prose capture (prose leg commented out
+                           until <CAPTURE_CMD>/<WING> is filled); dedup-guarded via a sentinel + atomic
+                           mkdir lock (template)
 ```
 
 ## Tests
