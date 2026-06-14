@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eidolon.dev/schemas/security-awareness-attestation/v0",
+  "title": "Eidolon SecurityAwareness attestation (v0)",
+  "description": "A signed, in-toto-shaped record that an external grader passed an agent on the security-awareness quiz over a specific policy text. Signed and verified by scripts/security-attestation.mjs (Ed25519, reusing the review-receipt engine). A verifier checks: the signature against a TRUSTED grader public key, the policy re-hashes to the subject, result is pass, and the timestamp is current.",
+  "type": "object",
+  "required": ["statement", "signature"],
+  "additionalProperties": false,
+  "properties": {
+    "statement": {
+      "type": "object",
+      "required": ["_type", "subject", "predicateType", "predicate"],
+      "properties": {
+        "_type": { "const": "https://in-toto.io/Statement/v1" },
+        "subject": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "digest"],
+            "properties": {
+              "name": { "type": "string" },
+              "digest": {
+                "type": "object",
+                "required": ["sha256"],
+                "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+              }
+            }
+          }
+        },
+        "predicateType": { "const": "https://eidolon.dev/SecurityAwareness/v0" },
+        "predicate": {
+          "type": "object",
+          "required": ["framework_anchor", "policy_sha256", "result", "graded_by", "timestamp"],
+          "properties": {
+            "framework_anchor": { "type": "string", "minLength": 1, "description": "the named policy/standard the grade is anchored to (no anchor, no attestation)" },
+            "policy_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "hash of the exact policy text graded against" },
+            "quiz_version": { "type": ["string", "null"] },
+            "result": { "enum": ["pass", "fail"], "description": "only pass clears the gate; fail is a real, signable record" },
+            "graded_by": { "type": "string", "minLength": 1, "description": "the EXTERNAL grader id; the agent never grades its own quiz" },
+            "judge_model": { "type": ["string", "null"] },
+            "timestamp": { "type": "string", "format": "date-time", "description": "issue time; verifiers refuse a stale or post-dated attestation" },
+            "attestation_contract": { "type": "string" }
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "required": ["alg", "value", "key_id"],
+      "properties": {
+        "alg": { "const": "ed25519", "description": "cosmetic metadata; the verifier fixes the algorithm by the key type and never selects it from this field" },
+        "value": { "type": "string", "description": "base64 Ed25519 signature over the canonical statement" },
+        "key_id": { "type": "string", "description": "sha256(public key) first 16 hex; a hint, not a trust root. Verify against a separately trusted public key." }
+      }
+    }
+  }
+}

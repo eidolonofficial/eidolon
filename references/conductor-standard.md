@@ -264,6 +264,13 @@ how_asked:      surface findings and forks ONE at a time via AskUserQuestion, ea
 ask_first:      stop-and-confirm before commit/push, before changing canonical data, before
                 touching hook/guard infra, and before a long autonomous run
                 (ask-first-boundaries memory, all four lines user-set 2026-06-10)
+attestation_gate: before dispatching destructive or sensitive work (the security/trust-safety
+                swarm, a deploy, a migration, anything touching prod, PII, payments, or
+                credentials) with no valid signed security attestation in effect, the dispatch
+                ASKS the human (the consent tier, hooks/dispatch-attestation-guard.mjs). It rides
+                as a standalone PreToolUse hook on the dispatch-tool (Task) matcher, NOT on
+                guard-bash/guard-write (those match Bash/Write/Edit, never the dispatch tool). A
+                soft layer: it asks, it never blocks (references/security-awareness.md).
 ```
 
 ## 9. Resolve uncertainty by climbing the ladder

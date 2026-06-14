@@ -1,0 +1,29 @@
+{
+  "statement": {
+    "_type": "https://in-toto.io/Statement/v1",
+    "subject": [
+      {
+        "name": "security-policy",
+        "digest": {
+          "sha256": "656924563b4f337e64893c4fb67d4730584676881753c1ebccaef280ae548340"
+        }
+      }
+    ],
+    "predicateType": "https://eidolon.dev/SecurityAwareness/v0",
+    "predicate": {
+      "framework_anchor": "Eidolon agent security policy v0",
+      "policy_sha256": "656924563b4f337e64893c4fb67d4730584676881753c1ebccaef280ae548340",
+      "quiz_version": "1fae4e4adec8049c",
+      "result": "pass",
+      "graded_by": "example-external-grader",
+      "judge_model": "claude-opus-example",
+      "timestamp": "2026-06-14T17:51:06.486Z",
+      "attestation_contract": "graded by an external validator holding the answer key; the agent never grades its own quiz. a soft comprehension layer, not a deterministic control (references/security-awareness.md)."
+    }
+  },
+  "signature": {
+    "alg": "ed25519",
+    "value": "N8Np8Vt1bcCVuMY0tN2QB5TaZznX4b2XmJJSF9gJ/IwjEgIlxAITOmJnVjxKnQdl3ugWf0ayMAzeqi4m3u7eAw==",
+    "key_id": "2d59a4c1408422e9"
+  }
+}

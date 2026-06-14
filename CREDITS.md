@@ -10,6 +10,10 @@ Eidolon stands on open-source work by other people. Every project it builds on, 
   Skills over 150-plus Lighthouse audits and Core Web Vitals.
 - **agent-engineer**, by Addy Osmani. Apache-2.0. https://github.com/addyosmani/agent-engineer
   A practical AI-agents engineering course; reference material.
+- **agent-security-awareness-training**, by slartz. MIT. https://github.com/slartz/agent-security-awareness-training
+  The read-hash-quiz-externally-grade-attest comprehension loop that references/security-awareness.md
+  adapts. The Eidolon version reuses the Ed25519 review-receipt signer (scripts/security-attestation.mjs)
+  and tailors the policy and quiz to Eidolon's agent threat surface; the gate asks, it never hard-blocks.
 
 ## Design patterns (reference)
 
