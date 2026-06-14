@@ -22,11 +22,13 @@ drift into divergent parsers again.
 | conduct-guard | PreToolUse (Write, Edit, Bash `git commit`) | Advises on conduct-drift language (deferring doable work, stub-instead-of-fix, unverified claim). Silent no-op on hook files, the antibehavior-catalog, persona templates + definitions, CLAUDE.md, and READMEs (so the phrase list never flags itself). |
 | settings-integrity-guard | PreToolUse (Write, Edit) | Blocks a settings edit that silences the suite from inside: introducing `disableAllHooks: true` into a Claude settings file, or dropping a hook entry that the target's manifest (`.claude/eidolon-manifest.yaml`) lists as wired. The content half of the two-layer floor (see "The two-layer floor" below). |
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
+| dispatch-attestation-guard | PreToolUse (the dispatch tool, `Task`) | The consent-tier security-awareness gate: when a dispatch is destructive or sensitive (security/trust-safety swarm, deploy, migration, prod, PII, payments, credentials, destructive verbs) AND no VALID signed attestation is in effect (`.claude/security-attestation.json`, verified against the trusted grader key at `.claude/security-grader-public.pem` over `references/security-policy.md`), it ASKS the human. Stands alone on the dispatch-tool matcher, like advisor-guard. Never hard-blocks; a non-sensitive dispatch or an unrecognized tool fails open to allow. Adapted from slartz/agent-security-awareness-training (MIT). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. The text is hardcoded inline in the script, not read from references/process-doctrine.md at runtime. Advisory. |
 | seat-surface | SessionStart | Surfaces the seated persona (identity + anchors + enforced anti-behaviors) on every session source, so the agent operates AS the persona instead of only being blocked when it strays. Source-aware: on source=compact it directs continue-in-flight; on other sources it surfaces the ask-first gates. Advisory; pairs with persona-conduct-guard (the teeth). |
+| security-surface | SessionStart | Surfaces the security policy (`references/security-policy.md`) hash and the attestation status every pass, so a session knows the posture before it meets the dispatch gate. Advisory, fail-open; pairs with dispatch-attestation-guard (the consent gate). Non-cryptographic status (presence + result + policy-freshness); the gate does the real verify. |
 | graphify-orient | SessionStart | Surfaces the code graph's god nodes (capped 12 lines) + key hyperedges (capped 16) + freshness (a prefix comparison of the built-from commit vs HEAD) every pass. Advisory, read-only. |
 | mempalace-orient | SessionStart | Surfaces a seeded prose-memory recall (seed = branch + last-2 commit subjects, <=200 chars) every pass; 12s timeout, output capped 1600 chars, an error-string guard suppresses a broken index. Advisory, fail-open. Template: fill `<WING>` at install (unfilled -> runs without --wing, returns global results). |
 | memory-sync | git post-commit | Fans out a graph update immediately (if graphify is on PATH) + a prose capture once the `<CAPTURE_CMD>`/`<WING>` placeholder is filled (commented out until then); dedup-guarded against double-fire via a sentinel + atomic mkdir lock (shell template). |
@@ -85,13 +87,14 @@ location and across macOS, Linux, and Windows. The `if` field is the documented
 permission-rule conditional; it fails open (runs the hook) on an unparseable
 command.
 
-The wired PreToolUse set in `.claude/settings.json` is three entries: one
-dispatcher per matcher plus the advisor ban.
+The wired PreToolUse set in `.claude/settings.json` is four entries: one
+dispatcher per matcher, the advisor ban, and the dispatch-attestation gate.
 
 ```yaml
-Bash:         hooks/guard-bash.mjs    # runs the eight Bash evaluators in the old wired order
-Write|Edit:   hooks/guard-write.mjs   # runs the five Write/Edit evaluators in the old wired order
-.*advisor.*:  hooks/advisor-guard.mjs # keys on the tool NAME (incl. MCP spellings); stays standalone
+Bash:         hooks/guard-bash.mjs                # runs the eight Bash evaluators in the old wired order
+Write|Edit:   hooks/guard-write.mjs               # runs the five Write/Edit evaluators in the old wired order
+.*advisor.*:  hooks/advisor-guard.mjs             # keys on the tool NAME (incl. MCP spellings); stays standalone
+Task:         hooks/dispatch-attestation-guard.mjs # keys on the dispatch tool; the consent gate; stays standalone
 ```
 
 One spawn per matcher instead of one per guard. Each guard exports a pure
@@ -120,6 +123,7 @@ session-save:    PreCompact event    -> a "PreCompact" key (an event hook, no to
 session-restore: SessionStart event  -> a "SessionStart" key
 process-doctrine: SessionStart event -> a "SessionStart" key (advisory; injects the doctrine)
 seat-surface:     SessionStart event  -> a "SessionStart" key (advisory; surfaces the seated persona every pass)
+security-surface: SessionStart event  -> a "SessionStart" key (advisory; surfaces the security policy hash + attestation status)
 graphify-orient:  SessionStart event  -> a "SessionStart" key (advisory; surfaces graph god-nodes + freshness)
 mempalace-orient: SessionStart event  -> a "SessionStart" key (advisory; seeded prose-memory recall; fill <WING>)
 memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
@@ -180,10 +184,13 @@ conduct-guard:             advise (exit 0) - conduct-drift language in a file or
 settings-integrity-guard:  block (exit 2) - a settings edit that introduces disableAllHooks:true
                            or drops a manifest-wired hook entry
 drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaffold-only edits
+dispatch-attestation-guard: ask (consent tier) - a destructive/sensitive dispatch with no valid
+                           signed attestation in effect; never a hard block (awareness is a soft layer)
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
-seat-surface / graphify-orient / mempalace-orient:
-                           no block - SessionStart orientation surfaces (persona seat, graph
-                           god-nodes, prose-memory recall); advisory, fail-open (templates)
+seat-surface / security-surface / graphify-orient / mempalace-orient:
+                           no block - SessionStart orientation surfaces (persona seat, the security
+                           policy hash + attestation status, graph god-nodes, prose-memory recall);
+                           advisory, fail-open (templates)
 memory-sync:               no block - post-commit graph update + prose capture (prose leg commented out
                            until <CAPTURE_CMD>/<WING> is filled); dedup-guarded via a sentinel + atomic
                            mkdir lock (template)

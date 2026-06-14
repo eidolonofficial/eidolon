@@ -40,6 +40,12 @@ graphify-out/
 .claude/.session-state
 .claude/.memory-synced-head
 
+# Security-awareness: the REAL answer key, the issued attestation, and grader keys are never
+# committed (only the .example files are). *.pem above already covers the grader signing keys.
+references/security-awareness/answer-key.json
+.claude/security-attestation.json
+security-keys/
+
 # Transient cold-context verify packets
 verify-packet/
 .firedrill-packet/

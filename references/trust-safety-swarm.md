@@ -10,6 +10,11 @@ every finding carries `file:line`, the category, the standard it cites, and the
 signal that caught it. Absence of a finding is never read as clean: the report
 opens with what was checked.
 
+The agent-side comprehension layer that precedes a sensitive dispatch (read the
+security policy, take the quiz, get externally graded, attest) is
+references/security-awareness.md; dispatching this swarm is one of the sensitive
+dispatches its consent gate covers.
+
 ## Methodology and anchors
 
 ```yaml

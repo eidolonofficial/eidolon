@@ -31,6 +31,12 @@
         "hooks": [
           { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/advisor-guard.mjs"], "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/dispatch-attestation-guard.mjs"], "timeout": 10 }
+        ]
       }
     ]
   }

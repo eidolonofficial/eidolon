@@ -45,7 +45,9 @@ gating:
     rule:   do ALL the work without asking; pause ONLY where an action is installing,
             irreversible, deploying, or seating an identity
     moments: install a skill (Stage 4) | seat the primary persona (Stage 2.5 ratify,
-             Stage 10 seat) | deploy (SHIP) | run an irreversible op (the ask tier)
+             Stage 10 seat) | deploy (SHIP) | run an irreversible op (the ask tier) |
+             dispatch destructive/sensitive work with no valid security attestation (the ask tier,
+             hooks/dispatch-attestation-guard.mjs; references/security-awareness.md)
     shape:  one AskUserQuestion each, with a why/liability line; never a typed menu
 verification:                                           # the load-bearing discipline
   funnel: REFERENCE trust-but-verify SKILL.md § "what verification MUST be"  # do not restate
@@ -418,6 +420,8 @@ artifacts:
   - path: CLAUDE.md           kind: core      status: <new|merge>  last_verified: <date>
   - path: .claude/skills/...  kind: skill     status: ...          last_verified: <date>
   - path: hooks/...           kind: hook      status: ...          last_verified: <date>
+  - path: hooks/dispatch-attestation-guard.mjs  kind: hook  wired: PreToolUse(Task)  last_verified: <date>  # the consent gate; list it so settings-integrity-guard protects it
+  - path: hooks/security-surface.mjs            kind: hook  wired: SessionStart      last_verified: <date>  # template; the security-awareness surface
   - path: .git/hooks/post-commit  kind: capture  last_verified: <date>
 logs:
   fixes:    docs/fixes/        # FIX-YYYY-MM-DD-<slug>.md, flat markdown
@@ -495,6 +499,13 @@ uncertainty:     docs/spec design § 9 - subagents return literal evidence (file
                  evidence itself and names the second signal; hedged language is refused.
 security_swarm:  references/security-swarm.md - red/blue methodology, the coverage manifest,
                  the seeded-defect fire drill, the five anti-handwave gates.
+security_awareness: references/security-awareness.md - the read-hash-quiz-externally-grade-attest
+                 comprehension loop (adapted from slartz/agent-security-awareness-training, MIT);
+                 the agent reads references/security-policy.md, is graded by an EXTERNAL validator,
+                 and a destructive/sensitive dispatch with no valid signed attestation asks the human
+                 (hooks/dispatch-attestation-guard.mjs, ask; hooks/security-surface.mjs surfaces the
+                 status; scripts/security-attestation.mjs signs/verifies, reusing the review receipt).
+                 A SOFT layer: it asks, it never replaces the deterministic gates.
 explain_mode:    references/explain-mode.md - plain-language teaching, comprehension checks,
                  the favorite-teacher disposition; available at every stage on request.
 personas:        references/persona-template.md - the ten-part construction template, the
@@ -585,6 +596,10 @@ heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing se
    trust-and-safety swarm, and the code-review swarm, in parallel. Each red finding
    becomes a blue hardening task, closed only when its post-fix verify passes; a
    code-review behavior change is a finding for engineering, not a silent edit.
+   Dispatching these sensitive swarms (and any destructive or deploy work) surfaces the
+   security attestation status; with no valid signed attestation in effect, the dispatch
+   asks the human (the consent tier, hooks/dispatch-attestation-guard.mjs;
+   references/security-awareness.md). Awareness is a soft layer; the gate asks, it never blocks.
 6. SYNTHESIZE: the solutions architect ingests every swarm's findings plus the three
    logs in one pass and produces one ordered disposition table; no finding is
    dropped. The plan it commits to is gated before continuing.

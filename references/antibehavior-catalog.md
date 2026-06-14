@@ -46,6 +46,7 @@ by a swarm's self-proof or the cold-context verifier, not a single hard block.
 | Unverified claim | "Done," "works," "verified," "safe" without the second signal: state the signal or cut the claim. | orchestrator | verification-guard + conduct-guard |
 | Dismissing prior work | Separate the prescription (which may be wrong) from the diagnosis under it (which may be true); refine, do not rewrite from scratch. | architect | advisory (prescription-vs-diagnosis) |
 | Irreversible op without a backup | State the rollback path before running, or do not run it; an independent backup and a post-op verify. | every persona | protected-paths-guard + persona-conduct-guard (floor) |
+| Self-graded training / dispatch without attestation | Security comprehension is graded by an EXTERNAL validator that holds the answer key (never self-graded); a destructive or sensitive dispatch with no valid signed attestation asks the human. A soft layer, so it asks; it never replaces the deterministic gates. | orchestrator | dispatch-attestation-guard (ask) + scripts/security-attestation.mjs (external grade) |
 
 ## Record integrity
 
