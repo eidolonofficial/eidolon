@@ -440,10 +440,17 @@ test("settings-integrity-guard: introducing disableAllHooks:true into a settings
   blocked(run("settings-integrity-guard.mjs", { tool_name: "Edit", tool_input: { file_path: ".claude/settings.local.json", old_string: "{}", new_string: '{ "disableAllHooks": true }' } }), "SETTINGS INTEGRITY GUARD");
 });
 
-test("settings-integrity-guard: a clean settings write passes; other files are not its business", () => {
-  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "hooks": {} }' } }));
-  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: "src/config.json", content: '{ "disableAllHooks": true }' } }));
-  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": false }' } }));
+test("settings-integrity-guard: a clean settings write passes; other files are not its business", (t) => {
+  // isolate cwd to an empty target with no manifest, so a clean write has nothing to cross-check
+  // against. Without this, running the suite from inside an eidolon-managed repo makes the child
+  // guard read THAT repo's real manifest and correctly block the { hooks: {} } drop -- the other
+  // settings-integrity tests already isolate this way with tmp() dirs.
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const w = (file_path, content) => run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path, content }, cwd: dir });
+  silent(w(".claude/settings.json", '{ "hooks": {} }'));
+  silent(w("src/config.json", '{ "disableAllHooks": true }'));
+  silent(w(".claude/settings.json", '{ "disableAllHooks": false }'));
 });
 
 test("settings-integrity-guard: dropping a manifest-wired hook from settings is blocked (the delete-the-entry variant)", (t) => {
