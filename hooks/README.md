@@ -24,6 +24,7 @@ drift into divergent parsers again.
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
 | dispatch-attestation-guard | PreToolUse (the dispatch tool, `Task`) | The consent-tier security-awareness gate: when a dispatch is destructive or sensitive (security/trust-safety swarm, deploy, migration, prod, PII, payments, credentials, destructive verbs) AND no VALID signed attestation is in effect (`.claude/security-attestation.json`, verified against the trusted grader key at `.claude/security-grader-public.pem` over `references/security-policy.md`), it ASKS the human. Stands alone on the dispatch-tool matcher, like advisor-guard. Never hard-blocks; a non-sensitive dispatch or an unrecognized tool fails open to allow. Adapted from slartz/agent-security-awareness-training (MIT). |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
+| resource-steward | SessionStart + PreToolUse (any) | Token + system-resource stewardship (`references/resource-stewardship.md`). Advisory only, never blocks: a SessionStart stewardship memo (with a session-counter reset), a model-cascade nudge on the first `Task` dispatch, and a `/compact`-or-`/save-session` nudge as the tool-call count climbs. State in `.claude/.steward-count` + `.steward-cascaded` (gitignored). The real accounting is the `/steward` skill. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. The text is hardcoded inline in the script, not read from references/process-doctrine.md at runtime. Advisory. |
@@ -31,6 +32,7 @@ drift into divergent parsers again.
 | security-surface | SessionStart | Surfaces the security policy (`references/security-policy.md`) hash and the attestation status every pass, so a session knows the posture before it meets the dispatch gate. Advisory, fail-open; pairs with dispatch-attestation-guard (the consent gate). Non-cryptographic status (presence + result + policy-freshness); the gate does the real verify. |
 | graphify-orient | SessionStart | Surfaces the code graph's god nodes (capped 12 lines) + key hyperedges (capped 16) + freshness (a prefix comparison of the built-from commit vs HEAD) every pass. Advisory, read-only. |
 | mempalace-orient | SessionStart | Surfaces a seeded prose-memory recall (seed = branch + last-2 commit subjects, <=200 chars) every pass; 12s timeout, output capped 1600 chars, an error-string guard suppresses a broken index. Advisory, fail-open. Template: fill `<WING>` at install (unfilled -> runs without --wing, returns global results). |
+| orient-gate | PreToolUse (Write/Edit, Task) + PostToolUse (Read/Bash/Skill sensor) | Blocks an agent dispatch or a source-code edit until BOTH the code graph (graphify) and cross-session memory (mempalace) have been ACTIVELY read this session - a Read of `graphify-out/GRAPH_REPORT.md` or a `graphify query`/`path`/`explain`, and a `mempalace search`. The PostToolUse sensor (`orient-gate-sensor.mjs`) records the reads into a per-session sentinel (`.claude/.orient-gate.<sessionId>.json`, anchored at the git repo root) -- one file per session, so concurrent sessions in the same repo never clobber each other's orientation; a new session re-orients. The teeth for the orient trio: graphify-orient + mempalace-orient SURFACE the graph and memory every session; this ENFORCES the read before code or a dispatch. Reads, non-source edits, docs/mockups/.claude/build edits, and markdown/config are never gated; fail-open on a missing session id or unreadable sentinel. Template: the source-code definition is by file extension outside docs/build/governance dirs, and the block message fills `<WING>` like mempalace-orient; a repo may narrow the source definition to its own code roots. |
 | memory-sync | git post-commit | Fans out a graph update immediately (if graphify is on PATH) + a prose capture once the `<CAPTURE_CMD>`/`<WING>` placeholder is filled (commented out until then); dedup-guarded against double-fire via a sentinel + atomic mkdir lock (shell template). |
 
 ## The two-layer floor
@@ -126,6 +128,11 @@ seat-surface:     SessionStart event  -> a "SessionStart" key (advisory; surface
 security-surface: SessionStart event  -> a "SessionStart" key (advisory; surfaces the security policy hash + attestation status)
 graphify-orient:  SessionStart event  -> a "SessionStart" key (advisory; surfaces graph god-nodes + freshness)
 mempalace-orient: SessionStart event  -> a "SessionStart" key (advisory; seeded prose-memory recall; fill <WING>)
+orient-gate:      PreToolUse(Write|Edit + Task) gate + PostToolUse(Read|Bash|Skill) sensor -> orient-gate.mjs
+                  on the edit + dispatch matchers (standalone, like dispatch-attestation-guard) and
+                  orient-gate-sensor.mjs on the read matcher; the teeth for the orient trio. Fill <WING>
+                  in the block message; per-session sentinels .claude/.orient-gate.<sessionId>.json (git-root anchored) are gitignored
+resource-steward: SessionStart + PreToolUse -> a "SessionStart" key AND a standalone PreToolUse entry (advisory; stewardship memo + counter reset on start, cascade/compact nudges per tool call; stateful -> standalone, never via a dispatcher)
 memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
                  .git/hooks/post-commit and chmod +x, or point the harness at it
 ```
@@ -134,7 +141,11 @@ The pass-start orientation trio (seat-surface, graphify-orient, mempalace-orient
 the SessionStart RECALL/ORIENT leg that complements Stage 7's dual-capture SYNC: SYNC
 writes memory + graph on commit, ORIENT surfaces the persona, the graph, and the prose
 memory at the START of every session so work never begins seated-but-invisible or blind
-to the codebase it lives in.
+to the codebase it lives in. orient-gate is the teeth for that surface: surfacing the
+graph and memory does not make a session READ them, so the gate blocks an agent dispatch
+or a source-code edit until both have actually been read this session (recorded by its
+PostToolUse sensor). Surface offers; gate enforces -- the same pairing as seat-surface
+(surface) with persona-conduct-guard (teeth).
 
 These depend on the target's events and tooling, so the installer wires them per repo.
 They are templates: they fail open and ship with placeholders to fill (the MemPalace
@@ -184,8 +195,13 @@ conduct-guard:             advise (exit 0) - conduct-drift language in a file or
 settings-integrity-guard:  block (exit 2) - a settings edit that introduces disableAllHooks:true
                            or drops a manifest-wired hook entry
 drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaffold-only edits
+resource-steward:          no block - advisory only (SessionStart memo + cascade/compact nudges); the real audit is the /steward skill
 dispatch-attestation-guard: ask (consent tier) - a destructive/sensitive dispatch with no valid
                            signed attestation in effect; never a hard block (awareness is a soft layer)
+orient-gate:               block (exit 2) - an agent dispatch or a source-code edit before BOTH
+                           graphify and mempalace have been read this session; reads, docs/markdown,
+                           and non-source edits pass; fail-open on a missing session id or unreadable
+                           sentinel. The teeth for the orient trio (the SessionStart surfaces)
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
 seat-surface / security-surface / graphify-orient / mempalace-orient:
                            no block - SessionStart orientation surfaces (persona seat, the security
@@ -212,8 +228,9 @@ the module's exported functions.
 
 The transient runtime-state files the suite reads or writes are all git-ignored:
 `.claude/active-persona.json` (the seated persona), `.claude/.drift-count` (the
-scaffold counter), `.claude/.session-state` (the saved run note), and
-`.claude/.memory-synced-head` (the last captured commit).
+scaffold counter), `.claude/.session-state` (the saved run note),
+`.claude/.memory-synced-head` (the last captured commit), and
+`.claude/.orient-gate.<sessionId>.json` (per-session orientation flags, one file per session).
 
 The append-only records are the fix log (`docs/fixes/`), the insight log
 (`docs/insights/`), and the decision log (`docs/decisions/` or `DECISIONS.md`).

@@ -60,7 +60,11 @@ process.stdin.on("end", () => {
     (gods ? gods + "\n\n" : "") +
     (hyper ? hyper + "\n\n" : "") +
     "Use the graphify skill (query / path / explain) + graphify-out/GRAPH_REPORT.md before substantive " +
-    "structural work. EXTRACTED edges are facts; INFERRED are hypotheses to confirm against source.";
+    "structural work. EXTRACTED edges are facts; INFERRED are hypotheses to confirm against source." +
+    "\n\nORIENT-GATE (ENFORCED): before dispatching ANY agent or editing source code you MUST read " +
+    'graphify-out/GRAPH_REPORT.md (or run `graphify query "<your task>"`) AND run a task-relevant ' +
+    '`mempalace search "<your task>"` this session -- a PreToolUse orient-gate BLOCKS those actions until both are done.' +
+    (stale ? " The graph is STALE: run `graphify update .` first so you orient against current code, not a past commit." : "");
 
   process.stdout.write(JSON.stringify({
     systemMessage: "GRAPHIFY ORIENT: " + (stale ? "graph STALE -- " : "") + "god nodes + hyperedges surfaced",

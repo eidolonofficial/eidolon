@@ -58,7 +58,10 @@ process.stdin.on("end", () => {
     'MEMPALACE RECALL (every-pass surface, seeded from recent work: "' + seed + '").\n\n' +
     body + "\n\n" +
     'This is a seeded recall, not exhaustive -- run `mempalace search "<your task topic>"' +
-    wingNote + ' --results 5` for the specific work before non-trivial changes.';
+    wingNote + ' --results 5` for the specific work before non-trivial changes.' +
+    "\n\nORIENT-GATE (ENFORCED): a task-relevant `mempalace search` AND a read of the code graph " +
+    "(graphify-out/GRAPH_REPORT.md or `graphify query`) are REQUIRED before dispatching any agent or " +
+    "editing source code -- a PreToolUse orient-gate BLOCKS those actions until both are done this session.";
 
   process.stdout.write(JSON.stringify({
     systemMessage: "MEMPALACE RECALL: surfaced" + (WING && WING !== "<WING>" ? " for wing " + WING : ""),
