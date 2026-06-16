@@ -23,6 +23,7 @@ drift into divergent parsers again.
 | settings-integrity-guard | PreToolUse (Write, Edit) | Blocks a settings edit that silences the suite from inside: introducing `disableAllHooks: true` into a Claude settings file, or dropping a hook entry that the target's manifest (`.claude/eidolon-manifest.yaml`) lists as wired. The content half of the two-layer floor (see "The two-layer floor" below). |
 | advisor-guard | PreToolUse (any tool named like `advisor`) | Forbids a dispatched SUBAGENT from calling an advisor tool: hard block (exit 2) with redirection to its bounded task and the stop-and-report path. The main session passes through untouched; the controller owns judgment routing. Subagent detection mirrors the Expediter lock (`transcript_path` under `subagents`; fails open as main). |
 | dispatch-attestation-guard | PreToolUse (the dispatch tool, `Task`) | The consent-tier security-awareness gate: when a dispatch is destructive or sensitive (security/trust-safety swarm, deploy, migration, prod, PII, payments, credentials, destructive verbs) AND no VALID signed attestation is in effect (`.claude/security-attestation.json`, verified against the trusted grader key at `.claude/security-grader-public.pem` over `references/security-policy.md`), it ASKS the human. Stands alone on the dispatch-tool matcher, like advisor-guard. Never hard-blocks; a non-sensitive dispatch or an unrecognized tool fails open to allow. Adapted from slartz/agent-security-awareness-training (MIT). |
+| evolve-engine-guard | PreToolUse (Bash) | The consent-tier gate for the evolve mode (`references/evolve-engine.md`): a command that flips the vendored ASI-Evolve engine's preflight to confirmed (`evolve-brief normalize ... --confirmed true`) ASKS the human, because that flip unlocks the engine's mutate/evaluate round loop on a real compute budget. One ask per run; drafting commands (no flip) and per-round commands pass. Rides the guard-bash dispatcher (no own matcher); never hard-blocks. |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
 | resource-steward | SessionStart + PreToolUse (any) | Token + system-resource stewardship (`references/resource-stewardship.md`). Advisory only, never blocks: a SessionStart stewardship memo (with a session-counter reset), a model-cascade nudge on the first `Task` dispatch, and a `/compact`-or-`/save-session` nudge as the tool-call count climbs. State in `.claude/.steward-count` + `.steward-cascaded` (gitignored). The real accounting is the `/steward` skill. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
@@ -198,6 +199,12 @@ drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaff
 resource-steward:          no block - advisory only (SessionStart memo + cascade/compact nudges); the real audit is the /steward skill
 dispatch-attestation-guard: ask (consent tier) - a destructive/sensitive dispatch with no valid
                            signed attestation in effect; never a hard block (awareness is a soft layer)
+evolve-engine-guard:       ask (consent tier) - the evolve preflight --confirmed true flip that unlocks
+                           the vendored engine's mutate/evaluate loop; one ask per run; never a hard block.
+                           Note: lib.mjs touchesHookSuite() neutralizes engine/-prefixed path tokens so a
+                           routine rm inside engine/asi-evolve or its venv (which carries third-party
+                           hooks/ paths) is not read as tampering with the governance suite, while a
+                           command that also names a real hook still trips (FIX-2026-06-16)
 orient-gate:               block (exit 2) - an agent dispatch or a source-code edit before BOTH
                            graphify and mempalace have been read this session; reads, docs/markdown,
                            and non-source edits pass; fail-open on a missing session id or unreadable

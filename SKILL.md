@@ -47,7 +47,10 @@ gating:
     moments: install a skill (Stage 4) | seat the primary persona (Stage 2.5 ratify,
              Stage 10 seat) | deploy (SHIP) | run an irreversible op (the ask tier) |
              dispatch destructive/sensitive work with no valid security attestation (the ask tier,
-             hooks/dispatch-attestation-guard.mjs; references/security-awareness.md)
+             hooks/dispatch-attestation-guard.mjs; references/security-awareness.md) |
+             confirm an evolve run -- the preflight --confirmed true flip that unlocks the engine's
+             mutate/evaluate loop on a real compute budget (the ask tier, one confirm per run,
+             hooks/evolve-engine-guard.mjs; references/evolve-engine.md)
     shape:  one AskUserQuestion each, with a why/liability line; never a typed menu
 verification:                                           # the load-bearing discipline
   funnel: REFERENCE trust-but-verify SKILL.md § "what verification MUST be"  # do not restate
@@ -117,17 +120,26 @@ orchestration:                                          # running subagents and 
 
 ## Modes
 
-Eidolon runs in one of two modes. Pick by what was asked; state which at the top.
+Eidolon runs in one of three modes. Pick by what was asked; state which at the top.
 
 ```yaml
 setup:  no work item, or "set up / configure this repo"  ->  run the ten stages below (install the room)
 build:  a work item to build, change, or fix             ->  run the Build pipeline (work in the room)
+evolve: a MEASURABLE numeric-optimization / AI-R&D item   ->  run the Evolve pipeline (the vendored
+        - a scorer exists that ranks candidate solutions       ASI-Evolve toolbelt, agent-driven)
 ```
 
 Setup installs the environment once. Build runs each time there is real work.
 Build's SPECIFY stage reuses Setup's recon and Interview Mode; it does not
 re-install. If both apply (a fresh repo plus a first work item), run setup, then
 build.
+
+Evolve is the narrow mode: it applies ONLY when the work item is an evaluator-driven
+search - a measurable scorer ranks candidate solutions. Without a scorer it is a
+build, not an evolve. Evolve drives the vendored ASI-Evolve toolbelt
+(engine/asi-evolve/) as the agent-driven engine - Claude is the engineer - and routes
+the scored result back through verification and memory; the contract is
+references/evolve-engine.md.
 
 ## What You Must Do When Invoked
 
@@ -422,6 +434,9 @@ artifacts:
   - path: hooks/...           kind: hook      status: ...          last_verified: <date>
   - path: hooks/dispatch-attestation-guard.mjs  kind: hook  wired: PreToolUse(Task)  last_verified: <date>  # the consent gate; list it so settings-integrity-guard protects it
   - path: hooks/security-surface.mjs            kind: hook  wired: SessionStart      last_verified: <date>  # template; the security-awareness surface
+  - path: hooks/evolve-engine-guard.mjs         kind: hook  wired: PreToolUse(Bash) via guard-bash  last_verified: <date>  # evolve mode: the consent gate; rides the dispatcher
+  - path: engine/asi-evolve/   kind: engine    status: vendored  upstream: GAIR-NLP/ASI-Evolve@fb8a67e  license: Apache-2.0  last_verified: <date>  # only when evolve mode is used
+  - path: references/evolve-engine.md  kind: reference  last_verified: <date>  # the evolve engine contract
   - path: .git/hooks/post-commit  kind: capture  last_verified: <date>
 logs:
   fixes:    docs/fixes/        # FIX-YYYY-MM-DD-<slug>.md, flat markdown
@@ -575,6 +590,15 @@ heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing se
                  heartbeat at the lease-window cadence: state pulse, zombie reap with
                  state-injected respawns, one swarm-conducting wave per firing, parks only at
                  human gates; 25-minute default leases; a stale queue is a defect to re-seed.
+evolve_engine:   references/evolve-engine.md - the evolve mode's engine contract: the vendored
+                 agent-driven ASI-Evolve toolbelt (engine/asi-evolve/, Apache-2.0) run on a
+                 MEASURABLE numeric-optimization work item, Claude the engineer, the preflight
+                 --confirmed flip consent-gated (hooks/evolve-engine-guard.mjs), the engine's
+                 reported best score re-verified COLD as the second signal, the distilled result
+                 routed to docs/notes + mempalace + the manifest. The DELIBERATE home for the
+                 population-search / numeric-fitness machinery references/loop-suite.md's fence
+                 holds out of the delivery loop (ADR docs/decisions/2026-06-16-fold-asi-evolve-
+                 evolve-mode.md); the fence now cross-references this mode, not contradicts it.
 ```
 
 ### What you must do in build mode
@@ -617,3 +641,51 @@ heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing se
    (scripts/review-receipt.mjs) over the verify packet, so the verdict travels with the
    change as a tamper-evident, attributable record (references/review-receipt.md).
    Do not declare done while any finding is unverified or any AMBIGUOUS stands.
+
+---
+
+## Evolve pipeline (numeric-optimization mode)
+
+For a MEASURABLE evaluator-driven search - a scorer ranks candidate solutions - Eidolon drives the
+vendored ASI-Evolve toolbelt (engine/asi-evolve/) as the agent-driven engine. Claude is the
+engineer; the toolbelt is deterministic bookkeeping (cognition store, experiment DB, samplers, run
+state). The full contract, the toolbelt commands, and the ASI-Evolve->Eidolon mapping live in
+references/evolve-engine.md; read engine/asi-evolve/SKILL.md for the engine's own operating policy.
+
+```
+  work item (a measurable optimization problem with a scorer)
+    ->  FRAME    (confirm a numeric evaluator exists; reuse Stage 1 recon + Interview Mode for the
+                 objective, score, evaluator + MANDATORY timeout, writable scope, round budget)
+        [gate 1: approve the evolve framing + round/compute ceiling before any tokens or compute burn]
+    ->  SCAFFOLD (evolve-brief normalize -> .evolve_runs/<run>/; draft the run spec, NOT confirmed)
+    ->  PROVISION (create engine/.venv on demand, pip install numpy + pyyaml; the install moment)
+    ->  CONFIRM  (evolve-brief normalize ... --confirmed true: the SINGLE consent gate -- it unlocks
+                 the mutate/evaluate loop; hooks/evolve-engine-guard.mjs asks the human here)
+    ->  ROUNDS   (per round: evolve-db sample a parent -> design the next candidate (cognition lookup
+                 or web refresh) -> evolve-files write inside the mutation scope -> evolve-eval run ->
+                 analyze -> evolve-db record. Serialize evolve-db; one task of search per round.)
+    ->  VERIFY   (the score IS the second signal: re-run the evaluator COLD on the best candidate and
+                 confirm the engine's reported score reproduces; a non-reproducible score is a RED)
+    ->  ROUTE    (distilled lessons -> docs/notes/EVOLVE-<slug>-<date>.md + mempalace; the verified
+                 best program -> the working tree as a candidate; the run -> the manifest)
+    ->  CLOSE    (only now commit, same CLOSE as build: decision-log entry + memory sync)
+```
+
+### The evolve load-bearing rules
+
+```yaml
+# why: an evolve run mutates files and burns compute; bound it and trust nothing unverified
+scorer_required:    no evaluator, no evolve. If you cannot name the number that goes up, run build.
+consent_to_run:     the preflight --confirmed true flip is the one consent moment (install + unlock
+                    the mutate/evaluate loop); never self-confirm because the task seemed detailed.
+score_is_second_signal: the engine's reported best score is a CLAIM; VERIFY re-runs the evaluator
+                    cold and reads the number itself (trust-but-verify on a scalar).
+engine_is_vendored: Eidolon never edits engine/asi-evolve/ during a run; the run lives entirely
+                    under .evolve_runs/ (gitignored) and only the distilled result enters the tree.
+deps_isolated:      engine deps live in the on-demand venv engine/.venv (numpy + pyyaml; faiss /
+                    sentence-transformers optional, graceful fallback); no LLM-API key; the skill
+                    stays pure Markdown + .mjs.
+fence_superseded:   evolve is the sanctioned home for the population-search / numeric-fitness
+                    machinery references/loop-suite.md's fence holds out of the DELIVERY loop
+                    (ADR docs/decisions/2026-06-16-fold-asi-evolve-evolve-mode.md).
+```

@@ -85,6 +85,19 @@ test("lib: touchesHookSuite means the governance suite, not application hooks di
   assert.ok(touchesHookSuite("npm run hooks"));
 });
 
+test("lib: touchesHookSuite exempts the vendored evolve engine tree and its venv, but keeps the true catch (FIX-2026-06-16)", () => {
+  // the vendored engine + its on-demand venv carry third-party hooks/ paths that are NOT the
+  // governance suite, so a routine rm/find inside engine/ must not read as tampering
+  assert.ok(!touchesHookSuite("rm -rf engine/.venv"));
+  assert.ok(!touchesHookSuite("rm engine/.venv/lib/python3.11/site-packages/pip/_vendor/pyproject_hooks/_impl.py"));
+  assert.ok(!touchesHookSuite("rm engine/asi-evolve/scripts/evolve-db"));
+  assert.ok(!touchesHookSuite("find engine/.venv -path '*/hooks/*' -delete"));
+  // a command that ALSO names a real governance hook outside engine/ still trips: only the
+  // engine-prefixed token is neutralized, never the real-hook token
+  assert.ok(touchesHookSuite("cp hooks/guard-bash.mjs engine/asi-evolve/x"));
+  assert.ok(touchesHookSuite("rm engine/x; rm hooks/real.mjs"));
+});
+
 // ---------------------------------------------------- verification-guard
 
 test("verification-guard: an unbacked 'works now' claim in a commit is blocked", () => {
@@ -389,6 +402,12 @@ test("guard-bash: a block outranks an ask (a bypass cannot be consented through)
   git("add", "shot.png");
   // the same staged visual would ask, but the --no-verify bypass blocks first
   blocked(run("guard-bash.mjs", bash('git commit --no-verify -m "add render"', dir)), "COMMIT QUALITY GUARD");
+});
+
+test("guard-bash: the evolve-engine confirmation flip escalates through the dispatcher too", () => {
+  asked(run("guard-bash.mjs", bash("engine/.venv/bin/python engine/asi-evolve/scripts/evolve-brief normalize --run-dir .evolve_runs/x --confirmed true")), "EVOLVE ENGINE GATE");
+  // a drafting normalize (no flip) carries no consent moment and rides through silently
+  silent(run("guard-bash.mjs", bash("engine/.venv/bin/python engine/asi-evolve/scripts/evolve-brief normalize --run-dir .evolve_runs/x")));
 });
 
 test("guard-write: one spawn, the whole Write/Edit suite", (t) => {

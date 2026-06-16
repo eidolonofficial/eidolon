@@ -61,8 +61,19 @@ export function withoutMessage(cmd) {
 // code, not the suite, and does not match.
 const HOOKS_SEGMENT = /(?:^|[\s'"=:;&|])(?:\.[\/\\])?(?:\.git[\/\\])?hooks(?:[\/\\]|(?=['"\s;&|)]|$))/i;
 const HOOKS_GOV_FILE = /hooks[\/\\]\S*\.(?:mjs|cjs|ps1|sh|py)\b/i;
+// The vendored evolve engine (engine/asi-evolve/ and its on-demand venv at engine/.venv/)
+// carries third-party hooks/ paths that are NOT Eidolon's governance suite: pip alone vendors
+// pyproject_hooks/ and requests/hooks.py, and faiss/sentence-transformers bring more. A routine
+// rm/chmod inside the engine tree or its venv must not read as tampering with the suite. So
+// neutralize ONLY engine-prefixed path tokens before testing: a command that ALSO names a real
+// hook outside engine/ (e.g. `cp hooks/guard-bash.mjs engine/x`) keeps its real-hook token and
+// still trips - the true catch is preserved, only the vendored-tree false positive is removed.
+// Beneficial change (fewer false catches, never fewer true ones); proof + provenance in
+// docs/fixes/FIX-2026-06-16-engine-hook-suite-exemption.md.
+const ENGINE_TOKEN = /(^|[\s'"=:;&|(])(?:\.[\/\\])?engine[\/\\][^\s;&|]*/gi;
 export function touchesHookSuite(cmd) {
-  return HOOKS_SEGMENT.test(String(cmd)) || HOOKS_GOV_FILE.test(String(cmd));
+  const scrubbed = String(cmd).replace(ENGINE_TOKEN, "$1 ");
+  return HOOKS_SEGMENT.test(scrubbed) || HOOKS_GOV_FILE.test(scrubbed);
 }
 
 // Run a hook body against the parsed stdin JSON. A parse failure exits 0: a

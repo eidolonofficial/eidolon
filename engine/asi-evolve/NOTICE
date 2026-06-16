@@ -1,0 +1,38 @@
+ASI-Evolve (vendored into Eidolon)
+==================================
+
+This directory contains a vendored copy of the agent-driven "evolve" skill toolbelt
+from the ASI-Evolve project:
+
+    Project:  ASI-Evolve
+    Author:   GAIR-NLP (SII / SJTU Generative AI Research Lab)
+    Source:   https://github.com/GAIR-NLP/ASI-Evolve
+    Paper:    ASI-Evolve: AI Accelerates AI (arXiv:2603.29640)
+    License:  Apache License, Version 2.0 (see ./LICENSE)
+    Vendored: upstream commit fb8a67e552e25cf8b7144d4e7f1a17f665055130
+
+Upstream ships no NOTICE file; this NOTICE is authored by the Eidolon project to record
+attribution and the scope of what was vendored, as encouraged by Apache-2.0 §4(d).
+
+What was vendored
+-----------------
+Verbatim, from the upstream `skills/evolve/` directory:
+  - SKILL.md, agents/, references/, scripts/ (the evolve-* wrappers and the evolve_core
+    Python package: cognition store, experiment database, samplers, run-state helpers)
+Plus, as a runnable smoke fixture, from upstream `experiments/`:
+  - experiments/circle_packing_demo/  (the demo problem, evaluator, and baseline program)
+Plus the upstream root LICENSE (Apache-2.0), copied unmodified to ./LICENSE.
+
+What was NOT vendored (excluded by Eidolon, see ./PROVENANCE.md)
+---------------------------------------------------------------
+  - the autonomous multi-agent runtime: main.py, pipeline/, the repo LLM client (utils/llm.py),
+    and the root-level cognition/ and database/ modules (the evolve_core package supersedes them
+    for skill use; upstream's own skills/evolve/SKILL.md instructs "Do not run python main.py")
+  - assets/ (a 3.3 MB paper PDF and a figure), and experiments/best/ (evolved-solution snapshots)
+
+Modifications
+-------------
+The vendored source files under this directory are UNMODIFIED. Eidolon's integration lives
+OUTSIDE this subtree (in references/evolve-engine.md, hooks/evolve-engine-guard.mjs, SKILL.md,
+and the on-demand venv at engine/.venv/), so this directory remains a clean mirror that can be
+re-synced from upstream. See ../README.md for the update procedure.
