@@ -49,3 +49,12 @@ security-keys/
 # Transient cold-context verify packets
 verify-packet/
 .firedrill-packet/
+
+# Vendored evolve engine (engine/asi-evolve/): the on-demand venv, run state, and model cache
+# are never committed - only the distilled result routes into the tree. (.venv/ above already
+# covers engine/.venv; these are anchored for clarity and to catch run artifacts.)
+engine/.venv/
+engine/.cache/
+engine/runs/
+.evolve_runs/
+**/.evolve_runs/

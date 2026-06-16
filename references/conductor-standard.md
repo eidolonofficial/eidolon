@@ -271,6 +271,11 @@ attestation_gate: before dispatching destructive or sensitive work (the security
                 as a standalone PreToolUse hook on the dispatch-tool (Task) matcher, NOT on
                 guard-bash/guard-write (those match Bash/Write/Edit, never the dispatch tool). A
                 soft layer: it asks, it never blocks (references/security-awareness.md).
+evolve_gate:    before launching an evolve run, the preflight --confirmed true flip (evolve-brief)
+                ASKS the human (the consent tier, hooks/evolve-engine-guard.mjs): it unlocks the
+                vendored ASI-Evolve engine's mutate/evaluate loop on a real compute budget. One
+                confirm per run; the engine's reported best score is a CLAIM the conductor
+                re-verifies COLD (re-run the evaluator) before trusting (references/evolve-engine.md).
 ```
 
 ## 9. Resolve uncertainty by climbing the ladder

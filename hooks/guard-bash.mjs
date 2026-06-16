@@ -20,8 +20,10 @@ import { evalDeletion } from "./deletion-guard.mjs";
 import { evalProtectedPaths } from "./protected-paths-guard.mjs";
 import { evalVisualEvidence } from "./visual-evidence-gate.mjs";
 import { evalConduct } from "./conduct-guard.mjs";
+import { evalEvolveEngine } from "./evolve-engine-guard.mjs";
 
-// the order of the eight per-guard settings entries this dispatcher replaced
+// the order of the eight per-guard settings entries this dispatcher replaced,
+// plus the evolve-engine consent gate (an ask, ordered after the blocks)
 runSuite([
   evalVerification,
   evalCommitQuality,
@@ -31,4 +33,5 @@ runSuite([
   evalProtectedPaths,
   evalVisualEvidence,
   evalConduct,
+  evalEvolveEngine,
 ]);

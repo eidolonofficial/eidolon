@@ -35,6 +35,7 @@ by a swarm's self-proof or the cold-context verifier, not a single hard block.
 | Exit-code-zero as success | A clean exit proves the command ran; verify the actual state change. | every stage | verification-guard |
 | Over-verification | Match verification weight to risk: a cold-review subagent for risky code, the fast deterministic checks for routine edits; one review pass per unit. | every stage | advisory (process-doctrine) |
 | Unmonitored background work | A launched workflow or task is minded until done or hung (poll plus liveness, intervene); never left running unmonitored. | orchestrator | advisory (process-doctrine + the SessionStart hook) |
+| Unconsented evolve run / unverified score | The vendored evolve engine never starts its mutate/evaluate loop without the human-confirmed preflight flip; the run is bounded by its round budget; the engine's reported best score is re-verified COLD before it is trusted or routed. | orchestrator | evolve-engine-guard (ask) + the evolve VERIFY step (cold evaluator re-run) |
 
 ## Conduct rules (the strongest layer)
 

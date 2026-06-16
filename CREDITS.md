@@ -15,6 +15,21 @@ Eidolon stands on open-source work by other people. Every project it builds on, 
   adapts. The Eidolon version reuses the Ed25519 review-receipt signer (scripts/security-attestation.mjs)
   and tailors the policy and quiz to Eidolon's agent threat surface; the gate asks, it never hard-blocks.
 
+## Vendored engines
+
+- **ASI-Evolve**, by GAIR-NLP. Apache-2.0. https://github.com/GAIR-NLP/ASI-Evolve
+  The learn -> design -> experiment -> analyze cognition loop (arXiv 2603.29640). Folded into Eidolon
+  TWICE: first as a methodology uplift in references/loop-suite.md (the cognition-base + analyzer
+  SHAPE ported into the delivery wave, 2026-06-13), and now VENDORED - its agent-driven evolve
+  toolbelt (the evolve_core package + the evolve-* CLI wrappers, from upstream skills/evolve/) lives
+  under engine/asi-evolve/ as the runnable engine behind the new `evolve` mode. This is the
+  sanctioned home for the population-search / numeric-fitness machinery the loop-suite fence holds
+  out of the delivery loop. Vendored verbatim, unmodified (provenance: engine/asi-evolve/NOTICE +
+  PROVENANCE.md); the autonomous main.py/pipeline runtime is NOT vendored (upstream's own skill
+  instructs "Do not run python main.py"). It runs in its own on-demand venv with no LLM-API key, so
+  the skill stays pure Markdown + .mjs. The Apache-2.0 LICENSE is kept at engine/asi-evolve/LICENSE
+  (ADR docs/decisions/2026-06-16-fold-asi-evolve-evolve-mode.md).
+
 ## Design patterns (reference)
 
 - **learning-jsdp**, by Addy Osmani. MIT. https://github.com/addyosmani/learning-jsdp
