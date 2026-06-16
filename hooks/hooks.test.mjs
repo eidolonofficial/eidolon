@@ -475,6 +475,38 @@ test("session-restore: replays the saved note as SessionStart context; silent wh
   assert.match(out.hookSpecificOutput.additionalContext, /VERIFY/);
 });
 
+test("session-save: captures deterministic git facts (HEAD, branch), no <fill> placeholder (upgrade)", (t) => {
+  const { dir, git } = gitRepo(t);
+  writeFileSync(join(dir, "a.txt"), "x");
+  git("add", "a.txt");
+  git("commit", "-q", "-m", "seed commit");
+  allowed(run("session-save.mjs", { cwd: dir, trigger: "auto" }));
+  const rawState = readFileSync(join(dir, ".claude", ".session-state"), "utf8");
+  assert.ok(!rawState.includes("<fill"), "the <fill> placeholders must be gone");
+  const state = JSON.parse(rawState);
+  assert.match(state.git.head, /seed commit/, "HEAD subject is captured");
+  assert.ok(state.git.branch, "the branch is captured");
+});
+
+test("session-restore: frames the snapshot as a hypothesis, not ground truth (upgrade)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  writeFileSync(join(dir, ".claude", ".session-state"), '{"stage":"VERIFY"}');
+  const out = JSON.parse(run("session-restore.mjs", { cwd: dir }).stdout);
+  assert.match(out.hookSpecificOutput.additionalContext, /HYPOTHESIS/);
+  assert.match(out.hookSpecificOutput.additionalContext, /VERIFY/, "the saved note still rides along");
+});
+
+test("session-restore: a snapshot older than the staleness window is flagged STALE (upgrade)", (t) => {
+  const dir = tmp();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, ".claude"), { recursive: true });
+  const old = new Date(Date.now() - 30 * 86400000).toISOString();
+  writeFileSync(join(dir, ".claude", ".session-state"), JSON.stringify({ saved_at: old, stage: "X" }));
+  assert.match(run("session-restore.mjs", { cwd: dir }).stdout, /STALE/);
+});
+
 test("process-doctrine: injects the doctrine regardless of input", () => {
   const r = run("process-doctrine.mjs", "");
   allowed(r);
