@@ -31,10 +31,11 @@ drift into divergent parsers again.
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. The text is hardcoded inline in the script, not read from references/process-doctrine.md at runtime. Advisory. |
 | seat-surface | SessionStart | Surfaces the seated persona (identity + anchors + enforced anti-behaviors) on every session source, so the agent operates AS the persona instead of only being blocked when it strays. Source-aware: on source=compact it directs continue-in-flight; on other sources it surfaces the ask-first gates. Advisory; pairs with persona-conduct-guard (the teeth). |
 | security-surface | SessionStart | Surfaces the security policy (`references/security-policy.md`) hash and the attestation status every pass, so a session knows the posture before it meets the dispatch gate. Advisory, fail-open; pairs with dispatch-attestation-guard (the consent gate). Non-cryptographic status (presence + result + policy-freshness); the gate does the real verify. |
-| graphify-orient | SessionStart | Surfaces the code graph's god nodes (capped 12 lines) + key hyperedges (capped 16) + freshness (a prefix comparison of the built-from commit vs HEAD) every pass. Advisory, read-only. |
+| codebase-memory-orient | SessionStart | PRIMARY structural surface: sources god nodes (hotspots by fan-in) + layers + entry points from the codebase-memory-mcp index (`cli get_architecture`) when configured (`.claude/codebase-memory.json` `{project,exe}`), and writes a per-session sentinel so graphify-orient stays silent. Advisory, fail-open (no config/binary/index -> silent, graphify falls back). Template: fill `<WING>` in its gate block. |
+| graphify-orient | SessionStart | The automatic FALLBACK to codebase-memory-orient: surfaces the code graph's god nodes (capped 12 lines) + key hyperedges (capped 16) + freshness (a prefix comparison of the built-from commit vs HEAD) ONLY when the primary produced nothing this session (its per-session sentinel is absent). Advisory, read-only. |
 | mempalace-orient | SessionStart | Surfaces a seeded prose-memory recall (seed = branch + last-2 commit subjects, <=200 chars) every pass; 12s timeout, output capped 1600 chars, an error-string guard suppresses a broken index. Advisory, fail-open. Template: fill `<WING>` at install (unfilled -> runs without --wing, returns global results). |
 | orient-gate | PreToolUse (Write/Edit, Task) + PostToolUse (Read/Bash/Skill sensor) | Blocks an agent dispatch or a source-code edit until BOTH the code graph (graphify) and cross-session memory (mempalace) have been ACTIVELY read this session - a Read of `graphify-out/GRAPH_REPORT.md` or a `graphify query`/`path`/`explain`, and a `mempalace search`. The PostToolUse sensor (`orient-gate-sensor.mjs`) records the reads into a per-session sentinel (`.claude/.orient-gate.<sessionId>.json`, anchored at the git repo root) -- one file per session, so concurrent sessions in the same repo never clobber each other's orientation; a new session re-orients. The teeth for the orient trio: graphify-orient + mempalace-orient SURFACE the graph and memory every session; this ENFORCES the read before code or a dispatch. Reads, non-source edits, docs/mockups/.claude/build edits, and markdown/config are never gated; fail-open on a missing session id or unreadable sentinel. Template: the source-code definition is by file extension outside docs/build/governance dirs, and the block message fills `<WING>` like mempalace-orient; a repo may narrow the source definition to its own code roots. |
-| memory-sync | git post-commit | Fans out a graph update immediately (if graphify is on PATH) + a prose capture once the `<CAPTURE_CMD>`/`<WING>` placeholder is filled (commented out until then); dedup-guarded against double-fire via a sentinel + atomic mkdir lock (shell template). |
+| memory-sync | git post-commit | Fans out a graphify update immediately (if on PATH), a codebase-memory-mcp reindex (if `.claude/codebase-memory.json` is present + the binary is on PATH; persistence:false), and a prose capture once the `<CAPTURE_CMD>`/`<WING>` placeholder is filled (commented out until then); dedup-guarded against double-fire via a sentinel + atomic mkdir lock (shell template). |
 
 ## The two-layer floor
 
@@ -127,7 +128,8 @@ session-restore: SessionStart event  -> a "SessionStart" key
 process-doctrine: SessionStart event -> a "SessionStart" key (advisory; injects the doctrine)
 seat-surface:     SessionStart event  -> a "SessionStart" key (advisory; surfaces the seated persona every pass)
 security-surface: SessionStart event  -> a "SessionStart" key (advisory; surfaces the security policy hash + attestation status)
-graphify-orient:  SessionStart event  -> a "SessionStart" key (advisory; surfaces graph god-nodes + freshness)
+codebase-memory-orient: SessionStart event -> a "SessionStart" key (advisory; PRIMARY structural surface from the codebase-memory-mcp index; reads .claude/codebase-memory.json; fill <WING> in its gate block)
+graphify-orient:  SessionStart event  -> a "SessionStart" key (advisory; FALLBACK structural surface; surfaces graph god-nodes + freshness only when the primary produced nothing)
 mempalace-orient: SessionStart event  -> a "SessionStart" key (advisory; seeded prose-memory recall; fill <WING>)
 orient-gate:      PreToolUse(Write|Edit + Task) gate + PostToolUse(Read|Bash|Skill) sensor -> orient-gate.mjs
                   on the edit + dispatch matchers (standalone, like dispatch-attestation-guard) and
@@ -138,15 +140,19 @@ memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
                  .git/hooks/post-commit and chmod +x, or point the harness at it
 ```
 
-The pass-start orientation trio (seat-surface, graphify-orient, mempalace-orient) is
-the SessionStart RECALL/ORIENT leg that complements Stage 7's dual-capture SYNC: SYNC
-writes memory + graph on commit, ORIENT surfaces the persona, the graph, and the prose
-memory at the START of every session so work never begins seated-but-invisible or blind
-to the codebase it lives in. orient-gate is the teeth for that surface: surfacing the
-graph and memory does not make a session READ them, so the gate blocks an agent dispatch
-or a source-code edit until both have actually been read this session (recorded by its
-PostToolUse sensor). Surface offers; gate enforces -- the same pairing as seat-surface
-(surface) with persona-conduct-guard (teeth).
+The pass-start orientation set (seat-surface, codebase-memory-orient + graphify-orient,
+mempalace-orient) is the SessionStart RECALL/ORIENT leg that complements Stage 7's
+dual-capture SYNC: SYNC writes memory + graph on commit, ORIENT surfaces the persona, the
+structural graph, and the prose memory at the START of every session so work never begins
+seated-but-invisible or blind to the codebase it lives in. The structural surface is a
+PRIMARY + FALLBACK pair: codebase-memory-orient (from the codebase-memory-mcp index) is
+primary, and graphify-orient falls back automatically when the primary produced nothing
+this session (a per-session sentinel arbitrates). orient-gate is the teeth for that
+surface: surfacing the graph and memory does not make a session READ them, so the gate
+blocks an agent dispatch or a source-code edit until both have actually been read this
+session (recorded by its PostToolUse sensor) -- a codebase-memory cli/MCP query OR a
+graphify read satisfies the structural half. Surface offers; gate enforces -- the same
+pairing as seat-surface (surface) with persona-conduct-guard (teeth).
 
 These depend on the target's events and tooling, so the installer wires them per repo.
 They are templates: they fail open and ship with placeholders to fill (the MemPalace
@@ -210,10 +216,10 @@ orient-gate:               block (exit 2) - an agent dispatch or a source-code e
                            and non-source edits pass; fail-open on a missing session id or unreadable
                            sentinel. The teeth for the orient trio (the SessionStart surfaces)
 session-save / restore:    no block - snapshot on PreCompact, restore on SessionStart (templates)
-seat-surface / security-surface / graphify-orient / mempalace-orient:
+seat-surface / security-surface / codebase-memory-orient / graphify-orient / mempalace-orient:
                            no block - SessionStart orientation surfaces (persona seat, the security
-                           policy hash + attestation status, graph god-nodes, prose-memory recall);
-                           advisory, fail-open (templates)
+                           policy hash + attestation status, the structural graph [codebase-memory-mcp
+                           PRIMARY, graphify FALLBACK], prose-memory recall); advisory, fail-open (templates)
 memory-sync:               no block - post-commit graph update + prose capture (prose leg commented out
                            until <CAPTURE_CMD>/<WING> is filled); dedup-guarded via a sentinel + atomic
                            mkdir lock (template)

@@ -1,6 +1,9 @@
 // hooks/graphify-orient.mjs
 //
-// SessionStart (ALL sources) -- the graphify orientation surface. Puts the code
+// SessionStart (ALL sources) -- the graphify orientation surface, the automatic FALLBACK
+// to codebase-memory-orient (the PRIMARY structural surface): it stays silent when that
+// hook fired this session (its .claude/.primary-orient.<sid>.json sentinel exists) and
+// surfaces the graph only when the primary produced nothing. Puts the code
 // graph's STRUCTURE in front of the session from message 1: the god nodes (core
 // abstractions), the key hyperedges, and freshness (graph build-commit vs current
 // HEAD). Stage 7 wires dual-capture SYNC (is the graph up to date); this is the
@@ -13,8 +16,9 @@
 // the hook stays fast and never races the post-commit sync. Additive, never blocks,
 // never crashes a session start (sibling of session-restore / process-doctrine).
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { primarySentinelPath } from "./codebase-memory-orient.mjs";
 
 // Lines of a "## <Heading>..." section up to the next "## " heading or a line cap.
 function section(md, heading, cap) {
@@ -34,6 +38,15 @@ process.stdin.on("end", () => {
   let j = {};
   try { j = JSON.parse((raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw).trim() || "{}"); } catch {}
   const cwd = String(j.cwd || process.cwd());
+  const sessionId = String(j.session_id || "");
+
+  // FALLBACK: codebase-memory-orient is the PRIMARY structural surface. When it fires it
+  // writes a per-session sentinel; if that exists, stay silent so we never double-inject.
+  // graphify is the AUTOMATIC FALLBACK -- it surfaces the graph only when the primary
+  // produced nothing (binary missing / repo unindexed / bad JSON / no config).
+  if (sessionId) {
+    try { if (existsSync(primarySentinelPath(cwd, sessionId))) process.exit(0); } catch { /* fall through -> inject */ }
+  }
 
   let md = "";
   try { md = readFileSync(join(cwd, "graphify-out", "GRAPH_REPORT.md"), "utf8"); }

@@ -377,15 +377,40 @@ Leg 2 (OPTIONAL) - Claude Code PostToolUse(Bash, git commit): run the SAME scrip
 Fill `<CAPTURE_CMD>` + `<WING>` in the template with the repo's verified MemPalace
 invocation (the detection above); graphify auto-detects on PATH. The template
 ships the lock, the dedup, the logging, and the synced-head sentinel already
-wired - the installer fills only the two capture placeholders.
+wired - the installer fills only the two capture placeholders. When the repo is
+configured for codebase-memory-mcp (Stage 8), the template's reindex leg also
+refreshes that index on every commit (gated on `.claude/codebase-memory.json`); a
+repo without it is unaffected.
+
+The SessionStart ORIENT leg has a PRIMARY + FALLBACK pair for the structural graph:
+codebase-memory-orient (PRIMARY - sources god nodes + layers from the
+codebase-memory-mcp index, when installed) and graphify-orient (the automatic
+FALLBACK - surfaces graphify-out/GRAPH_REPORT.md only when the primary produced
+nothing this session, detected via a per-session sentinel). Either satisfies the
+orient-gate's structural half. See the hooks/README.md orient-trio note.
 
 #### Stage 8 - MCP config
 
-Wire Graphify's native MCP server so agents query the graph instead of re-reading.
+Wire the structural-graph MCP server so agents query the graph instead of re-reading.
+codebase-memory-mcp ships a real MCP server (a local C binary; 158 languages, sub-ms
+Cypher/trace queries); graphify is CLI-only (`graphify query/path/explain`) with NO MCP
+entrypoint, so do NOT template a `graphify --mcp` line - it would create a broken server.
 
 ```json
-// .claude/settings.json → mcpServers
-{ "graphify": { "command": "graphify", "args": ["--mcp"] } }
+// .claude/settings.json → mcpServers (or a project .mcp.json)
+{ "codebase-memory-mcp": { "command": "<abs path to codebase-memory-mcp[.exe]>", "args": [] } }
+```
+
+Install the binary (binary-only, NO agent-config side effects - e.g. the installer's
+`--skip-config`, or a package manager that does not run the bundled `install`), then index
+the repo and write the orient config that codebase-memory-orient + the reindex leg read:
+
+```bash
+codebase-memory-mcp cli index_repository '{"repo_path":"<repo>","persistence":true}'
+codebase-memory-mcp cli list_projects '{}'   # -> the exact project name it registered
+# then write .claude/codebase-memory.json: { "project": "<name>", "exe": "<abs path>" }
+# (machine-specific, gitignored; the CLI scopes by project name, and the agent-process
+#  PATH may not yet include the binary, so both are carried explicitly)
 ```
 
 ```
