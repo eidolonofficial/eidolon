@@ -36,6 +36,23 @@ test("sense: a mempalace MINE (not search) -> null", () => {
   assert.equal(sense({ tool_name: "Bash", tool_input: { command: "mempalace mine ." } }), null);
 });
 
+// ---- sense: codebase-memory-mcp (PRIMARY structural surface) -> the structural flag ----
+// The flag is keyed "graphify" for back-compat (decideGate is unchanged); it now means
+// "structural code-graph oriented via codebase-memory-mcp OR graphify".
+
+test("sense: Bash codebase-memory-mcp cli query -> graphify", () => {
+  assert.equal(sense({ tool_name: "Bash", tool_input: { command: `codebase-memory-mcp cli get_architecture '{"project":"x"}'` } }), "graphify");
+});
+test("sense: Bash full-path codebase-memory-mcp.exe cli query -> graphify", () => {
+  assert.equal(sense({ tool_name: "Bash", tool_input: { command: `"C:/x/codebase-memory-mcp.exe" cli search_graph '{}'` } }), "graphify");
+});
+test("sense: codebase-memory-mcp MCP tool (any verb) -> graphify", () => {
+  assert.equal(sense({ tool_name: "mcp__codebase-memory-mcp__get_architecture", tool_input: {} }), "graphify");
+});
+test("sense: merely MENTIONING codebase-memory without a cli query -> null (no false orient)", () => {
+  assert.equal(sense({ tool_name: "Bash", tool_input: { command: "cat .claude/codebase-memory.json" } }), null);
+});
+
 // ---- isSourceCodePath / tool classifiers ----
 
 test("isSourceCodePath: a source file anywhere is gated", () => {
@@ -188,6 +205,24 @@ test("readSentinel: fails open (returns null) on corrupt JSON, gate then blocks 
     writeFileSync(sentinelPath(root, SID), "{ not json", "utf8");
     assert.equal(readSentinel(root, SID), null);
     assert.equal(decideGate({ toolName: "Agent", filePath: "", sessionId: SID, sentinel: readSentinel(root, SID) }).kind, "block");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("recordRead: a codebase-memory cli query satisfies the STRUCTURAL half; gate still blocks until mempalace (enforcement preserved)", () => {
+  const root = mkdtempSync(join(tmpdir(), "orient-gate-"));
+  mkdirSync(join(root, ".claude"), { recursive: true });
+  try {
+    recordRead(root, { session_id: SID, tool_name: "Bash", tool_input: { command: `codebase-memory-mcp cli get_architecture '{"project":"x"}'` } });
+    let s = readSentinel(root, SID);
+    assert.ok(s.graphifyReadAt && !s.mempalaceReadAt, "cbm cli sets the structural (graphify) flag");
+    // SILENT-GATE-DECAY GUARD: still blocks until mempalace is also read
+    assert.equal(decideGate({ toolName: "Agent", filePath: "", sessionId: SID, sentinel: s }).kind, "block");
+
+    recordRead(root, { session_id: SID, tool_name: "Bash", tool_input: { command: 'mempalace search "x"' } });
+    s = readSentinel(root, SID);
+    assert.equal(decideGate({ toolName: "Agent", filePath: "", sessionId: SID, sentinel: s }), null);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

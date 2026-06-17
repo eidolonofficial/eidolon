@@ -88,6 +88,10 @@ const norm = (p) => String(p || "").replace(/\\/g, "/");
 
 const GRAPHIFY_FILE = /graphify-out\/(graph_report\.md|graph\.json)$/i;
 const GRAPHIFY_BASH = /\bgraphify\s+(query|path|explain|update)\b/i;
+// codebase-memory-mcp is the PRIMARY structural surface. A `cli` invocation (bare or
+// full-path .exe) is a genuine code-graph query; requiring `cli` means a mere mention
+// (e.g. `cat .claude/codebase-memory.json`) does NOT spuriously satisfy the gate.
+const CBM_BASH = /\bcodebase-memory-mcp(?:\.exe)?\b[^\n;|&]*\bcli\b/i;
 const MEMPALACE_BASH = /\bmempalace\s+search\b/i;
 
 function inputHay(ti) {
@@ -96,11 +100,13 @@ function inputHay(ti) {
     .join(" ");
 }
 
-function isGraphifySkillOrMcp(name, ti) {
+function isStructuralSkillOrMcp(name, ti) {
   const n = String(name || "");
   const hay = inputHay(ti);
-  if (/^skill$/i.test(n) && /graphify/i.test(hay)) return true;
-  if (/graphify/i.test(n)) return true; // a graphify MCP tool of any verb
+  // graphify (the FALLBACK) OR codebase-memory-mcp (the PRIMARY): either is a structural
+  // code-graph engagement and satisfies the structural half of the gate.
+  if (/^skill$/i.test(n) && /graphify|codebase[-_]memory/i.test(hay)) return true;
+  if (/graphify|codebase[-_]memory/i.test(n)) return true; // a structural MCP tool of any verb
   return false;
 }
 function isMempalaceSearchSkillOrMcp(name, ti) {
@@ -117,8 +123,8 @@ export function sense(j = {}) {
   const name = String(j.tool_name || "");
   const ti = j.tool_input || {};
   if (/^read$/i.test(name) && GRAPHIFY_FILE.test(norm(ti.file_path || ti.path))) return "graphify";
-  if (/^bash$/i.test(name) && GRAPHIFY_BASH.test(String(ti.command || ""))) return "graphify";
-  if (isGraphifySkillOrMcp(name, ti)) return "graphify";
+  if (/^bash$/i.test(name) && (GRAPHIFY_BASH.test(String(ti.command || "")) || CBM_BASH.test(String(ti.command || "")))) return "graphify";
+  if (isStructuralSkillOrMcp(name, ti)) return "graphify";
   if (/^bash$/i.test(name) && MEMPALACE_BASH.test(String(ti.command || ""))) return "mempalace";
   if (isMempalaceSearchSkillOrMcp(name, ti)) return "mempalace";
   return null;

@@ -76,6 +76,16 @@ log "MINING $HEAD_SHA"
     log "graphified exit=$?"
   fi
 
+  # primary structural view: refresh the codebase-memory-mcp index when this repo is
+  # configured for it (.claude/codebase-memory.json present, binary on PATH). Local C
+  # indexer, no LLM/token cost. persistence:false refreshes only the ~/.cache DB the
+  # codebase-memory-orient hook reads; the .codebase-memory/graph.db.zst team artifact is
+  # gitignored, so it is not re-churned on every commit. A repo without it is unaffected.
+  if [ -f "$CLAUDE_DIR/codebase-memory.json" ] && command -v codebase-memory-mcp >/dev/null 2>&1; then
+    codebase-memory-mcp cli index_repository "{\"repo_path\":\"$REPO_ROOT\",\"persistence\":false}" >/dev/null 2>&1
+    log "cbm-reindexed exit=$?"
+  fi
+
   # prose view: the repo's verified MemPalace capture command. Leave the line
   # commented until <CAPTURE_CMD>/<WING> are filled, so a fresh install does not
   # fail on a placeholder.
