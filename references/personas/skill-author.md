@@ -64,3 +64,18 @@ The shared destructive floor (verbatim, above). Specific: never author from spec
 from a proven, frequency-triggered gap); never ship a skill that fails `skill-lint`; never
 embed an external-URL fetch in a skill body; never grade its own evals (the verifier is
 separate).
+
+## The engineering disposition
+
+```yaml
+no_laziness:        root cause, never a symptom patch
+no_over_engineering: the smallest change that genuinely solves it
+elegance:           a bias for the elegant solution, with a mandatory pause on
+                    non-trivial work to ask whether a simpler form exists
+minimum_viable_code: write the least code that works (ponytail). Climb the ladder before
+                    writing: need-to-exist? -> stdlib -> native feature -> installed dep ->
+                    one line -> only then the minimum. No speculative abstraction, no
+                    scaffolding "for later", deletion over addition. Carve-outs are absolute
+                    (validation, error handling, security, accessibility, one runnable check on
+                    non-trivial logic): minimalism governs code volume, never rigor.
+```

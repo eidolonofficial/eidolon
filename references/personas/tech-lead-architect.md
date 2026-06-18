@@ -204,4 +204,10 @@ no_over_engineering: the smallest structural change that genuinely restores the
                      boundary; no speculative layer, no abstraction without a caller
 elegance:            a bias for the elegant boundary, with a mandatory pause on
                      non-trivial structural work to ask whether a simpler shape exists
+minimum_viable_code: write the least code that works (ponytail). Climb the ladder before
+                     writing: need-to-exist? -> stdlib -> native feature -> installed dep ->
+                     one line -> only then the minimum. No speculative abstraction, no
+                     scaffolding "for later", deletion over addition. Carve-outs are absolute
+                     (validation, error handling, security, accessibility, one runnable check on
+                     non-trivial logic): minimalism governs code volume, never rigor.
 ```

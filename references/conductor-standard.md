@@ -300,6 +300,59 @@ artifacts:      the research brief and the oracle branches are cited artifacts, 
                 hedged language in shipped output remains a violation
 ```
 
+## 10. Minimum viable code
+
+```yaml
+# why: sections 1-9 kill timidity by pushing for MORE - more rigor, more coverage, more swarm.
+# this section is the counterweight on the orthogonal axis: more rigor, LESS code. Folded from
+# the ponytail doctrine (github.com/DietrichGebert/ponytail), user-installed 2026-06-17.
+named_failure: volume-as-effort - shipping a speculative abstraction, scaffolding "for later",
+               an interface with one implementation, or boilerplate the stdlib already does, and
+               reading the line count as progress. The best code is the code never written.
+the_axis:      this section governs code VOLUME; sections 1-9 govern RIGOR. Orthogonal, not in
+               tension: "write the least, verify it the most." Minimalism NEVER buys out of
+               verify-by-state (5), done-is-the-outcome (6), the uncertainty ladder (9), or the
+               edge gates (8) - those hold at full strength on whatever code does get written.
+```
+
+```yaml
+# the ladder - climb it before writing code; stop at the first rung that works (ponytail)
+rung_1_exist:   does this need to exist at all? a speculative need is skipped, not built
+rung_2_stdlib:  the standard library does it -> use it
+rung_3_native:  a native platform feature covers it (e.g. <input type="date">) -> use it
+rung_4_dep:     an already-installed dependency solves it -> use it, add nothing new
+rung_5_oneline: can it be one line? one line
+rung_6_minimum: only then, the minimum code that works
+```
+
+```yaml
+# the do-NOT list (ponytail anti-patterns) - each is drift, indexed below like sections 1-9
+no_speculative_abstraction: no interface with one implementation; no abstraction without a caller
+no_scaffolding_for_later:   no boilerplate or structure built "for later"; YAGNI is the default
+deletion_over_addition:     prefer removing code to adding it; boring over clever
+no_essays:                  let the diff speak; no design-note essays or feature tours
+```
+
+```yaml
+# the carve-outs - ABSOLUTE. minimalism does NOT touch these (ponytail's own exclusions, which
+# map 1:1 onto what sections 5-9 and the persona anti-behavior floor already protect)
+never_minimized: [input validation at trust boundaries, error handling that prevents data loss,
+                  security measures, accessibility basics, explicitly-requested features,
+                  one runnable check on non-trivial logic (the TDD seam, never skipped)]
+the_line:        minimalism is a discipline on what you ADD, never a license to drop a guard,
+                 a validation, a test, or a verification. A "lazy" solution that skips a carve-out
+                 is not minimal, it is unsafe - the conduct-guard floor + section 6 catch it.
+```
+
+```yaml
+# orthogonal to section 1 (LINE-COOK DRIFT), not in conflict with it
+who_vs_how_much: section 1 governs WHO writes (a fenced swarm, not the conductor inline); this
+                 section governs HOW MUCH gets written. A swarm still climbs the ladder;
+                 swarm-first is never a license to fan out volume
+plugin_modes:    the ponytail plugin ships `/ponytail lite|full|ultra` + "stop ponytail" (full is
+                 the default); this section is the always-on floor beneath whatever mode is set
+```
+
 ## The anti-patterns this standard replaces (index)
 
 ```yaml
@@ -320,4 +373,6 @@ idle_capacity_waste:    section 7 - idle capacity that waits instead of reading 
 mid_run_permission_stop: section 8 - a human gate fired mid-run instead of at a ticket edge
 guess_over_verify:      section 9 - a swarm proceeding on an unverified assumption instead
                         of climbing the research-swarm / oracle / gate ladder
+volume_as_effort:       section 10 - a speculative abstraction, scaffolding "for later", or
+                        boilerplate the ladder would skip, shipped and read as progress
 ```
