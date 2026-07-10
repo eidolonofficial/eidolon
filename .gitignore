@@ -39,6 +39,7 @@ graphify-out/
 .claude/.drift-count
 .claude/.session-state
 .claude/.memory-synced-head
+.claude/.orient-gate.*.json
 
 # Security-awareness: the REAL answer key, the issued attestation, and grader keys are never
 # committed (only the .example files are). *.pem above already covers the grader signing keys.

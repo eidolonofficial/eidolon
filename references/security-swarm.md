@@ -1,6 +1,7 @@
 # Security swarm (red and blue)
 
-The one review swarm in v1, because it is the differentiator. Red attacks the
+The first review swarm and the differentiator; from standard tier up it runs in
+parallel with the trust-and-safety and code-review swarms. Red attacks the
 work in parallel, one agent per attack surface. Blue hardens each layer red
 probes. The pair is paired by contract: every red finding becomes a blue task,
 and the pair closes only when blue's post-fix verify passes on a signal

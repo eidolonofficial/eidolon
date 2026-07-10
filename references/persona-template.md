@@ -93,15 +93,16 @@ anti_behaviors:                          # the exact phrases the conduct guard m
   specific:  [<persona-scoped phrase>, ...]
 ```
 
-## Hiring an expert (per-persona generation, deferred past slice 1)
+## Hiring an expert (per-persona generation)
 
 When recon detects a need the base roster does not cover, Eidolon drafts an
 expert against this template, writes its two anti-behavior layers, retools its
 loadout from the registries, gates the hire at the plan checkpoint for
 higher-risk work, and records it in the coverage manifest (who, against which
 standard) and the decision log (which signal produced it). The generation rail is
-the anti-synthetic rule above. Runtime generation is a later v2 step; slice 1
-ships the template and one hand-built persona that proves it.
+the anti-synthetic rule above, enforced by scripts/persona-lint.mjs. The full
+hire flow is references/expert-hiring.md; worked example hires live under
+references/personas/examples/.
 
 ## The engineering disposition (every persona also carries this)
 

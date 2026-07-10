@@ -10,8 +10,10 @@ CLAUDE.md, a house persona crafted for you and this codebase, the right skills
 subagents, governance in two layers (permission rules that hold even with hooks
 disabled, plus the hook suite), and memory wiring. It runs in four phases
 across eleven stages, with three checkpoints where you approve before anything
-is written, and it pauses at exactly four kinds of moment: installing a skill,
-seating the persona, deploying, and anything irreversible. Nothing lands
+is written, and it pauses at six kinds of moment: installing a skill,
+seating the persona, deploying, anything irreversible, dispatching destructive
+or sensitive work without a valid security attestation, and confirming an
+evolve run. Nothing lands
 without your say, and every generated command is checked against a second,
 independent signal before it ships.
 

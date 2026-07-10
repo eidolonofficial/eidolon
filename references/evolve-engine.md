@@ -97,7 +97,8 @@ state_not_report: the score is verified by EXECUTING the evaluator and reading t
 
 ```yaml
 analysis:    durable lessons -> docs/notes/EVOLVE-<slug>-<date>.md (a machine-written postmortem,
-             mined to mempalace by the existing Stop/post-commit hook; same sink as loop-suite up. 2)
+             mined to mempalace by the existing post-commit auto-miner
+             (hooks/memory-sync.post-commit.sh); same sink as loop-suite up. 2)
 candidate:   the verified best program -> the working tree as a candidate change (then it enters the
              ordinary build/verify/CLOSE path if it is to ship)
 record:      the run is registered in .claude/eidolon-manifest.yaml with last_verified

@@ -87,8 +87,8 @@ conduct:   its own declared anti-behaviors, enforced by hooks/persona-conduct-gu
 
 ## Worked example (an example hire)
 
-The two files under `references/personas/examples/` are example hires generated to
-fit hypothetical codebase needs (a PCI-DSS payments surface and a PHI clinical
+The two example personas under `references/personas/examples/` are example hires
+generated to fit hypothetical codebase needs (a PCI-DSS payments surface and a PHI clinical
 surface). They are not base-roster members; they show what a generated expert looks
 like, each anchored to real named standards (PCI-DSS v4.0 and OWASP ASVS; HIPAA,
 HL7 FHIR, IEC 62304, ISO 14971) and each passing the anti-synthetic rail.

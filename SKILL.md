@@ -8,8 +8,9 @@ trigger: /eidolon
 
 Any repo → detected stack → a complete, verified Claude Code environment.
 Four phases, eleven stages (1 to 10 plus the 2.5 persona interview), three
-operator checkpoints, and four consent-gate moments (install, seat, deploy,
-irreversible). Autonomous execution, consent-gated side effects: nothing is
+operator checkpoints, and six consent-gate moments (install, seat, deploy,
+irreversible, unattested sensitive dispatch, evolve-run confirm). Autonomous
+execution, consent-gated side effects: nothing is
 written before the plan is approved, and every generated command is verified
 against an independent second signal before it ships.
 
@@ -302,7 +303,8 @@ Evaluated by Claude Code's own parser, so it survives `disableAllHooks`:
 Layer B - the hook suite: generate `hooks/*.mjs` (Node) + `hooks/*.ps1`
 (PowerShell) + `hooks/README.md` (table). Wire the consolidated dispatcher
 shape in `.claude/settings.json`: one `guard-bash` entry, one `guard-write`
-entry, the `.*advisor.*` entry. Mirror the verdict tiers: advisory injects
+entry, the `.*advisor.*` entry, and the standalone `Task` entry for
+`dispatch-attestation-guard` (four entries; see hooks/README.md "Wiring"). Mirror the verdict tiers: advisory injects
 `additionalContext`; ask emits `permissionDecision "ask"` (the consent tier);
 hard block exits `2`.
 
@@ -310,11 +312,13 @@ hard block exits `2`.
 events:    PreToolUse | PostToolUse | SessionStart | PreCompact
 default gates:
   protected-paths-guard     PreToolUse(Bash)        exit 2 on rm/del of protected paths
-  doc-integrity-guard       PreToolUse(Write/Edit)  exit 2 on shrinking an append-only log
+  append-only-record-guard  PreToolUse(Write/Edit)  exit 2 on emptying (or a >50% Write
+                                                    shrink of) an append-only log
   commit-quality-guard      PreToolUse(Bash)        exit 2 on --no-verify / --force / DROP
   settings-integrity-guard  PreToolUse(Write/Edit)  exit 2 on disableAllHooks:true or on
                                                     dropping a manifest-wired hook entry
-  verification-reminder     PreToolUse(Write/Edit)  advisory: verify before hedged language ships
+  verification-guard        PreToolUse(Bash)        exit 2 on a commit claiming a visual or
+                                                    runtime result without naming evidence
 ```
 
 ```
@@ -588,7 +592,9 @@ antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplica
                  catalog (section 10); each row names its owning stage and enforcing hook.
 hook_suite:      hooks/README.md - the full governance hook suite (section 11): the
                  verification, commit-quality, append-only, persona-conduct, hook-integrity,
-                 deletion, protected-paths, visual-evidence, conduct, and drift guards.
+                 deletion, protected-paths, visual-evidence, conduct, drift, settings-
+                 integrity, advisor, dispatch-attestation, and evolve-engine guards, plus
+                 the orient/surface and session hooks; see the table for the full set.
 scaling:         references/scaling.md - the three risk tiers, the cost ceiling, and the
                  in-session vs cross-session decision (section 12).
 cross_session:   references/cross-session.md - the higher isolation tier: a separate session

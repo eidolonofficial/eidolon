@@ -25,7 +25,6 @@ drift into divergent parsers again.
 | dispatch-attestation-guard | PreToolUse (the dispatch tool, `Task`) | The consent-tier security-awareness gate: when a dispatch is destructive or sensitive (security/trust-safety swarm, deploy, migration, prod, PII, payments, credentials, destructive verbs) AND no VALID signed attestation is in effect (`.claude/security-attestation.json`, verified against the trusted grader key at `.claude/security-grader-public.pem` over `references/security-policy.md`), it ASKS the human. Stands alone on the dispatch-tool matcher, like advisor-guard. Never hard-blocks; a non-sensitive dispatch or an unrecognized tool fails open to allow. Adapted from slartz/agent-security-awareness-training (MIT). |
 | evolve-engine-guard | PreToolUse (Bash) | The consent-tier gate for the evolve mode (`references/evolve-engine.md`): a command that flips the vendored ASI-Evolve engine's preflight to confirmed (`evolve-brief normalize ... --confirmed true`) ASKS the human, because that flip unlocks the engine's mutate/evaluate round loop on a real compute budget. One ask per run; drafting commands (no flip) and per-round commands pass. Rides the guard-bash dispatcher (no own matcher); never hard-blocks. |
 | drift-guard | PreToolUse (Write, Edit) | Counts consecutive scaffold-only edits; advises from 6, blocks at 10; resets on deliverable work. |
-| resource-steward | SessionStart + PreToolUse (any) | Token + system-resource stewardship (`references/resource-stewardship.md`). Advisory only, never blocks: a SessionStart stewardship memo (with a session-counter reset), a model-cascade nudge on the first `Task` dispatch, and a `/compact`-or-`/save-session` nudge as the tool-call count climbs. State in `.claude/.steward-count` + `.steward-cascaded` (gitignored). The real accounting is the `/steward` skill. |
 | session-save | PreCompact | Saves a run-state note before context is trimmed (template). |
 | session-restore | SessionStart | Restores the run-state note (template). |
 | process-doctrine | SessionStart | Surfaces the process doctrine (calibrate verification to risk; mind background work) as context. The text is hardcoded inline in the script, not read from references/process-doctrine.md at runtime. Advisory. |
@@ -95,7 +94,7 @@ The wired PreToolUse set in `.claude/settings.json` is four entries: one
 dispatcher per matcher, the advisor ban, and the dispatch-attestation gate.
 
 ```yaml
-Bash:         hooks/guard-bash.mjs                # runs the eight Bash evaluators in the old wired order
+Bash:         hooks/guard-bash.mjs                # runs the nine Bash evaluators (the eight old wired guards + the evolve-engine consent gate) in the old wired order
 Write|Edit:   hooks/guard-write.mjs               # runs the five Write/Edit evaluators in the old wired order
 .*advisor.*:  hooks/advisor-guard.mjs             # keys on the tool NAME (incl. MCP spellings); stays standalone
 Task:         hooks/dispatch-attestation-guard.mjs # keys on the dispatch tool; the consent gate; stays standalone
@@ -135,7 +134,6 @@ orient-gate:      PreToolUse(Write|Edit + Task) gate + PostToolUse(Read|Bash|Ski
                   on the edit + dispatch matchers (standalone, like dispatch-attestation-guard) and
                   orient-gate-sensor.mjs on the read matcher; the teeth for the orient trio. Fill <WING>
                   in the block message; per-session sentinels .claude/.orient-gate.<sessionId>.json (git-root anchored) are gitignored
-resource-steward: SessionStart + PreToolUse -> a "SessionStart" key AND a standalone PreToolUse entry (advisory; stewardship memo + counter reset on start, cascade/compact nudges per tool call; stateful -> standalone, never via a dispatcher)
 memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
                  .git/hooks/post-commit and chmod +x, or point the harness at it
 ```
@@ -202,7 +200,6 @@ conduct-guard:             advise (exit 0) - conduct-drift language in a file or
 settings-integrity-guard:  block (exit 2) - a settings edit that introduces disableAllHooks:true
                            or drops a manifest-wired hook entry
 drift-guard:               advise from 6, block (exit 2) at 10 consecutive scaffold-only edits
-resource-steward:          no block - advisory only (SessionStart memo + cascade/compact nudges); the real audit is the /steward skill
 dispatch-attestation-guard: ask (consent tier) - a destructive/sensitive dispatch with no valid
                            signed attestation in effect; never a hard block (awareness is a soft layer)
 evolve-engine-guard:       ask (consent tier) - the evolve preflight --confirmed true flip that unlocks
