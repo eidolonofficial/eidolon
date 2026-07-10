@@ -338,7 +338,8 @@ emit_step:     after the wave one-line summary (step 12), every COMPLETED task (
                what_failed_enroute (red rounds before green), prior_misses (injected cognition
                that did NOT help -> downweight), new_priors (patterns worth injecting next time)
 persist_to:    docs/notes/ (a machine-written postmortem, distinct from the human INSIGHT notes),
-               mined to mempalace by the existing Stop/post-commit hook
+               mined to mempalace by the existing post-commit auto-miner
+               (hooks/memory-sync.post-commit.sh)
                # prov: queue.yaml evidence_fields (evidence, not analysis); ASI-Evolve Analyzer section
 ```
 

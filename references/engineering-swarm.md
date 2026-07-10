@@ -80,8 +80,8 @@ A task that hits any of these is reopened, not counted. The persona-conduct guar
 ## Where it sits in the pipeline
 
 BUILD dispatches this swarm. Each task runs test-first against the spec; the
-swarm hands its per-task red-then-green evidence forward to REVIEW (the security
-swarm in v1, more swarms in later v2 steps) and then to the cold-context VERIFY.
+swarm hands its per-task red-then-green evidence forward to REVIEW (the security,
+trust-and-safety, and code-review swarms, by tier) and then to the cold-context VERIFY.
 The engineering swarm never reviews its own work as the final signal; that is what
 the cold verifier and the review swarms are for.
 

@@ -33,7 +33,7 @@ hook_infra:     edits hooks, loops, and the queue controller-direct; a subagent 
 # the named anti-pattern this lane replaces: LINE-COOK DRIFT
 - never implement inline what a fenced swarm could build; the conductor that starts
   cooking code has left the podium and the orchestration stops
-- replaces SKILL.md:461-466 trivial-tier inline-build framing: "one file, no new surface"
+- replaces SKILL.md:524-525 trivial-tier inline-build framing: "one file, no new surface"
   is a size proxy, not a risk measurement; a one-file auth bypass, secret logger, or PII
   exfiltrator all satisfy it - file count is not a license to skip the swarm
 - inline execution is an EXCEPTION the conductor names with its rationale, never the default
@@ -64,7 +64,7 @@ parallel_spawn: all independent agents launch in ONE controller message; sequent
                 proven by the ffr-pipeline build-chain fan-out 2026-06-11)
 fan_out_size:   sized to coverage - the minimum that satisfies the swarm's coverage
                 manifest, never smaller
-# replaces SKILL.md:464 / scaling.md:15-16 "at small fan-out": breadth is not waste;
+# replaces SKILL.md:527 / scaling.md:14-15 "at small fan-out": breadth is not waste;
 # token cost is not the constraint, correctness is - "small" anchored the default at the
 # minimum instead of at coverage sufficiency (see section 4)
 worktrees:      overlapping scopes get worktree isolation so two agents never write the
@@ -78,13 +78,14 @@ worktrees:      overlapping scopes get worktree isolation so two agents never wr
 seat_required:  every dispatch seats a named persona - a roster seat or a hired expert -
                 embodied via the prompt; no exceptions (ffr-queue-grind.md:18, 2026-06-11)
 how_seated:     the conductor writes .claude/active-persona.json; the conduct guard enforces
-                the anti-behaviors from message 1 (SKILL.md:545-547, hooks/persona-conduct-guard.mjs)
+                the anti-behaviors from message 1 (SKILL.md:645-647, hooks/persona-conduct-guard.mjs)
 subagents_never: a subagent never writes a seat file; the conductor seats, the agent embodies
                 (subagents-cannot-edit-hook-dir memory)
 no_anchor_no_seat: a seat that names no anchor does not get to act - teeth without an anchor
                 is rejected at the seat boundary (expert-hiring.md anti-synthetic rail)
 primary_surface: the PRIMARY (house) persona is seated ONCE at Stage 10 and persists; the
-                SessionStart trio (seat-surface + graphify-orient + mempalace-orient)
+                SessionStart orientation set (seat-surface + codebase-memory-orient, with
+                graphify-orient as its automatic fallback, + mempalace-orient)
                 SURFACES it + the code graph + prose memory EVERY pass, so a session starts
                 seated AND oriented, not seated-but-invisible or blind to its codebase. The
                 conduct-guard is the teeth; the surface is what makes the seat operate, not
@@ -93,11 +94,11 @@ primary_surface: the PRIMARY (house) persona is seated ONCE at Stage 10 and pers
 
 ```yaml
 # seating binds every stage, not just BUILD - closes the audit's persona-seating gaps
-build:          dispatch the engineering swarm and seat its persona (SKILL.md:545)
+build:          dispatch the engineering swarm and seat its persona (SKILL.md:645)
 review:         dispatch each review swarm and seat its persona before any swarm subagent acts
-                # replaces SKILL.md:551 REVIEW "run ... in parallel" with no seating clause
+                # replaces SKILL.md:650-651 REVIEW "run ... in parallel" with no seating clause
 ship:           seat the ship swarm's persona before the deploy-readiness interview begins
-                # replaces SKILL.md:563-565 SHIP with no seating clause - deploy is the
+                # replaces SKILL.md:667-669 SHIP with no seating clause - deploy is the
                 # highest-consequence irreversible op and gets the strongest anchor, not the weakest
 loop_wave:      a grind wave seats the working persona before any code-mutating dispatch,
                 or asserts the conductor is the sole actor; no anchor, no seat
@@ -260,7 +261,7 @@ commit_gate:    the conductor runs the craft gate green and authors the commit o
                 subagent never commits
 how_asked:      surface findings and forks ONE at a time via AskUserQuestion, each with a
                 liability line (who is harmed if wrong); never a typed menu
-                (SKILL.md:453-454 surface_one)
+                (SKILL.md:516-517 surface_one)
 ask_first:      stop-and-confirm before commit/push, before changing canonical data, before
                 touching hook/guard infra, and before a long autonomous run
                 (ask-first-boundaries memory, all four lines user-set 2026-06-10)

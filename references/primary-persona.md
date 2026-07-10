@@ -65,12 +65,13 @@ ratify   -> AskUserQuestion: "Here is the persona your agent will embody:
             # Explain routes through Explain Mode at the Q1 register
 seat     -> write .claude/active-persona.json (persona id, title, anchors, both
             anti-behavior layers), so the conduct guard enforces from message 1
-surface  -> the SessionStart trio re-surfaces the seat EVERY pass: seat-surface puts
-            the persona (identity + anchors + enforced lines) in context from message 1;
-            graphify-orient + mempalace-orient surface the code graph and prose memory.
+surface  -> the SessionStart orientation set re-surfaces the seat EVERY pass: seat-surface
+            puts the persona (identity + anchors + enforced lines) in context from message 1;
+            codebase-memory-orient (or graphify-orient, its automatic fallback) +
+            mempalace-orient surface the code graph and prose memory.
             Seat ONCE (here); surface + enforce + orient EVERY session. A seated-but-
             invisible, un-oriented session (seat written, never read, graph + memory
-            never opened) is the exact gap this trio closes.
+            never opened) is the exact gap this set closes.
 ```
 
 ## The rail, satisfied with consent (the load-bearing rule)
