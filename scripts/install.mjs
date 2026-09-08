@@ -40,6 +40,7 @@ function fingerprint(path) {
 function bundle(source, host) {
   const files = inventory(source, true);
   if (!files.has('SKILL.md')) throw Error('Bundle has no SKILL.md');
+  if (host === 'claude' && files.has('references/claude-workflow.md')) files.set('SKILL.md', files.get('references/claude-workflow.md'));
   if (host === 'codex') {
     const adapter = files.get('codex/SKILL.md');
     if (!adapter) throw Error('Bundle has no Codex skill adapter');
