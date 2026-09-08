@@ -1,0 +1,44 @@
+name: Compatibility
+on:
+  push:
+    branches: [main, release/codex-claude-compat]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Record baseline and public companion source
+        shell: bash
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/eidolon-commit.txt
+          git archive --format=tar HEAD > evidence/eidolon.tar
+          git clone --quiet https://github.com/eidolonofficial/eidolon-setup.git "$RUNNER_TEMP/eidolon-setup"
+          git -C "$RUNNER_TEMP/eidolon-setup" rev-parse HEAD > evidence/setup-commit.txt
+          git -C "$RUNNER_TEMP/eidolon-setup" archive --format=tar HEAD > evidence/eidolon-setup.tar
+          git clone --quiet https://github.com/eidolonofficial/Hearth.git "$RUNNER_TEMP/Hearth"
+          git -C "$RUNNER_TEMP/Hearth" rev-parse HEAD > evidence/hearth-commit.txt
+          git -C "$RUNNER_TEMP/Hearth" archive --format=tar HEAD > evidence/Hearth.tar
+      - name: Run existing Node tests
+        shell: bash
+        run: |
+          set -o pipefail
+          node --version | tee evidence/node-version.txt
+          node --test hooks/*.test.mjs scripts/*.test.mjs 2>&1 | tee evidence/tests.txt
+          node scripts/selfcheck.mjs 2>&1 | tee evidence/selfcheck.txt
+          node scripts/eidolon-audit.mjs 2>&1 | tee evidence/audit.txt
+      - name: Preserve reproducible test evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: compatibility-evidence
+          path: evidence/
+          retention-days: 7
+          if-no-files-found: error
