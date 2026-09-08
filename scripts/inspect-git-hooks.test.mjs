@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, chmodSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, chmodSync, readdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,8 @@ const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(source, 'scripts/inspect-git-hooks.mjs');
 
 function fixture(t) {
-  const base = mkdtempSync(join(tmpdir(), 'eidolon-hooks-'));
+  // Git reports physical paths, including macOS /var -> /private/var.
+  const base = realpathSync(mkdtempSync(join(tmpdir(), 'eidolon-hooks-')));
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const project = join(base, 'project with spaces');
   const home = join(base, 'home');
