@@ -267,8 +267,9 @@ decide   -> ONE AskUserQuestion per gap: candidate name + source + license +
 install  -> on the explicit yes, the controller installs (marketplace add +
             plugin install, or copy the folder into .claude/skills/<name>/),
             VERIFIES before trusting (frontmatter parses, smoke check), then
-            RECORDS (CREDITS.md with license, decision-log row). Note to the
-            operator: the skill activates on the next session restart.
+            RECORDS (CREDITS.md with license, decision-log row). Verify that the
+            current host discovers the skill after install; do not require a restart unless
+            that host/version or integration actually needs one.
 ```
 
 #### Stage 5 - Subagents
