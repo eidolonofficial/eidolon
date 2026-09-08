@@ -123,28 +123,26 @@ proven:         geospatial-viz-engineer hired 2026-06-11 (persona-lint PASS; det
 ## 4. The model cascade
 
 ```yaml
-# why: the deep tier is for judgment the cheap tier cannot give; spend it where it pays
-# user-ratified dispatch tiers (swarm-model-cascade memory); model passed per agent() call
-# user-set 2026-06-13 (Fable retired); supersedes the swarm-model-cascade Fable-tier note
-conductor_tier:  the conductor runs inline on Opus 4.8 (1M) as the hivemind - holds the full
-                context and hands each context-less leg exactly the context it needs; synthesis
-                and all delicate/canonical/infra edits stay here, never delegated
-fan_out_top:     opus 4.7 for premium dispatched work - deep single-lens reviews, hard
-                implementation in worktrees, architecture+scale research synthesis,
-                what-if-oracle framing, security/trust-safety lenses
-fan_out_work:    sonnet for the workhorse - build chains, single-dimension reviews,
-                research-swarm breadth legs, test-runners, render/mockup builders
-doc_edits_only:  haiku ONLY for small doc edits (CHANGELOG lines, comment fixes), never code,
-                review, or judgment
-escalation:      a broken opus-4.7 leg (its wave gate red after the bounded fix rounds, or it
-                cannot hold the scope) escalates THAT leg to an Opus 4.8 (1M) agent - the
-                headroom for hard cases; the failing leg only, never the whole wave; a 4.8
-                leg that still fails is a re-plan signal, not a re-spend
-not_ambient:     the tier is passed per agent() call, never assumed; an unstated model is a defect
-dispatch_enum:   the harness dispatch enum is sonnet/opus/haiku (no version granularity); 'opus'
-                IS the premium fan-out tier, 4.7-vs-4.8 is not per-call selectable; escalation
-                pulls the failed leg INLINE to the 4.8 conductor (or re-dispatches 'opus' in a
-                worktree), there being no higher dispatchable opus (user-resolved 2026-06-13)
+# why: model names drift faster than governance doctrine; route by capability and availability
+# current platform behavior is governed by references/current-platform-contract.md
+conductor_tier:  use the strongest suitable model actually available in the current host for
+                synthesis, delicate/canonical/infra edits, security/trust/safety judgment, and
+                orchestration decisions that require the full working context
+fan_out_top:     use the strongest dispatchable model available for premium independent work -
+                deep single-lens review, hard implementation, architecture/scale synthesis,
+                what-if framing, and security/trust/safety lenses
+fan_out_work:    use a capable general workhorse model for build chains, focused review, research
+                breadth, tests, renders, and other bounded implementation work
+fast_mechanical: use the fastest suitable model only for bounded low-risk mechanical edits;
+                never use a speed tier merely because a task touches few files
+escalation:      when a dispatched leg exhausts its bounded fix loop or cannot hold its scope,
+                escalate THAT leg to the strongest suitable available model; if that still fails,
+                re-plan instead of repeatedly spending the same shape
+not_ambient:     record the chosen capability tier per dispatch; never assume a remembered point
+                release or context-window size is present
+resolver:        host aliases such as opus/sonnet/haiku are availability-resolved aliases when
+                the host exposes them, not promises about a specific version; inspect the current
+                host or first-party docs when identity/capability matters
 ```
 
 ```yaml
