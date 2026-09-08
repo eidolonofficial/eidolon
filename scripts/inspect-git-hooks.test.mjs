@@ -10,8 +10,9 @@ const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(source, 'scripts/inspect-git-hooks.mjs');
 
 function fixture(t) {
-  // Git reports physical paths, including macOS /var -> /private/var.
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'eidolon-hooks-')));
+  // Native resolution also expands Windows 8.3 names (RUNNER~1) in temp paths.
+  // Git reports these physical paths, including macOS /var -> /private/var.
+  const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-hooks-')));
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const project = join(base, 'project with spaces');
   const home = join(base, 'home');
