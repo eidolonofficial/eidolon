@@ -1,35 +1,60 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 560" role="img" aria-labelledby="title desc">
-  <title id="title">Eidolon</title><desc id="desc">Warm editorial banner for Eidolon, an intelligent governance layer for Claude Code and Codex.</desc>
+  <title id="title">Eidolon</title>
+  <desc id="desc">Warm editorial storybook banner for Eidolon, the intelligent guide across Claude Code and Codex.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#081821"/><stop offset=".58" stop-color="#0D2C34"/><stop offset="1" stop-color="#163841"/></linearGradient>
-    <radialGradient id="halo"><stop stop-color="#F4B766" stop-opacity=".36"/><stop offset="1" stop-color="#F4B766" stop-opacity="0"/></radialGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F6D49D"/><stop offset="1" stop-color="#C97A43"/></linearGradient>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07151d"/><stop offset=".55" stop-color="#0d2931"/><stop offset="1" stop-color="#173840"/></linearGradient>
+    <linearGradient id="ember" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe3ad"/><stop offset=".48" stop-color="#e7ad67"/><stop offset="1" stop-color="#b8653c"/></linearGradient>
+    <radialGradient id="glow"><stop stop-color="#ffc76b" stop-opacity=".55"/><stop offset="1" stop-color="#ffc76b" stop-opacity="0"/></radialGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="7"/></filter>
   </defs>
-  <rect width="1600" height="560" rx="28" fill="url(#bg)"/>
-  <circle cx="1315" cy="255" r="280" fill="url(#halo)"/>
-  <g opacity=".22" fill="#7EC4BA"><circle cx="1040" cy="88" r="3"/><circle cx="1450" cy="112" r="4"/><circle cx="1510" cy="310" r="2"/><circle cx="1150" cy="430" r="3"/><circle cx="1280" cy="72" r="2"/></g>
-  <g transform="translate(1025 78)">
-    <path d="M123 32c3-38 25-60 51-60 27 0 49 22 52 60" fill="none" stroke="url(#gold)" stroke-width="13" stroke-linecap="round"/>
-    <circle cx="174" cy="-6" r="9" fill="#6CC5B7" stroke="#E5BD75" stroke-width="5"/>
-    <path d="M115 38h118l21 33H94z" fill="url(#gold)"/>
-    <path d="M101 76h146l-13 194H114z" fill="#0D1D26" stroke="url(#gold)" stroke-width="11"/>
-    <path d="M126 96h96l-10 151h-77z" fill="#F8E7C5" fill-opacity=".3" stroke="#D99A55" stroke-width="4"/>
-    <path d="M129 98l81 146M220 98l-83 146" stroke="#B66C3B" stroke-width="5" opacity=".6"/>
-    <path d="M174 140c-24 29-31 49-23 70 7 17 25 27 42 19 20-11 23-35 10-50-6-7-12-11-12-22-9 8-13 17-12 29-12-9-15-23-5-46z" fill="#EEA34B"/>
-    <path d="M174 155c-10 17-12 34-4 44 6 8 16 10 24 3 8-9 5-22-4-30-4-4-7-8-7-13-5 5-8 11-9 18-4-6-5-13 0-22z" fill="#FFF0B2"/>
-    <path d="M101 276h146l-21 34H122z" fill="url(#gold)"/>
+  <rect width="1600" height="560" rx="30" fill="url(#night)"/>
+  <path d="M0 430C230 360 360 450 560 405s370-130 600-70 295 12 440-34v259H0z" fill="#061219" opacity=".72"/>
+  <circle cx="1320" cy="236" r="260" fill="url(#glow)" opacity=".75"/>
+  <g opacity=".55" fill="#7ed6c8">
+    <circle cx="1115" cy="124" r="4"/><circle cx="1202" cy="88" r="2.8"/><circle cx="1390" cy="130" r="3.5"/><circle cx="1482" cy="212" r="2.5"/><circle cx="1245" cy="340" r="3"/>
   </g>
-  <g transform="translate(88 92)">
-    <text x="0" y="78" fill="#FAF2E6" font-family="Georgia, 'Times New Roman', serif" font-size="86" font-weight="700">Eidolon</text>
-    <text x="2" y="125" fill="#E7B16F" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="5">SAFE AI · BRIGHTER POSSIBILITIES</text>
-    <line x1="0" y1="164" x2="92" y2="164" stroke="#D58B51" stroke-width="3"/>
-    <text x="0" y="220" fill="#F5EBDD" font-family="Georgia, serif" font-size="32">An intelligent governance layer for</text>
-    <text x="0" y="260" fill="#F5EBDD" font-family="Georgia, serif" font-size="32">Claude Code, Codex, and the work between them.</text>
-    <g transform="translate(0 318)" font-family="Arial, sans-serif" font-size="17">
-      <text x="0" y="0" fill="#F7D49D">◆</text><text x="32" y="0" fill="#EDE6DA">Evidence before closure</text>
-      <text x="264" y="0" fill="#F7D49D">◆</text><text x="296" y="0" fill="#EDE6DA">Consent at consequential edges</text>
-      <text x="0" y="46" fill="#F7D49D">◆</text><text x="32" y="46" fill="#EDE6DA">Intelligent skill selection</text>
-      <text x="264" y="46" fill="#F7D49D">◆</text><text x="296" y="46" fill="#EDE6DA">One doctrine, multiple hosts</text>
+  <g fill="#ffd982" opacity=".78"><circle cx="1180" cy="166" r="3"/><circle cx="1440" cy="180" r="2.5"/><circle cx="1365" cy="390" r="3"/><circle cx="1510" cy="320" r="2.5"/></g>
+
+  <!-- lantern -->
+  <g transform="translate(1190 92)">
+    <circle cx="150" cy="154" r="160" fill="#f5b85d" opacity=".15" filter="url(#soft)"/>
+    <path d="M104 36c0-34 20-58 46-58s46 24 46 58" fill="none" stroke="url(#ember)" stroke-width="13" stroke-linecap="round"/>
+    <circle cx="150" cy="-12" r="9" fill="#67cdbd" stroke="#e7b46c" stroke-width="5"/>
+    <path d="M95 44h110l20 31H75z" fill="url(#ember)"/>
+    <path d="M84 78h132l-12 185H96z" fill="#0b1c24" stroke="url(#ember)" stroke-width="10"/>
+    <path d="M106 98h88l-9 142h-70z" fill="#ffe3b2" fill-opacity=".22" stroke="#d69250" stroke-width="4"/>
+    <path d="M108 100l76 138M193 100l-78 138" stroke="#ae6237" stroke-width="4.5" opacity=".65"/>
+    <path d="M151 138c-22 28-28 47-21 66 7 18 25 27 41 19 20-10 23-34 10-49-6-7-12-11-12-21-9 8-13 16-12 28-11-9-14-22-6-43z" fill="#f0a147"/>
+    <path d="M151 153c-9 16-11 31-4 41 5 8 15 10 22 4 8-8 5-21-3-29-4-4-7-8-7-12-5 5-8 10-8 17-4-6-5-12 0-21z" fill="#fff0b6"/>
+    <path d="M84 269h132l-19 31H103z" fill="url(#ember)"/>
+  </g>
+
+  <!-- editorial copy -->
+  <g transform="translate(88 82)">
+    <text x="0" y="72" fill="#fbf4e8" font-family="Georgia, 'Times New Roman', serif" font-size="86" font-weight="700">Eidolon</text>
+    <text x="2" y="120" fill="#e9b56f" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="5">SAFE AI · BRIGHTER POSSIBILITIES</text>
+    <line x1="0" y1="157" x2="94" y2="157" stroke="#d4874c" stroke-width="3"/>
+    <text x="0" y="213" fill="#f4ecdf" font-family="Georgia, serif" font-size="31">Understand the repository. Choose only what helps.</text>
+    <text x="0" y="253" fill="#f4ecdf" font-family="Georgia, serif" font-size="31">Build with consent. Verify before “done.”</text>
+    <text x="0" y="300" fill="#a9c1c2" font-family="Arial, sans-serif" font-size="19">One doctrine across Claude Code and Codex, with host-specific behavior kept honest.</text>
+
+    <g transform="translate(0 350)" font-family="Arial, sans-serif">
+      <g transform="translate(0 0)"><circle cx="10" cy="10" r="10" fill="#c97a46"/><text x="32" y="16" fill="#f1e7d9" font-size="18">Understand</text></g>
+      <path d="M155 10h48" stroke="#6a8488" stroke-width="2"/><path d="M197 5l8 5-8 5" fill="none" stroke="#d8a45f" stroke-width="2"/>
+      <g transform="translate(220 0)"><circle cx="10" cy="10" r="10" fill="#c97a46"/><text x="32" y="16" fill="#f1e7d9" font-size="18">Select</text></g>
+      <path d="M343 10h48" stroke="#6a8488" stroke-width="2"/><path d="M385 5l8 5-8 5" fill="none" stroke="#d8a45f" stroke-width="2"/>
+      <g transform="translate(408 0)"><circle cx="10" cy="10" r="10" fill="#c97a46"/><text x="32" y="16" fill="#f1e7d9" font-size="18">Plan</text></g>
+      <path d="M505 10h48" stroke="#6a8488" stroke-width="2"/><path d="M547 5l8 5-8 5" fill="none" stroke="#d8a45f" stroke-width="2"/>
+      <g transform="translate(570 0)"><circle cx="10" cy="10" r="10" fill="#c97a46"/><text x="32" y="16" fill="#f1e7d9" font-size="18">Build</text></g>
+      <path d="M676 10h48" stroke="#6a8488" stroke-width="2"/><path d="M718 5l8 5-8 5" fill="none" stroke="#d8a45f" stroke-width="2"/>
+      <g transform="translate(741 0)"><circle cx="10" cy="10" r="10" fill="#c97a46"/><text x="32" y="16" fill="#f1e7d9" font-size="18">Verify</text></g>
+    </g>
+
+    <g transform="translate(0 422)" font-family="Arial, sans-serif" font-size="16">
+      <rect width="170" height="44" rx="22" fill="#f2dec0"/><text x="85" y="28" text-anchor="middle" fill="#173039" font-weight="700">Claude Code</text>
+      <rect x="186" width="140" height="44" rx="22" fill="#0a1e27" stroke="#55747a"/><text x="256" y="28" text-anchor="middle" fill="#e9dfd1" font-weight="700">Codex</text>
+      <rect x="342" width="210" height="44" rx="22" fill="#0a1e27" stroke="#55747a"/><text x="447" y="28" text-anchor="middle" fill="#e9dfd1" font-weight="700">Consent-first</text>
+      <rect x="568" width="214" height="44" rx="22" fill="#0a1e27" stroke="#55747a"/><text x="675" y="28" text-anchor="middle" fill="#e9dfd1" font-weight="700">Evidence-backed</text>
     </g>
   </g>
 </svg>
