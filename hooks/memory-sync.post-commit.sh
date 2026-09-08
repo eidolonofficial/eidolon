@@ -31,10 +31,11 @@
 # each stage's exit so a miss is visible at a glance.
 #
 # === INSTALL (the installer / Stage 7 fills these) ===
-# 1. Copy to the repo's git hook path:
-#      - simplest: .git/hooks/post-commit  (chmod +x); OR
-#      - clone-portable: a tracked dir wired via `git config core.hooksPath <dir>`
-#        (the tracked copy survives clones; .git/hooks/ never does).
+# 1. Run scripts/inspect-git-hooks.mjs <repo> (reads core.hooksPath first).
+#    Install only at its effective postCommit.path, after approval; chmod +x.
+#    Preserve an existing hook/dispatcher. Never overwrite it or fall back to
+#    .git/hooks when Git uses another directory. Do not reset core.hooksPath.
+#    See references/git-hooks-path.md for verification and shared-path consent.
 # 2. Fill <CAPTURE_CMD> + <WING> with the repo's VERIFIED MemPalace invocation
 #    (confirm with `--help` first); graphify auto-detects on PATH.
 # 3. Optional second leg: also wire a PostToolUse(Bash, git commit) hook that

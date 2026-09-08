@@ -134,8 +134,11 @@ orient-gate:      PreToolUse(Write|Edit + Task) gate + PostToolUse(Read|Bash|Ski
                   on the edit + dispatch matchers (standalone, like dispatch-attestation-guard) and
                   orient-gate-sensor.mjs on the read matcher; the teeth for the orient trio. Fill <WING>
                   in the block message; per-session sentinels .claude/.orient-gate.<sessionId>.json (git-root anchored) are gitignored
-memory-sync:     git post-commit     -> copy hooks/memory-sync.post-commit.sh to
-                 .git/hooks/post-commit and chmod +x, or point the harness at it
+memory-sync:     git post-commit     -> run scripts/inspect-git-hooks.mjs <repo> first;
+                 after approval, install hooks/memory-sync.post-commit.sh at its
+                 effective postCommit.path and chmod +x; preserve existing dispatchers.
+                 Never fall back to a superseded .git/hooks. Path/presence checks
+                 need independent cascade evidence (references/git-hooks-path.md).
 ```
 
 The pass-start orientation set (seat-surface, codebase-memory-orient + graphify-orient,
