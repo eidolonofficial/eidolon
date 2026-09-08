@@ -154,6 +154,12 @@ Follow the phases in order. Do not skip stages. Honor the three checkpoints.
 #### Stage 1 - Recon (read-only, no writes)
 
 Detect the repo's shape. Read silently; present a clean summary, not raw output.
+Resolve `EIDOLON_SKILL_ROOT` to this installed skill directory and `REPO_ROOT`
+to the target project before using the commands below. Follow
+`references/git-hooks-path.md` for all Git-native capture paths. The read-only
+inspector reads `git config --path --null --get core.hooksPath` FIRST, then asks
+Git for its effective hooks directory. Do not mistake a missing default directory
+for a missing hook, or a discovery error for an unset configuration.
 
 ```bash
 # stack + entry points + commands
@@ -165,7 +171,8 @@ test -f Cargo.toml && grep -E '^name|^edition' Cargo.toml 2>/dev/null
 ls -la .claude/ 2>/dev/null; test -f CLAUDE.md && wc -l CLAUDE.md
 ls .claude/skills .claude/agents .claude/commands 2>/dev/null
 git rev-parse --is-inside-work-tree 2>/dev/null && git config --get remote.origin.url
-ls .git/hooks/ 2>/dev/null | grep -v sample
+# config first, then effective-path inventory; never execute hooks during recon
+node "$EIDOLON_SKILL_ROOT/scripts/inspect-git-hooks.mjs" "$REPO_ROOT"
 ```
 
 Present:
@@ -176,7 +183,9 @@ Repo: <name> · <N> files
   build:     <cmd or "none found">
   test:      <cmd or "none found">
   existing:  CLAUDE.md(<lines>) · skills(<n>) · agents(<n>) · hooks(<n>)
-  git:       <remote or "local only"> · existing hooks: <list or none>
+  git:       <remote or "local only"> · hook path: <effective hooksPath>
+             core.hooksPath: <configured value or unset> - existing hooks: <list or none>
+             capture: <postCommit.status; discovery errors are AMBIGUOUS>
 ```
 
 Skip and count sensitive files (`.env`, keys, secrets) - never print their names.
@@ -352,7 +361,7 @@ wired on up to two legs. It is hardened against three failure modes that a naive
 field-proven; provenance in `docs/decisions/2026-06-11-hardened-automine.md`):
 
 ```yaml
-foundation:   git-native (.git/hooks/post-commit or a tracked core.hooksPath dir)
+foundation:   git-native (post-commit in Git's effective hooksPath directory)
               is the FOUNDATION, not a co-equal of the Claude Code leg. A
               PostToolUse(Bash) hook fires only when the commit ran through the
               agent's tool call, and the harness is NOT guaranteed to invoke it
@@ -372,9 +381,14 @@ observability: never silence the cascade into /dev/null. Log the fire, the skip,
 ```
 
 ```
-Leg 1 (FOUNDATION) - git-native: copy hooks/memory-sync.post-commit.sh to
-  .git/hooks/post-commit (chmod +x), or into the repo's core.hooksPath dir for a
-  clone-portable, tracked hook. Fires on every commit from any source.
+Leg 1 (FOUNDATION) - git-native: re-run scripts/inspect-git-hooks.mjs for the
+  target and compare hooksPath/postCommit.path with Stage 1 before proposing writes.
+  Install hooks/memory-sync.post-commit.sh only at that effective postCommit.path
+  (chmod +x where applicable), after approval. If a hook/dispatcher exists, inspect
+  and preserve its chain; merge only with approval, never overwrite it.
+  A configured but missing, disabled or inaccessible directory is NOT permission
+  to fall back to .git/hooks, reset core.hooksPath, or modify a shared directory.
+  Git-native capture fires on commits from any source when installed and enabled.
 Leg 2 (OPTIONAL) - Claude Code PostToolUse(Bash, git commit): run the SAME script
   for in-agent immediacy. The dedup makes the overlap with leg 1 safe.
 ```
@@ -436,12 +450,22 @@ run the check, record the result. Tag EXTRACTED | INFERRED | AMBIGUOUS.
 test -f .claude/settings.json && python3 -c "import json;json.load(open('.claude/settings.json'))" && echo "settings.json: valid JSON [EXTRACTED]"
 for h in hooks/*.mjs; do node --check "$h" && echo "$h: parses [EXTRACTED]"; done
 graphify --update --no-viz >/dev/null 2>&1 && echo "graphify runs [EXTRACTED]" || echo "graphify: [AMBIGUOUS] verify install/PATH"
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "post-commit path valid [EXTRACTED]"
+# Verify the current effective handler, not merely that this is a Git repository.
+node "$EIDOLON_SKILL_ROOT/scripts/inspect-git-hooks.mjs" "$REPO_ROOT" --check-post-commit
 # the primary persona must pass the rail before Stage 10 may seat it
 node scripts/persona-lint.mjs references/personas/*-primary.md && echo "primary persona: PASS [EXTRACTED]"
 # every Stage 4-installed skill: frontmatter parses + one-line smoke check before its findings are trusted
 for s in .claude/skills/*/SKILL.md; do head -1 "$s" | grep -q '^---$' && echo "$s: frontmatter [EXTRACTED]"; done
 ```
+
+The inspector checks path, presence, readability and executability only; it does
+not prove capture fired. Compare its current path with Stage 7 and inspect any
+existing dispatcher for the memory-sync leg. For the independent execution signal,
+verify a recent commit's matching `.claude/.memory-sync.log` cascade and output
+mutation, or use an explicitly approved test commit in an isolated fixture.
+Never create a commit just to inventory hooks, invoke an unknown hook during
+recon, or call a direct script invocation proof that Git triggered it. Record
+missing or unavailable capture evidence as `AMBIGUOUS`, not healthy.
 
 Any `AMBIGUOUS` result blocks closeout until resolved or explicitly waived.
 
@@ -467,7 +491,7 @@ artifacts:
   - path: hooks/evolve-engine-guard.mjs         kind: hook  wired: PreToolUse(Bash) via guard-bash  last_verified: <date>  # evolve mode: the consent gate; rides the dispatcher
   - path: engine/asi-evolve/   kind: engine    status: vendored  upstream: GAIR-NLP/ASI-Evolve@fb8a67e  license: Apache-2.0  last_verified: <date>  # only when evolve mode is used
   - path: references/evolve-engine.md  kind: reference  last_verified: <date>  # the evolve engine contract
-  - path: .git/hooks/post-commit  kind: capture  last_verified: <date>
+  - path: "<effective-post-commit-path>"  kind: capture  last_verified: <date>  # Stage 9 postCommit.path, never a hardcoded default
 logs:
   fixes:    docs/fixes/        # FIX-YYYY-MM-DD-<slug>.md, flat markdown
   insights: docs/insights/     # INSIGHT-YYYY-MM-DD-<slug>.md, frontmatter + body
