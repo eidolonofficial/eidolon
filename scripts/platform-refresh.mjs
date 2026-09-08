@@ -16,15 +16,22 @@ const changes = [
   }
 ];
 
+const normalizeEol = (text) => text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
 let staleCount = 0;
 for (const change of changes) {
   const before = readFileSync(change.path, 'utf8');
-  if (before.includes(change.stale)) {
+  const normalized = normalizeEol(before);
+  if (normalized.includes(change.stale)) {
     staleCount += 1;
-    if (!checkOnly) writeFileSync(change.path, before.replace(change.stale, change.fresh));
+    if (!checkOnly) {
+      const replacement = normalized.replace(change.stale, change.fresh);
+      const output = before.includes('\r\n') ? replacement.replace(/\n/g, '\r\n') : replacement;
+      writeFileSync(change.path, output);
+    }
     continue;
   }
-  if (!before.includes(change.fresh)) {
+  if (!normalized.includes(change.fresh)) {
     console.error(`platform-refresh: neither stale nor expected fresh clause found in ${change.path}`);
     process.exit(2);
   }
