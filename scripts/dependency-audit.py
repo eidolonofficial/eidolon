@@ -26,17 +26,17 @@ def metadata(pair):
     request = urllib.request.Request(url, headers={'User-Agent': 'Eidolon dependency audit/1'})
     with urllib.request.urlopen(request, timeout=30) as response:
         if not response.geturl().startswith('https://pypi.org/'):
-            raise ValueError('Unexpected metadata authority')
+            raise ValueError('Unexpected metadata authority for ' + name + '==' + version)
         raw = response.read(LIMIT + 1)
     if len(raw) > LIMIT:
-        raise ValueError('Package metadata exceeds audit limit')
+        raise ValueError('Package metadata exceeds audit limit for ' + name + '==' + version)
     data = json.loads(raw)
     if NORMALIZE(data['info']['name']) != NORMALIZE(name) or data['info']['version'] != version:
-        raise ValueError('Package metadata identity mismatch')
+        raise ValueError('Package metadata identity mismatch for ' + name + '==' + version)
     hashes = sorted({item['digests']['sha256'] for item in data['urls']
                      if item.get('packagetype') == 'bdist_wheel' and not item.get('yanked')})
     if any(not re.fullmatch('[0-9a-f]{64}', value) for value in hashes):
-        raise ValueError('Invalid wheel digest')
+        raise ValueError('Invalid wheel digest for ' + name + '==' + version)
     advisories = [{'id': item['id'], 'aliases': item.get('aliases', []),
                    'fixed_in': item.get('fixed_in', []), 'withdrawn': item.get('withdrawn')}
                   for item in data.get('vulnerabilities', []) if not item.get('withdrawn')]
@@ -97,6 +97,5 @@ if __name__ == '__main__':
     try:
         sys.exit(audit(write_locks=args.write_locks, report_path=args.report))
     except Exception as exc:
-        # An API/parse failure is not a clean audit. Do not reflect metadata or secrets.
-        print('Dependency audit did not complete: ' + type(exc).__name__, file=sys.stderr)
+        print('Dependency audit did not complete: ' + type(exc).__name__ + ': ' + str(exc), file=sys.stderr)
         sys.exit(2)
