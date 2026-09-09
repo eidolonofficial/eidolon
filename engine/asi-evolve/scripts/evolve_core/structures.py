@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from .safety import canonical, finite, integer, MAX_TEXT_BYTES, MAX_ITEMS
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -24,6 +25,20 @@ class Node:
     score: float = 0.0
 
     def __post_init__(self) -> None:
+        self.score = finite(self.score, 'node score')
+        integer(self.visit_count, 'visit_count', 0, 2**53 - 1)
+        if self.id is not None:
+            integer(self.id, 'node id', 0, 2**53 - 1)
+        if not isinstance(self.parent, list) or len(self.parent) > MAX_ITEMS:
+            raise ValueError('Invalid parent list')
+        for parent in self.parent:
+            integer(parent, 'parent id', 0, 2**53 - 1)
+        for value in [self.name, self.created_at, self.motivation, self.code, self.analysis]:
+            if not isinstance(value, str) or len(value.encode('utf-8')) > MAX_TEXT_BYTES:
+                raise ValueError('Invalid node text')
+        for value in [self.results, self.meta_info]:
+            if not isinstance(value, dict) or len(canonical(value)) > MAX_TEXT_BYTES:
+                raise ValueError('Invalid node metadata')
         if not self.created_at:
             self.created_at = datetime.now().isoformat()
 
@@ -74,6 +89,15 @@ class CognitionItem:
     source: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
     id: Optional[str] = None
+
+    def __post_init__(self):
+        if self.id is not None and (not isinstance(self.id, str) or not self.id or len(self.id) > 200):
+            raise ValueError('Invalid cognition id')
+        for value in (self.content, self.source):
+            if not isinstance(value, str) or len(value.encode('utf-8')) > MAX_TEXT_BYTES:
+                raise ValueError('Invalid cognition text')
+        if not isinstance(self.metadata, dict) or len(canonical(self.metadata)) > MAX_TEXT_BYTES:
+            raise ValueError('Invalid cognition metadata')
 
     def to_dict(self) -> Dict[str, Any]:
         return {
