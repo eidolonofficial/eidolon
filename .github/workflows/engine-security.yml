@@ -53,7 +53,8 @@ jobs:
           name: reviewed-wheel-locks
           path: .ci-evidence/wheel-locks
       - name: Install exact core wheels using generated review hashes
-        run: python -m pip --isolated install --index-url https://pypi.org/simple --require-hashes --only-binary=:all: -r .ci-evidence/wheel-locks/requirements-core.lock
+        run: |
+          python -m pip --isolated install --index-url https://pypi.org/simple --require-hashes --only-binary=:all: -r .ci-evidence/wheel-locks/requirements-core.lock
       - name: Engine and contract regressions
         shell: bash
         run: |
@@ -65,7 +66,7 @@ jobs:
           python -m unittest discover -s engine/tests -v 2>&1 | tee .ci-evidence/engine.txt
           node --test hooks/engine-contract-security.test.mjs hooks/review-hardening.test.mjs scripts/install.test.mjs 2>&1 | tee .ci-evidence/contracts.txt
       - name: Preserve exact tested source
-        if: runner.os == 'Linux' && matrix.python == '3.13'
+        if: always() && runner.os == 'Linux' && matrix.python == '3.13'
         shell: bash
         run: git archive --format=tar HEAD > .ci-evidence/source.tar
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
