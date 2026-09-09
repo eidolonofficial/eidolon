@@ -11,7 +11,8 @@ import subprocess
 import tempfile
 import traceback
 import sys
-import pickle
+import json
+from pathlib import Path
 
 
 class TimeoutError(Exception):
@@ -34,7 +35,14 @@ def validate_packing(centers, radii):
     Returns:
         True if valid, False otherwise
     """
-    n = centers.shape[0]
+    try:
+        centers = np.asarray(centers, dtype=np.float64)
+        radii = np.asarray(radii, dtype=np.float64)
+    except (TypeError, ValueError):
+        return False
+    if centers.shape != (26, 2) or radii.shape != (26,) or not np.isfinite(centers).all() or not np.isfinite(radii).all():
+        return False
+    n = 26
 
     # Check for NaN values
     if np.isnan(centers).any():
@@ -73,119 +81,61 @@ def validate_packing(centers, radii):
     return True
 
 
-def run_with_timeout(program_path, timeout_seconds=20):
-    """
-    Run the program in a separate process with timeout
-    using a simple subprocess approach
-
-    Args:
-        program_path: Path to the program file
-        timeout_seconds: Maximum execution time in seconds
-
-    Returns:
-        centers, radii, sum_radii tuple from the program
-    """
-    # Create a temporary file to execute
-    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
-        # Write a script that executes the program and saves results
-        script = f"""
-import sys
+# Fixed worker source: paths are arguments, never interpolated into Python code.
+_WORKER = r"""
+import sys, json, types
+from pathlib import Path
 import numpy as np
-import os
-import pickle
-import traceback
-
-# Add the directory to sys.path
-sys.path.insert(0, os.path.dirname('{program_path}'))
-
-# Debugging info
-print(f"Running in subprocess, Python version: {{sys.version}}")
-print(f"Program path: {program_path}")
-
-try:
-    # Read the code file (Evolve framework generates code without .py extension)
-    with open('{program_path}', 'r') as f:
-        code = f.read()
-    
-    # Create a module and execute the code in it
-    import types
-    program = types.ModuleType('program')
-    exec(code, program.__dict__)
-    
-    # Evolve framework only generates construct_packing() function
-    # Call it directly instead of run_packing()
-    print("Calling construct_packing()...")
-    centers, radii, sum_radii = program.construct_packing()
-    print(f"construct_packing() returned successfully: sum_radii = {{sum_radii}}")
-
-    # Save results to a file
-    results = {{
-        'centers': centers,
-        'radii': radii,
-        'sum_radii': sum_radii
-    }}
-
-    with open('{temp_file.name}.results', 'wb') as f:
-        pickle.dump(results, f)
-    print(f"Results saved to {temp_file.name}.results")
-    
-except Exception as e:
-    # If an error occurs, save the error instead
-    print(f"Error in subprocess: {{str(e)}}")
-    traceback.print_exc()
-    with open('{temp_file.name}.results', 'wb') as f:
-        pickle.dump({{'error': str(e)}}, f)
-    print(f"Error saved to {temp_file.name}.results")
+source, output = map(Path, sys.argv[1:])
+code = source.read_bytes()
+if len(code) > 4 * 1024 * 1024:
+    raise ValueError('Candidate is too large')
+program = types.ModuleType('candidate')
+program.__file__ = str(source)
+exec(compile(code, str(source), 'exec'), program.__dict__)
+centers, radii, reported = program.construct_packing()
+centers = np.asarray(centers, dtype=np.float64)
+radii = np.asarray(radii, dtype=np.float64)
+if centers.shape != (26, 2) or radii.shape != (26,):
+    raise ValueError('Invalid packing dimensions')
+output.write_text(json.dumps({'centers': centers.tolist(), 'radii': radii.tolist(),
+                             'sum_radii': float(reported)}, allow_nan=False), encoding='utf-8')
 """
-        temp_file.write(script.encode())
-        temp_file_path = temp_file.name
 
-    results_path = f"{temp_file_path}.results"
 
-    try:
-        # Run the script with timeout
-        process = subprocess.Popen(
-            [sys.executable, temp_file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+def run_with_timeout(program_path, timeout_seconds=20):
+    """Run explicitly trusted candidate code; JSON transport, bounded logs, no pickle.
 
-        try:
-            stdout, stderr = process.communicate(timeout=timeout_seconds)
-            exit_code = process.returncode
-
-            # Always print output for debugging purposes
-            print(f"Subprocess stdout: {stdout.decode()}")
-            if stderr:
-                print(f"Subprocess stderr: {stderr.decode()}")
-
-            # Still raise an error for non-zero exit codes, but only after printing the output
-            if exit_code != 0:
-                raise RuntimeError(f"Process exited with code {exit_code}")
-
-            # Load the results
-            if os.path.exists(results_path):
-                with open(results_path, "rb") as f:
-                    results = pickle.load(f)
-
-                # Check if an error was returned
-                if "error" in results:
-                    raise RuntimeError(f"Program execution failed: {results['error']}")
-
-                return results["centers"], results["radii"], results["sum_radii"]
-            else:
-                raise RuntimeError("Results file not found")
-
-        except subprocess.TimeoutExpired:
-            # Kill the process if it times out
-            process.kill()
-            process.wait()
-            raise TimeoutError(f"Process timed out after {timeout_seconds} seconds")
-
-    finally:
-        # Clean up temporary files
-        if os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
-        if os.path.exists(results_path):
-            os.unlink(results_path)
+    A subprocess is not a filesystem/network sandbox. Use a disposable external
+    sandbox for unknown candidates, even though their result shapes are validated.
+    """
+    runtime = Path(__file__).resolve().parents[2] / 'scripts'
+    if str(runtime) not in sys.path:
+        sys.path.insert(0, str(runtime))
+    from evolve_core.execution import supervise
+    from evolve_core.safety import atomic_write, bounded_bytes, read_json
+    source = Path(program_path).absolute()
+    bounded_bytes(source, 4 * 1024 * 1024)
+    with tempfile.TemporaryDirectory(prefix='evolve-packing-') as directory:
+        step = Path(directory)
+        worker, output = step / 'worker.py', step / 'packing.json'
+        atomic_write(worker, _WORKER)
+        rc, reason = supervise([sys.executable, '-I', str(worker), str(source), str(output)],
+                               source.parent, step, timeout_seconds,
+                               isolated_group=os.environ.get('EIDOLON_SUPERVISED') != '1')
+        if rc != 0 or reason:
+            raise TimeoutError('Packing candidate did not complete successfully')
+        value = read_json(output, 32768)
+        if not isinstance(value, dict):
+            raise ValueError('Invalid packing payload')
+        centers = np.asarray(value['centers'], dtype=np.float64)
+        radii = np.asarray(value['radii'], dtype=np.float64)
+        if centers.shape != (26, 2) or radii.shape != (26,) or not np.isfinite(centers).all() or not np.isfinite(radii).all():
+            raise ValueError('Invalid packing dimensions or non-finite coordinates')
+        reported = float(value['sum_radii'])
+        if not np.isfinite(reported):
+            raise ValueError('Non-finite reported sum')
+        return centers, radii, reported
 
 
 def evaluate(program_path):
@@ -382,7 +332,7 @@ if __name__ == "__main__":
     
     # Write results to JSON file
     with open(output_file, 'w') as f:
-        json.dump(result, f, indent=2)
+        json.dump(result, f, indent=2, allow_nan=False)
     
     # Print summary
     if result.get("success", False):
