@@ -72,7 +72,7 @@ test('R11 source drift and plan mutation invalidate approval',t=>{
 });
 test('R12 active-platform quoting accepts POSIX ampersands',t=>{if(process.platform==='win32'){t.skip('POSIX-only path grammar');return;}const base=fixture(t);mkdirSync(join(base,'research&development'));assert.doesNotThrow(()=>planInstall({project:join(base,'research&development'),host:'codex'}));});
 test('R16 installed native PowerShell matcher and evaluator both cover protected mutations',t=>{
- const root=fixture(t),plan=planInstall({host:'claude',project:root}),settings=JSON.parse(plan.items.find(i=>i.path===join(root,'.claude/settings.json')).text);
+ const root=fixture(t),plan=planInstall({host:'claude',project:root}),settings=JSON.parse(plan.items.find(i=>i.path===join(plan.root,'.claude/settings.json')).text);
  assert.ok(settings.hooks.PreToolUse.some(g=>new RegExp(g.matcher).test('PowerShell')&&g.hooks.some(h=>h.args.some(a=>a.endsWith('guard-bash.mjs')))));
  assert.equal(hook(root,'guard-bash.mjs',{tool_name:'PowerShell',tool_input:{command:'Remove-Item hooks/guard-bash.mjs'}}).status,2);
 });

@@ -11,7 +11,7 @@ import {MANIFEST, stable, handlerKeys} from '../hooks/policy-manifest.mjs';
 import {SHELL_TOOLS, DISPATCH_TOOLS} from '../hooks/operation.mjs';
 
 const SOURCE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SKIP = new Set(['.git', '.github', '.agents', '.claude', '.codex', '.eidolon', '.venv', '__pycache__', 'node_modules']);
+const SKIP = new Set(['.git', '.github', '.agents', '.claude', '.codex', '.eidolon', '.venv', '__pycache__', 'node_modules', '.ci-evidence']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, null, 2) + '\n';
 const shQuote = value => "'" + value.replace(/'/g, "'\\''") + "'";

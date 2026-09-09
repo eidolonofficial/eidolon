@@ -12,10 +12,10 @@ export const isDispatch = name => DISPATCH_TOOLS.some(n => n.toLowerCase() === S
 export function normalizeEvent(raw, project) {
   if (!raw || Array.isArray(raw) || typeof raw !== 'object') throw Error('Invalid event');
   if (raw.tool_input != null && (Array.isArray(raw.tool_input) || typeof raw.tool_input !== 'object')) throw Error('Invalid tool input');
-  const cwd = realpathSync(resolve(raw.cwd || process.cwd()));
-  const root = realpathSync(resolve(project || cwd));
+  const cwdAlias=resolve(raw.cwd||process.cwd()),rootAlias=resolve(project||cwdAlias);
+  const cwd=realpathSync(cwdAlias),root=realpathSync(rootAlias);
   if (cwd !== root) confinedPath(root, root, cwd);
-  const j = {...raw, cwd, eidolon_root: root};
+  const j = {...raw, cwd, eidolon_root: root, eidolon_path_root:rootAlias, eidolon_path_cwd:cwdAlias};
   delete j.eidolon_changes;
   delete j.eidolon_dispatch_packet;
   if (isShell(raw.tool_name)) {
@@ -38,7 +38,7 @@ export function proposedFile(j) {
   const given = ti.file_path ?? ti.path;
   if (typeof given !== 'string' || !given) throw Error('Missing file path');
   const root = policyRoot(j);
-  const path = confinedPath(root, j.cwd || root, given);
+  const path = confinedPath(j.eidolon_path_root||root, j.eidolon_path_cwd||j.cwd||root, given);
   const present = existsSync(path);
   const before = present ? boundedRead(path) : Buffer.alloc(0);
   let after;
@@ -73,5 +73,5 @@ export function actorPath(j, name) {
 
 export function fileTarget(j) {
   const root=policyRoot(j), given=j.tool_input?.file_path ?? j.tool_input?.path;
-  return confinedPath(root,j.cwd||root,given);
+  return confinedPath(j.eidolon_path_root||root,j.eidolon_path_cwd||j.cwd||root,given);
 }

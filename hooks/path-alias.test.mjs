@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,mkdirSync,writeFileSync,symlinkSync,realpathSync,rmSync} from 'node:fs';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {confinedPath} from './codex-patch.mjs';
+import {normalizeEvent,proposedFile,fileTarget} from './operation.mjs';
+test('an approved project root alias maps to canonical bytes without accepting interior symlinks',t=>{
+ const base=mkdtempSync(join(tmpdir(),'eidolon-alias-'));t.after(()=>rmSync(base,{recursive:true,force:true}));
+ const actual=join(base,'actual'),alias=join(base,'approved-alias');mkdirSync(actual);
+ symlinkSync(actual,alias,process.platform==='win32'?'junction':'dir');
+ writeFileSync(join(actual,'DECISIONS.md'),'prior\n');
+ const event=normalizeEvent({cwd:alias,tool_name:'Write',tool_input:{file_path:join(alias,'DECISIONS.md'),content:'prior\nnext\n'}},alias);
+ const proposal=proposedFile(event);assert.equal(fileTarget(event),proposal.path);
+ assert.equal(proposal.path,join(realpathSync(actual),'DECISIONS.md'));assert.equal(proposal.before.toString(),'prior\n');
+ const outside=join(base,'outside');mkdirSync(outside);writeFileSync(join(outside,'private.txt'),'not in project');
+ symlinkSync(outside,join(actual,'outside-link'),process.platform==='win32'?'junction':'dir');
+ assert.throws(()=>confinedPath(alias,alias,join(alias,'outside-link','private.txt')),/Symlink/);
+ assert.throws(()=>confinedPath(alias,outside,'private.txt'),/Working directory escapes/);
+});
