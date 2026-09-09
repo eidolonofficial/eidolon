@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -42,10 +43,17 @@ from .sampling_config import (
     validate_custom_sampler_for_workspace,
 )
 from .structures import CognitionItem, Node
+from .file_lock import InterProcessFileLock
+from .safety import (MAX_SPEC_BYTES, MAX_TEXT_BYTES, atomic_write, bounded_bytes,
+    bounded_text, canonical, checked_path, finite, integer, portable_name, read_json,
+    run_directory, sha256, write_json)
+from .run_state import approve_plan, approval_valid, plan_for, resolve_path
+from .execution import evaluate_candidate
+
 
 
 def emit_json(payload: Dict[str, Any]) -> int:
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False))
     return 0
 
 
@@ -77,7 +85,7 @@ def build_cognition(run_dir: Path) -> Cognition:
 
 
 def extract_seed_items(markdown_path: Path) -> List[CognitionItem]:
-    text = Path(markdown_path).read_text(encoding="utf-8")
+    text = bounded_text(Path(markdown_path), MAX_SPEC_BYTES)
     items: List[CognitionItem] = []
     for raw_block in re.findall(r"```json\s*(.*?)```", text, re.DOTALL):
         payload = json.loads(raw_block)
@@ -126,6 +134,7 @@ def cmd_brief_normalize(args: argparse.Namespace) -> int:
     ensure_run_layout(run_dir)
     spec = load_run_spec(run_dir)
     original_sampling = sampling_config_fingerprint(spec)
+    prior_approval = dict(spec["approval"])
 
     if args.spec_file:
         spec = deep_merge(spec, load_structured_file(Path(args.spec_file)))
@@ -184,12 +193,15 @@ def cmd_brief_normalize(args: argparse.Namespace) -> int:
         ]
     if args.seed_note is not None:
         spec["cognition"]["seed_notes"] = flatten_list(args.seed_note)
-    if args.confirmed is not None:
-        spec["approval"]["confirmed"] = args.confirmed
+    # A supplied spec file cannot grant authority. Only the explicit digest-confirming
+    # command, reviewed by the operator through the host, can publish a receipt.
+    spec['approval'] = {'confirmed': False}
+    if getattr(args, 'execution_mode', None) is not None:
+        spec['evaluation']['execution_mode'] = args.execution_mode
 
     missing = compute_missing_fields_for_workspace(spec, workspace_root)
     custom_sampler_error = validate_custom_sampler_for_workspace(spec, workspace_root)
-    if spec.get("approval", {}).get("confirmed") and missing:
+    if args.confirmed is True and missing:
         detail = ""
         if custom_sampler_error:
             detail = f" Custom sampler validation failed: {custom_sampler_error}"
@@ -204,12 +216,21 @@ def cmd_brief_normalize(args: argparse.Namespace) -> int:
         if updated_sampling != original_sampling:
             raise SystemExit(SAMPLING_CONFIG_IMMUTABLE_ERROR)
 
+    plan = plan_for(run_dir, spec) if not missing else None
+    if args.confirmed is True:
+        plan = approve_plan(run_dir, spec, getattr(args, 'expect_plan', None))
+    elif args.confirmed is not False:
+        spec['approval'] = prior_approval
+        if not approval_valid(run_dir, spec):
+            spec['approval'] = {'confirmed': False}
     spec_file = save_run_spec(run_dir, spec)
     summary_file = write_preflight_summary(run_dir, spec)
     seed_file = initialize_cognition_seed_file(run_dir, spec)
     return emit_json(
         {
             "confirmed": spec["approval"]["confirmed"],
+            "plan_digest": plan["digest"] if plan else None,
+            "execution_mode": spec["evaluation"]["execution_mode"],
             "missing_fields": missing,
             "custom_sampler_error": custom_sampler_error,
             "preflight_summary": str(summary_file),
@@ -241,112 +262,27 @@ def cmd_eval_inspect(args: argparse.Namespace) -> int:
 
 
 def cmd_eval_run(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     spec = require_evolve_ready(run_dir)
-    workspace_root = workspace_root_for_run(run_dir)
-    ensure_run_layout(run_dir)
-
-    source_code = Path(args.code_path)
-    if not source_code.is_absolute():
-        source_code = (workspace_root / source_code).resolve()
-    ensure_path_allowed(run_dir, source_code)
-
-    step_name = args.step_name or "manual_step"
-    step_dir = Path(run_dir) / "steps" / step_name
-    step_dir.mkdir(parents=True, exist_ok=True)
-    step_code_path = step_dir / "code"
-    if source_code != step_code_path:
-        shutil.copyfile(source_code, step_code_path)
-
-    results_path = step_dir / "results.json"
-    command = args.command or spec.get("evaluation", {}).get("command", "")
-    script_path = args.script_path or spec.get("evaluation", {}).get("script_path", "")
-    evaluation_timeout = args.timeout
-    if evaluation_timeout is None:
-        evaluation_timeout = int(spec.get("evaluation", {}).get("timeout_secs", 0) or 0)
-    if not command and script_path:
-        command = "python {quoted_script_path} {quoted_code_path} {quoted_results_path}"
-    if not command:
-        raise SystemExit("No evaluation command or script path is configured.")
-    if evaluation_timeout <= 0:
-        raise SystemExit("Evaluation timeout must be a positive number of seconds.")
-
-    formatted = command.format(
-        **command_context(
-            workspace_root=workspace_root,
-            run_dir=run_dir,
-            step_dir=step_dir,
-            code_path=step_code_path,
-            results_path=results_path,
-            script_path=script_path,
-            timeout_secs=evaluation_timeout,
-        )
-    )
-    (step_dir / "eval.command.txt").write_text(formatted, encoding="utf-8")
-
-    stdout = ""
-    stderr = ""
-    return_code = 0
-    try:
-        completed = subprocess.run(
-            formatted,
-            shell=True,
-            cwd=workspace_root,
-            capture_output=True,
-            text=True,
-            timeout=evaluation_timeout,
-        )
-        stdout = completed.stdout
-        stderr = completed.stderr
-        return_code = completed.returncode
-    except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout or ""
-        stderr = exc.stderr or ""
-        return_code = 124
-
-    (step_dir / "eval.stdout").write_text(stdout, encoding="utf-8")
-    (step_dir / "eval.stderr").write_text(stderr, encoding="utf-8")
-
-    if results_path.exists():
-        results = json.loads(results_path.read_text(encoding="utf-8"))
-    else:
-        results = {}
-
-    if return_code != 0:
-        results.setdefault("success", False)
-        results.setdefault("eval_score", 0.0)
-        results.setdefault("score", results.get("eval_score", 0.0))
-        results.setdefault("error", stderr or f"Evaluator exited with code {return_code}")
-        results_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    append_round_log(
-        run_dir,
-        "eval_run",
-        {
-            "command": formatted,
-            "return_code": return_code,
-            "step_name": step_name,
-            "timeout_secs": evaluation_timeout,
-        },
-    )
-    return emit_json(
-        {
-            "results_path": str(results_path),
-            "return_code": return_code,
-            "step_dir": str(step_dir),
-            "success": return_code == 0,
-        }
-    )
+    # Legacy overrides may not silently change the approved operation.
+    for given, key in [(args.command, 'command'), (args.script_path, 'script_path'), (args.timeout, 'timeout_secs')]:
+        if given is not None and given != spec['evaluation'][key]:
+            raise PermissionError('Evaluator overrides require a new preflight approval')
+    source = resolve_path(workspace_root_for_run(run_dir), args.code_path)
+    result = evaluate_candidate(run_dir, spec, source, args.step_name or 'manual_step')
+    append_round_log(run_dir, 'eval_run', result)
+    emit_json(result)
+    return 0 if result['success'] else 1
 
 
 def cmd_cognition_init(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     ensure_run_layout(run_dir)
     cognition = build_cognition(run_dir)
     if args.reset:
         cognition.reset()
 
-    seed_path = Path(args.seed_file) if args.seed_file else run_dir / "cognition_seed.md"
+    seed_path = resolve_path(workspace_root_for_run(run_dir), args.seed_file) if args.seed_file else run_dir / 'cognition_seed.md'
     items = extract_seed_items(seed_path) if seed_path.exists() else []
     if items:
         cognition.add_batch(items)
@@ -360,7 +296,7 @@ def cmd_cognition_init(args: argparse.Namespace) -> int:
 
 
 def cmd_cognition_add(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     ensure_run_layout(run_dir)
     cognition = build_cognition(run_dir)
     items: List[CognitionItem] = []
@@ -373,7 +309,7 @@ def cmd_cognition_add(args: argparse.Namespace) -> int:
             )
         )
     if args.json_file:
-        payload = load_structured_file(Path(args.json_file))
+        payload = load_structured_file(resolve_path(workspace_root_for_run(run_dir), args.json_file))
         if isinstance(payload, dict):
             payload = [payload]
         for raw_item in payload:
@@ -390,7 +326,7 @@ def cmd_cognition_add(args: argparse.Namespace) -> int:
 
 
 def cmd_cognition_search(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     cognition = build_cognition(run_dir)
     matches = cognition.retrieve(args.query, top_k=args.top_k)
     return emit_json(
@@ -404,93 +340,72 @@ def cmd_cognition_search(args: argparse.Namespace) -> int:
 
 
 def cmd_db_sample(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     spec = require_evolve_ready(run_dir)
     db = build_database(run_dir, spec)
     configured_algorithm = configured_sampling_algorithm(spec)
-    n = args.n or configured_sample_n(spec)
+    n = integer(args.n if args.n is not None else configured_sample_n(spec), 'sample count', 1, 10000)
     sampled = db.sample(n=n)
     append_round_log(run_dir, "db_sample", {"n": n, "algorithm": configured_algorithm})
     return emit_json({"nodes": [node.to_dict() for node in sampled]})
 
 
 def cmd_db_record(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     spec = require_evolve_ready(run_dir)
-    db = build_database(run_dir, spec)
-    snapshot = BestSnapshotManager(Path(run_dir) / "steps")
-    workspace_root = workspace_root_for_run(run_dir)
-
-    source_code = Path(args.code_path)
-    if not source_code.is_absolute():
-        source_code = (workspace_root / source_code).resolve()
-    ensure_path_allowed(run_dir, source_code)
-
-    step_name = args.step_name
-    step_dir = Path(run_dir) / "steps" / step_name
-    step_dir.mkdir(parents=True, exist_ok=True)
-    step_code_path = step_dir / "code"
-    if source_code != step_code_path:
-        shutil.copyfile(source_code, step_code_path)
-    code = step_code_path.read_text(encoding="utf-8")
-
-    results: Dict[str, Any] = {}
-    if args.results_file:
-        results_path = Path(args.results_file)
-        if not results_path.is_absolute():
-            results_path = (workspace_root / results_path).resolve()
-        if results_path.exists():
-            ensure_path_allowed(run_dir, results_path)
-            results = json.loads(results_path.read_text(encoding="utf-8"))
-            if results_path != step_dir / "results.json":
-                shutil.copyfile(results_path, step_dir / "results.json")
-
-    analysis = args.analysis or ""
+    workspace = workspace_root_for_run(run_dir)
+    step_name = portable_name(args.step_name, 'step name')
+    step = checked_path(workspace, run_dir / 'steps' / step_name)
+    if (step / 'node.json').exists():
+        raise FileExistsError('This evaluated step has already been recorded')
+    receipt = read_json(step / 'evaluation-receipt.json', MAX_SPEC_BYTES)
+    if (receipt.get('version') != 1 or receipt.get('success') is not True
+            or receipt.get('return_code') != 0 or receipt.get('step_name') != step_name
+            or receipt.get('plan_digest') != plan_for(run_dir, spec)['digest']):
+        raise PermissionError('A successful receipt for the current approved evaluator is required')
+    code_path = ensure_path_allowed(run_dir, resolve_path(workspace, args.code_path))
+    code = bounded_bytes(code_path, MAX_TEXT_BYTES)
+    evaluated = bounded_bytes(step / 'code', MAX_TEXT_BYTES)
+    if code != evaluated or sha256(code) != receipt['code_sha256']:
+        raise PermissionError('Recorded code must exactly match the evaluated candidate')
+    results_path = step / 'results.json'
+    if args.results_file and resolve_path(workspace, args.results_file) != results_path:
+        raise PermissionError('Only the evaluated result file may be recorded')
+    if sha256(bounded_bytes(results_path, MAX_SPEC_BYTES)) != receipt['results_sha256']:
+        raise PermissionError('Results changed after evaluation')
+    results = read_json(results_path, MAX_SPEC_BYTES)
+    score = finite(receipt['score'])
+    if results.get('success') is not True or finite(results['score']) != score:
+        raise PermissionError('Receipt and result score disagree')
+    if args.score is not None and finite(args.score) != score:
+        raise PermissionError('A caller may not replace the evaluated score')
+    analysis = args.analysis or ''
     if args.analysis_file:
-        analysis_path = Path(args.analysis_file)
-        if not analysis_path.is_absolute():
-            analysis_path = (workspace_root / analysis_path).resolve()
-        ensure_path_allowed(run_dir, analysis_path)
-        analysis = analysis_path.read_text(encoding="utf-8")
-    if analysis:
-        (step_dir / "analysis.md").write_text(analysis, encoding="utf-8")
-
-    score = args.score
-    if score is None:
-        score = float(results.get("score", results.get("eval_score", 0.0)))
-
-    node = Node(
-        name=args.name,
-        parent=args.parent or [],
-        motivation=args.motivation or "",
-        code=code,
-        results=results,
-        analysis=analysis,
-        score=score,
-        meta_info={"step_name": step_name},
-    )
+        analysis_path = ensure_path_allowed(run_dir, resolve_path(workspace, args.analysis_file))
+        analysis = bounded_text(analysis_path, MAX_TEXT_BYTES)
+    node = Node(name=args.name, parent=args.parent or [], motivation=args.motivation or '',
+                code=code.decode('utf-8', errors='strict'), results=results, analysis=analysis,
+                score=score, meta_info={'step_name': step_name, 'plan_digest': receipt['plan_digest']})
+    db = build_database(run_dir, spec)
+    # The database is authoritative across a crash between its commit and the convenience snapshot.
+    if any(n.meta_info.get('step_name') == step_name for n in db.get_all()):
+        raise FileExistsError('This step is already in the database; repair its derived snapshot')
     node_id, previous_nodes = db.add_with_previous_nodes(node)
-    snapshot.init_from_nodes(previous_nodes)
-    node_file = step_dir / "node.json"
-    node_file.write_text(json.dumps(node.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
-    best_updated = snapshot.update_if_better(node, step_name=step_name, source_step_dir=step_dir)
+    write_json(step / 'node.json', node.to_dict())
+    if analysis:
+        atomic_write(step / 'analysis.md', analysis)
+    best_updated = not previous_nodes or score > max(n.score for n in previous_nodes)
     if best_updated:
-        run_best_dir = Path(run_dir) / "best" / step_name
-        run_best_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(step_code_path, run_best_dir / "code")
-        results_copy = step_dir / "results.json"
-        if results_copy.exists():
-            shutil.copyfile(results_copy, run_best_dir / "results.json")
-    append_round_log(
-        run_dir,
-        "db_record",
-        {"node_id": node_id, "name": node.name, "score": node.score, "step_name": step_name},
-    )
-    return emit_json({"best_updated": best_updated, "node_id": node_id, "step_dir": str(step_dir)})
+        best = checked_path(workspace, run_dir / 'best' / step_name)
+        best.mkdir(exist_ok=False)
+        atomic_write(best / 'code', code)
+        atomic_write(best / 'results.json', bounded_bytes(results_path, MAX_SPEC_BYTES))
+    append_round_log(run_dir, 'db_record', {'node_id': node_id, 'score': score, 'step_name': step_name})
+    return emit_json({'best_updated': best_updated, 'node_id': node_id, 'step_dir': str(step)})
 
 
 def cmd_db_best(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     spec = require_evolve_ready(run_dir)
     db = build_database(run_dir, spec)
     nodes = db.get_all()
@@ -501,7 +416,7 @@ def cmd_db_best(args: argparse.Namespace) -> int:
 
 
 def cmd_db_stats(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     spec = require_evolve_ready(run_dir)
     db = build_database(run_dir, spec)
     nodes, sampler_stats = db.snapshot()
@@ -516,55 +431,57 @@ def cmd_db_stats(args: argparse.Namespace) -> int:
 
 
 def cmd_files_read(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     workspace_root = workspace_root_for_run(run_dir)
     target = Path(args.path)
     if not target.is_absolute():
-        target = (workspace_root / target).resolve()
+        target = resolve_path(workspace_root, str(target))
     ensure_path_allowed(run_dir, target)
-    return emit_json({"content": target.read_text(encoding="utf-8"), "path": str(target)})
+    return emit_json({"content": bounded_text(target, MAX_TEXT_BYTES), "path": str(target)})
 
 
 def cmd_files_write(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     require_evolve_ready(run_dir)
     workspace_root = workspace_root_for_run(run_dir)
     target = Path(args.path)
     if not target.is_absolute():
-        target = (workspace_root / target).resolve()
-    ensure_path_allowed(run_dir, target)
+        target = resolve_path(workspace_root, str(target))
+    ensure_path_allowed(run_dir, target, write=True)
 
     if args.from_file:
         content_source = Path(args.from_file)
         if not content_source.is_absolute():
-            content_source = (workspace_root / content_source).resolve()
+            content_source = resolve_path(workspace_root, str(content_source))
         ensure_path_allowed(run_dir, content_source)
-        content = content_source.read_text(encoding="utf-8")
+        content = bounded_text(content_source, MAX_TEXT_BYTES)
     else:
         content = args.content or ""
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+    if len(content.encode('utf-8')) > MAX_TEXT_BYTES:
+        raise ValueError('Text is too large')
+    atomic_write(target, content)
     append_round_log(run_dir, "file_write", {"path": str(target)})
     return emit_json({"bytes_written": len(content.encode("utf-8")), "path": str(target)})
 
 
 def cmd_files_diff(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     workspace_root = workspace_root_for_run(run_dir)
     left = Path(args.path)
     right = Path(args.other_path)
     if not left.is_absolute():
-        left = (workspace_root / left).resolve()
+        left = resolve_path(workspace_root, str(left))
     if not right.is_absolute():
-        right = (workspace_root / right).resolve()
+        right = resolve_path(workspace_root, str(right))
     ensure_path_allowed(run_dir, left)
     ensure_path_allowed(run_dir, right)
 
     diff = "".join(
         unified_diff(
-            left.read_text(encoding="utf-8").splitlines(True),
-            right.read_text(encoding="utf-8").splitlines(True),
+            bounded_text(left, MAX_TEXT_BYTES).splitlines(True),
+            bounded_text(right, MAX_TEXT_BYTES).splitlines(True),
             fromfile=str(left),
             tofile=str(right),
         )
@@ -573,7 +490,7 @@ def cmd_files_diff(args: argparse.Namespace) -> int:
 
 
 def cmd_summary_final(args: argparse.Namespace) -> int:
-    run_dir = Path(args.run_dir).resolve()
+    run_dir = run_directory(args.run_dir)
     spec = require_evolve_ready(run_dir)
     db = build_database(run_dir, spec)
     nodes = db.get_all()
@@ -589,7 +506,7 @@ def cmd_summary_final(args: argparse.Namespace) -> int:
     if best:
         summary_lines.append(f"- Best motivation: {best.motivation}")
     summary_path = Path(run_dir) / "final_summary.md"
-    summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    atomic_write(summary_path, "\n".join(summary_lines) + "\n")
     append_round_log(run_dir, "summary_final", {"path": str(summary_path)})
     return emit_json({"summary_path": str(summary_path)})
 
@@ -623,6 +540,8 @@ def build_brief_parser() -> argparse.ArgumentParser:
     normalize.add_argument("--seed-file", action="append")
     normalize.add_argument("--seed-note", action="append")
     normalize.add_argument("--confirmed", type=parse_bool)
+    normalize.add_argument("--expect-plan")
+    normalize.add_argument("--execution-mode", choices=['trusted-local', 'unconfirmed'])
     normalize.set_defaults(func=cmd_brief_normalize)
     return parser
 
@@ -749,4 +668,16 @@ def main_for(entrypoint: str, argv: Optional[List[str]] = None) -> int:
     }
     parser = parsers[entrypoint]()
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        if getattr(args, 'run_dir', None):
+            run_dir = run_directory(args.run_dir)
+        elif getattr(args, 'run_name', None):
+            run_dir = build_run_dir(Path(args.workspace_root or Path.cwd()), args.run_name)
+        else:
+            return args.func(args)
+        ensure_run_layout(run_dir)
+        with InterProcessFileLock(run_dir / '.run.lock'):
+            return args.func(args)
+    except (OSError, ValueError, TypeError, KeyError, RecursionError) as exc:
+        print('EVOLVE: operation refused (' + type(exc).__name__ + '). ' + str(exc), file=sys.stderr)
+        return 2
