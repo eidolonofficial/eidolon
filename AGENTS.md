@@ -14,3 +14,14 @@ must preserve blocks and explicitly report unsupported behavior.
 - Do not run installer writes without approval; preview first.
 - Do not change visibility or rewrite history without authorization. Merge/release/publication follow the operator's current explicit instruction.
 - Report what was executed separately from what was only inspected.
+
+## Reviewed persona pipeline
+
+Read `references/orchestration-contract.md` for the current selection, actor-state,
+Interview Mode and context-injected dispatch contract. It resolves older mandatory
+swarm wording while preserving required coverage and human consent. Use the
+`deploy-plan` action in `scripts/orchestrate.mjs` before preparing native dispatch.
+Do not treat a printed plan as an agent execution or an approval.
+
+## Persona and dispatch pipeline
+Before dispatch, read `references/persona-pipeline.md`. Use the `deploy-plan` action of `scripts/orchestrate.mjs` to select grounded roles and form bounded context packets. Preserve original task deliverables and exclusions. No persona, task file or hash grants permission. Keep the three repositories separate and retain the host-specific approval boundary.

@@ -1,7 +1,7 @@
 name: Compatibility
 on:
   push:
-    branches: [main, release/codex-claude-compat]
+    branches: [main, release/codex-claude-compat, fix/reviewed-persona-pipelines]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -21,21 +21,21 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - name: Codex, installer, routing and freshness regression tests
+      - name: Complete policy, routing, persona and installation regression suite
         shell: bash
         run: |
           set -o pipefail
           mkdir -p evidence
           node --version | tee evidence/node-version.txt
           git rev-parse HEAD > evidence/commit.txt
-          node --test hooks/codex-hook.test.mjs scripts/install.test.mjs scripts/rehost.test.mjs scripts/skill-router.test.mjs scripts/inspect-git-hooks.test.mjs 2>&1 | tee evidence/compatibility.txt
+          node --test hooks/*.test.mjs scripts/*.test.mjs 2>&1 | tee evidence/compatibility.txt
           node scripts/platform-refresh.mjs --check 2>&1 | tee evidence/platform-freshness.txt
       - name: Full existing and new suite
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -o pipefail
-          node --test hooks/*.test.mjs scripts/*.test.mjs 2>&1 | tee evidence/full-suite.txt
+          cp evidence/compatibility.txt evidence/full-suite.txt
           node scripts/selfcheck.mjs 2>&1 | tee evidence/selfcheck.txt
           node scripts/eidolon-audit.mjs 2>&1 | tee evidence/audit.txt
           git archive --format=tar HEAD > evidence/source.tar

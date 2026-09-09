@@ -57,5 +57,5 @@ test("end-to-end: a confirmation flip asks the human; everything else passes sil
   asked(run(bash(PY + " normalize --run-dir .evolve_runs/x --confirmed true")), "EVOLVE ENGINE GATE");
   silent(run(bash(PY + " normalize --run-dir .evolve_runs/x")));
   silent(run(bash("npm test")));
-  silent(run("not json at all"));
+  assert.equal(run("not json at all").status,2);
 });

@@ -1,2 +1,11 @@
 # Bash hook templates must check out LF on every platform; CRLF breaks bash on Windows (autocrlf=true would otherwise convert them).
 *.sh text eol=lf
+
+# Portable text for hash-pinned personas and generated configuration.
+*.md text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+
+# Original persona sources are byte-pinned, not silently reformatted.
+references/personas/*.md -text

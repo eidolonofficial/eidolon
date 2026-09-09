@@ -129,11 +129,11 @@ test("end-to-end: the same dispatch with a valid attestation passes untouched", 
   silent(run({ ...taskDispatch(), cwd: dir }));
 });
 
-test("end-to-end: a routine dispatch and a non-dispatch tool pass; bad input fails open", (t) => {
+test("end-to-end: a routine dispatch and a non-dispatch tool pass; bad enforcement input blocks", (t) => {
   const dir = target(t, { attestation: "none" });
   silent(run({ ...taskDispatch({ description: "rename a variable", prompt: "" }), cwd: dir }));
   silent(run({ tool_name: "Bash", tool_input: { command: "git status" }, cwd: dir }));
-  silent(run("not json at all"));
+  assert.equal(run("not json at all").status,2);
 });
 
 test("end-to-end: a stale attestation still asks (freshness is enforced)", (t) => {

@@ -25,3 +25,11 @@ description: Set up or work in a repository with evidence-based checks, persiste
 - An evolve confirmation or sensitive dispatch without its prerequisites stays blocked for operator review.
 - A missing optional memory tool is reported and not installed without consent.
 - A new session treats saved state as a hypothesis and checks the current repository.
+
+## Reviewed persona pipeline
+
+Read `references/orchestration-contract.md` for the current selection, actor-state,
+Interview Mode and context-injected dispatch contract. It resolves older mandatory
+swarm wording while preserving required coverage and human consent. Use the
+`deploy-plan` action in `scripts/orchestrate.mjs` before preparing native dispatch.
+Do not treat a printed plan as an agent execution or an approval.

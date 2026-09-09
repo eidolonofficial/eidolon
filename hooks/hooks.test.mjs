@@ -14,6 +14,8 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {commitDrift} from './drift-guard.mjs';
+import {actorPath} from './operation.mjs';
 import { GIT_COMMIT, commitMessageOf, withoutMessage, touchesHookSuite } from "./lib.mjs";
 
 const HOOKS = dirname(fileURLToPath(import.meta.url));
@@ -116,9 +118,9 @@ test("verification-guard: the git -C spelling is still a commit (regression)", (
   blocked(run("verification-guard.mjs", bash('git -C /some/repo commit -m "renders correctly"')), "VERIFICATION GUARD");
 });
 
-test("verification-guard: a non-commit command and bad input both pass (fail open)", () => {
+test("verification-guard: a non-commit command passes but malformed enforcement input blocks", () => {
   silent(run("verification-guard.mjs", bash("npm test")));
-  silent(run("verification-guard.mjs", "not json at all"));
+  blocked(run("verification-guard.mjs", "not json at all"), "EIDOLON POLICY");
   silent(run("verification-guard.mjs", bash('echo "git commit -m \'works now\'"')));
 });
 
@@ -170,7 +172,7 @@ test("append-only-record-guard: empty / halve / shrink / grow on a record", (t) 
   const w = (content) => run("append-only-record-guard.mjs", { tool_name: "Write", tool_input: { file_path: rec, content }, cwd: dir });
   blocked(w(""), "APPEND-ONLY RECORD GUARD");           // emptying
   blocked(w("0123"), "APPEND-ONLY RECORD GUARD");       // more than half gone
-  advised(w("012345678"), "APPEND-ONLY RECORD GUARD");  // shrinking: advise, allow
+  blocked(w("012345678"), "APPEND-ONLY RECORD GUARD");  // any historical change is refused
   silent(w("0123456789 + appended entry"));             // growing: silent allow
 });
 
@@ -192,12 +194,14 @@ test("append-only-record-guard: emptying an already-empty record is not an empty
   allowed(run("append-only-record-guard.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "" }, cwd: dir }));
 });
 
-test("append-only-record-guard: Edit that deletes a span blocks; shorter replacement advises", () => {
-  const edit = (old_string, new_string) =>
-    run("append-only-record-guard.mjs", { tool_name: "Edit", tool_input: { file_path: "docs/decisions/log.md", old_string, new_string } });
-  blocked(edit("a recorded decision", ""), "APPEND-ONLY RECORD GUARD");
-  advised(edit("a recorded decision", "decision"), "APPEND-ONLY RECORD GUARD");
-  silent(edit("decision", "decision, expanded"));
+test("append-only-record-guard: full-file Edit preserves the original prefix", (t) => {
+  const dir=tmp();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  mkdirSync(join(dir,'docs/decisions'),{recursive:true});writeFileSync(join(dir,'docs/decisions/log.md'),'a recorded decision');
+  const edit=(old_string,new_string)=>run('append-only-record-guard.mjs',{cwd:dir,tool_name:'Edit',tool_input:{file_path:'docs/decisions/log.md',old_string,new_string}});
+  blocked(edit('a recorded decision',''),'APPEND-ONLY RECORD GUARD');
+  blocked(edit('a recorded decision','a different, longer decision'),'APPEND-ONLY RECORD GUARD');
+  blocked(edit('a recorded decision','decision'),'APPEND-ONLY RECORD GUARD');
+  silent(edit('a recorded decision','a recorded decision; appended correction'));
 });
 
 test("append-only-record-guard: a non-record file is none of its business", () => {
@@ -351,20 +355,20 @@ test("conduct-guard: a deferring commit message advises, including the git -C sp
 
 // ----------------------------------------------------------------- drift-guard
 
-test("drift-guard: counts scaffold edits, advises at 6, blocks at 10, resets on deliverable work", (t) => {
-  const dir = tmp(); // deliberately no .claude dir: the guard must create it (regression)
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const edit = (file_path) => run("drift-guard.mjs", { tool_name: "Edit", tool_input: { file_path }, cwd: dir });
-
-  for (let i = 1; i <= 5; i++) silent(edit("scripts/setup-" + i + ".sh"));
-  assert.ok(existsSync(join(dir, ".claude", ".drift-count")), "the counter must persist even when .claude did not exist");
-
-  for (let i = 6; i <= 9; i++) advised(edit(".github/workflows/ci-" + i + ".yml"), "DRIFT GUARD");
-  blocked(edit("Makefile"), "DRIFT GUARD");
-
-  silent(edit("src/feature.js")); // deliverable work resets the counter
-  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "0");
-  silent(edit("scripts/again.sh")); // back to 1, far from the warn line
+test("drift-guard: preflight is pure and successful outcomes advance actor-local state", (t) => {
+  const dir=tmp();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const event=(file_path,id)=>({cwd:dir,session_id:'drift-test',tool_use_id:id,tool_name:'Write',tool_input:{file_path,content:'ok'}});
+  const apply=(e)=>{mkdirSync(dirname(join(dir,e.tool_input.file_path)),{recursive:true});writeFileSync(join(dir,e.tool_input.file_path),'ok');return commitDrift({...e,hook_event_name:'PostToolUse',tool_response:{success:true}});};
+  for(let i=1;i<=9;i++) {
+    const e=event('scripts/'+i+'.mjs',String(i));const r=run('drift-guard.mjs',e);
+    if(i<6)silent(r);else advised(r,'DRIFT GUARD');
+    apply(e);
+  }
+  const tenth=event('scripts/ten.mjs','ten'),file=actorPath(tenth,'drift.json');
+  blocked(run('drift-guard.mjs',tenth),'DRIFT GUARD');assert.equal(JSON.parse(readFileSync(file)).count,9);
+  assert.equal(existsSync(join(dir,'scripts/ten.mjs')),false);
+  const feature=event('src/feature.js','feature');silent(run('drift-guard.mjs',feature));apply(feature);
+  assert.equal(JSON.parse(readFileSync(file)).count,0);
 });
 
 // ------------------------------------------------------------- dispatchers
@@ -377,12 +381,12 @@ test("guard-bash: one spawn, the whole Bash suite, first block wins in wired ord
   blocked(run("guard-bash.mjs", bash('git commit --no-verify -m "x"')), "COMMIT QUALITY GUARD");
   blocked(run("guard-bash.mjs", bash("rm -rf hooks")), "HOOK INTEGRITY GUARD");
   blocked(run("guard-bash.mjs", bash("rm docs/fixes/FIX-x.md")), "DELETION GUARD");
-  blocked(run("guard-bash.mjs", bash("truncate -s 0 .claude/settings.json")), "PROTECTED PATHS GUARD");
+  blocked(run("guard-bash.mjs", bash("truncate -s 0 .claude/settings.json")), "RUNTIME INTEGRITY GUARD");
 });
 
-test("guard-bash: clean commands and bad input pass silently (fail open)", () => {
+test("guard-bash: clean commands pass and bad enforcement input blocks", () => {
   silent(run("guard-bash.mjs", bash("npm test")));
-  silent(run("guard-bash.mjs", "not json at all"));
+  blocked(run("guard-bash.mjs", "not json at all"), "EIDOLON POLICY");
 });
 
 test("guard-bash: advisories ride along when nothing blocks", () => {
@@ -417,20 +421,20 @@ test("guard-write: one spawn, the whole Write/Edit suite", (t) => {
   const rec = join(dir, "docs", "decisions", "log.md");
   writeFileSync(rec, "0123456789");
   blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
-  advised(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "012345678" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
+  blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: rec, content: "012345678" }, cwd: dir }), "APPEND-ONLY RECORD GUARD");
   blocked(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: '{ "disableAllHooks": true }' }, cwd: dir }), "SETTINGS INTEGRITY GUARD");
   silent(run("guard-write.mjs", { tool_name: "Write", tool_input: { file_path: "src/feature.js", content: "export const x = 1;" }, cwd: dir }));
 });
 
-test("guard-write: the drift counter advances once per call through the dispatcher (stateful guard intact)", (t) => {
-  const dir = tmp();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const edit = (file_path) => run("guard-write.mjs", { tool_name: "Edit", tool_input: { file_path }, cwd: dir });
-  for (let i = 1; i <= 5; i++) silent(edit("scripts/setup-" + i + ".sh"));
-  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "5");
-  advised(edit("scripts/setup-6.sh"), "DRIFT GUARD");
-  silent(edit("src/feature.js"));
-  assert.equal(readFileSync(join(dir, ".claude", ".drift-count"), "utf8"), "0");
+test("guard-write: repeated preflights cannot consume state; duplicate successful outcomes count once", (t) => {
+  const dir=tmp();t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const e={cwd:dir,session_id:'dispatcher-test',tool_use_id:'one',tool_name:'Write',tool_input:{file_path:'scripts/setup.mjs',content:'ok'}};
+  for(let i=0;i<5;i++)silent(run('guard-write.mjs',e));
+  const file=actorPath(e,'drift.json');assert.equal(existsSync(file),false);
+  mkdirSync(join(dir,'scripts'));writeFileSync(join(dir,'scripts/setup.mjs'),'ok');
+  const after={...e,hook_event_name:'PostToolUse',tool_response:{success:true}};
+  silent(run('post-tool-entry.mjs',after));silent(run('post-tool-entry.mjs',after));
+  assert.equal(JSON.parse(readFileSync(file)).count,1);
 });
 
 // ----------------------------------------------- settings-integrity-guard
@@ -453,28 +457,20 @@ test("settings-integrity-guard: a clean settings write passes; other files are n
   silent(w(".claude/settings.json", '{ "disableAllHooks": false }'));
 });
 
-test("settings-integrity-guard: dropping a manifest-wired hook from settings is blocked (the delete-the-entry variant)", (t) => {
-  const dir = tmp();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  mkdirSync(join(dir, ".claude"), { recursive: true });
-  writeFileSync(join(dir, ".claude", "eidolon-manifest.yaml"),
-    "artifacts:\n  - path: hooks/guard-bash.mjs\n    kind: hook\n");
-  writeFileSync(join(dir, ".claude", "settings.json"),
-    '{ "hooks": { "PreToolUse": [{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"] }] } }');
-  const w = (content) => run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content }, cwd: dir });
-  blocked(w('{ "hooks": {} }'), "SETTINGS INTEGRITY GUARD");
-  // an Edit that deletes the wired entry is the same attack
-  blocked(run("settings-integrity-guard.mjs", { tool_name: "Edit", tool_input: { file_path: ".claude/settings.json", old_string: "hooks/guard-bash.mjs", new_string: "" }, cwd: dir }), "SETTINGS INTEGRITY GUARD");
-  // a rewiring that KEEPS the hook passes (e.g. changing its timeout)
-  silent(w('{ "hooks": { "PreToolUse": [{ "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"], "timeout": 20 }] } }'));
+test("settings-integrity-guard: structured managed wiring and arguments cannot be removed", (t) => {
+  const dir=tmp();t.after(()=>rmSync(dir,{recursive:true,force:true}));mkdirSync(join(dir,'.claude'));
+  const config={hooks:{PreToolUse:[{matcher:'Bash',hooks:[{type:'command',command:'node',args:['hooks/guard-bash.mjs'],timeout:20}]}]}};
+  writeFileSync(join(dir,'.claude/settings.json'),JSON.stringify(config));
+  const w=content=>run('settings-integrity-guard.mjs',{cwd:dir,tool_name:'Write',tool_input:{file_path:'.claude/settings.json',content:JSON.stringify(content)}});
+  blocked(w({hooks:{}}),'SETTINGS INTEGRITY GUARD');
+  const changed=structuredClone(config);changed.hooks.PreToolUse[0].matcher='NonexistentTool';
+  blocked(w(changed),'SETTINGS INTEGRITY GUARD');
+  silent(w({...config,theme:'light'}));
 });
-
-test("settings-integrity-guard: no manifest means no cross-check (fail open in a fresh target)", (t) => {
-  const dir = tmp();
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  mkdirSync(join(dir, ".claude"), { recursive: true });
-  writeFileSync(join(dir, ".claude", "settings.json"), '{ "hooks": { "x": "hooks/old-guard.mjs" } }');
-  silent(run("settings-integrity-guard.mjs", { tool_name: "Write", tool_input: { file_path: ".claude/settings.json", content: "{}" }, cwd: dir }));
+test("settings-integrity-guard: malformed prior wiring fails visibly without a manifest", (t) => {
+  const dir=tmp();t.after(()=>rmSync(dir,{recursive:true,force:true}));mkdirSync(join(dir,'.claude'));
+  writeFileSync(join(dir,'.claude/settings.json'),JSON.stringify({hooks:{x:'hooks/old-guard.mjs'}}));
+  blocked(run('settings-integrity-guard.mjs',{cwd:dir,tool_name:'Write',tool_input:{file_path:'.claude/settings.json',content:'{}'}}),'SETTINGS INTEGRITY GUARD');
 });
 
 // --------------------------------------------------- session save / restore

@@ -21,6 +21,7 @@
 // matcher (the dispatch tool), never on guard-bash/guard-write (those match Bash/Write/Edit).
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import {policyRoot,isDispatch} from './operation.mjs';
 import { runHook, emitVerdict } from "./lib.mjs";
 import { verifyAttestation } from "../scripts/security-attestation.mjs";
 
@@ -33,7 +34,7 @@ const GRADER_PUBKEY_PATH = join(".claude", "security-grader-public.pem");
 // a dispatch and passes untouched.
 export function isDispatchTool(name) {
   const n = String(name || "");
-  return /^task$/i.test(n) || /dispatch|subagent/i.test(n);
+  return isDispatch(n) || /dispatch|subagent/i.test(n);
 }
 
 // Does this dispatch carry a destructive or sensitive signal? Reads the description, prompt,
@@ -51,7 +52,14 @@ const SENSITIVE = new RegExp(
   "i",
 );
 export function isSensitiveDispatch(toolInput = {}) {
-  const hay = [toolInput.description, toolInput.prompt, toolInput.subagent_type, toolInput.task]
+  const raw = toolInput.prompt ?? toolInput.message;
+  if (typeof raw === 'string' && raw.startsWith('EIDOLON_DISPATCH_V1\n')) {
+    try {
+      const packet=JSON.parse(raw.slice('EIDOLON_DISPATCH_V1\n'.length));
+      return (Array.isArray(packet.riskTags) && packet.riskTags.some(v=>SENSITIVE.test(String(v)))) || SENSITIVE.test(String(packet.work?.goal||''));
+    } catch {return true;}
+  }
+  const hay = [toolInput.description, toolInput.prompt, toolInput.message, toolInput.subagent_type, toolInput.agent_type, toolInput.task]
     .filter((x) => typeof x === "string").join("\n");
   return SENSITIVE.test(hay);
 }
@@ -82,7 +90,7 @@ export function attestationStatus(cwd) {
 export function evalDispatchAttestation(j = {}) {
   if (!isDispatchTool(j.tool_name)) return null;
   if (!isSensitiveDispatch(j.tool_input || {})) return null;
-  const st = attestationStatus(j.cwd);
+  const st = attestationStatus(policyRoot(j));
   if (st.ok) return null;
   return {
     kind: "ask",
