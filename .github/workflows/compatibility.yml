@@ -45,5 +45,6 @@ jobs:
         with:
           name: compatibility-${{ runner.os }}
           path: .ci-evidence/
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: error
