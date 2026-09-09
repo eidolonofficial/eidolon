@@ -73,3 +73,15 @@ Early, actively developed, and intentionally conservative about what it claims. 
 ## License
 
 MIT. See [`CREDITS.md`](CREDITS.md) for retained acknowledgements and upstream work.
+## Persona selection and reviewed dispatch
+
+`node scripts/orchestrate.mjs --project /path/to/project --host codex` accepts a
+JSON request on stdin. Its `deploy-plan` action selects grounded personas, checks
+required coverage and file scopes, orders dependency waves, and prepares bounded
+context for native agent tools. It does not spawn agents or grant permissions.
+See `references/orchestration-contract.md` and `examples/persona-pipeline.json`.
+
+The current repair adds full-state settings and record checks, managed wiring,
+PowerShell and Agent coverage, successful-outcome drift accounting, and preview-
+bound installation. An interrupted installation keeps its journal and lock for
+operator recovery; automatic crash recovery is not claimed.

@@ -59,3 +59,6 @@ engine/.cache/
 engine/runs/
 .evolve_runs/
 **/.evolve_runs/
+
+# Generated CI logs are not installer source inputs.
+/.ci-evidence/

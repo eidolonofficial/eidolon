@@ -5,8 +5,15 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 export function confinedPath(root, cwd, name) {
   if (typeof name !== 'string' || !name || /[\0\r\n]/.test(name)) throw Error('Invalid patch path');
-  root = realpathSync(root);
-  const path = resolve(realpathSync(cwd), name);
+  const rootAlias=resolve(root),cwdAlias=resolve(cwd);
+  root=realpathSync(rootAlias);const realCwd=realpathSync(cwdAlias);
+  const inside=(base,path)=>{const r=relative(base,path);return r===''||r!=='..'&&!r.startsWith('..'+sep)&&!isAbsolute(r);};
+  if(!inside(root,realCwd))throw Error('Working directory escapes project');
+  let path=resolve(realCwd,name);
+  // Only the supplied project/cwd alias is canonicalized. Symlinks inside it remain forbidden.
+  if(isAbsolute(name))for(const [alias,canonical] of [[rootAlias,root],[cwdAlias,realCwd]]){
+    if(inside(alias,path)){path=resolve(canonical,relative(alias,path));break;}
+  }
   const rel = relative(root, path);
   if (!rel || rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel)) throw Error('Patch path escapes project');
   let cursor = root;

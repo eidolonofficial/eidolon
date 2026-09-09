@@ -1,0 +1,54 @@
+{
+  "action": "save",
+  "expectedRevision": 0,
+  "task": {
+    "schema": 1,
+    "id": "example-review",
+    "revision": 1,
+    "project": "example",
+    "source": "user:review-request",
+    "goal": "Review application behavior and privacy without changing code",
+    "mode": "review",
+    "scope": {
+      "read": [
+        "src"
+      ],
+      "write": []
+    },
+    "riskTags": [
+      "privacy"
+    ],
+    "excludedActions": [
+      "deployment",
+      "publish"
+    ],
+    "context": [
+      {
+        "id": "intent",
+        "kind": "user",
+        "source": "user:review-request",
+        "text": "Review only. Do not change files or publish."
+      }
+    ],
+    "questions": [],
+    "authority": "host-permissions-required",
+    "deliverables": [
+      {
+        "id": "code",
+        "outcome": "Review behavior",
+        "status": "pending",
+        "checks": [
+          "Report findings with source and test evidence"
+        ]
+      },
+      {
+        "id": "privacy",
+        "outcome": "Review data handling",
+        "status": "pending",
+        "checks": [
+          "Identify data crossings with source evidence"
+        ]
+      }
+    ]
+  }
+}

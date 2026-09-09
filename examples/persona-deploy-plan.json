@@ -1,0 +1,65 @@
+{
+  "action": "deploy-plan",
+  "taskId": "example-review",
+  "capabilities": {
+    "agentsAvailable": false
+  },
+  "workItems": [
+    {
+      "id": "code",
+      "goal": "Inspect code",
+      "reason": "independent-verification",
+      "requiredPersonaCapabilities": [
+        "verification"
+      ],
+      "deliverables": [
+        "code"
+      ],
+      "scope": {
+        "read": [
+          "src"
+        ],
+        "write": []
+      },
+      "dependsOn": [],
+      "contextIds": [
+        "intent"
+      ],
+      "files": [],
+      "skills": [],
+      "budget": {
+        "maxTurns": 8,
+        "maxRetries": 2,
+        "leaseSeconds": 600
+      }
+    },
+    {
+      "id": "privacy",
+      "goal": "Inspect privacy",
+      "reason": "independent-verification",
+      "requiredPersonaCapabilities": [
+        "privacy"
+      ],
+      "deliverables": [
+        "privacy"
+      ],
+      "scope": {
+        "read": [
+          "src"
+        ],
+        "write": []
+      },
+      "dependsOn": [],
+      "contextIds": [
+        "intent"
+      ],
+      "files": [],
+      "skills": [],
+      "budget": {
+        "maxTurns": 8,
+        "maxRetries": 2,
+        "leaseSeconds": 600
+      }
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "schema": 1,
+  "personas": {
+    "backend-data-engineer": {
+      "path": "references/personas/backend-data-engineer.md",
+      "sha256": "09c3023962c1067e9a0465bc17476e01831d2a5a889f17294ea211a35699edcc",
+      "provides": [
+        "backend",
+        "data"
+      ],
+      "project": null
+    },
+    "devops-release-engineer": {
+      "path": "references/personas/devops-release-engineer.md",
+      "sha256": "cfa5c5e363d388bc9864daac185725904d80cc6a96f2d1f7d898a75a68932c7c",
+      "provides": [
+        "deployment",
+        "operations"
+      ],
+      "project": null
+    },
+    "devx-engineer": {
+      "path": "references/personas/devx-engineer.md",
+      "sha256": "b0269bea39ddeb6af411bf039b0cd56db84d897dcb5adf37a938ad3b948b0787",
+      "provides": [
+        "tooling"
+      ],
+      "project": null
+    },
+    "documentation-architect": {
+      "path": "references/personas/documentation-architect.md",
+      "sha256": "d5aca7b0ed8bd4fa160a1c22d922a941c7605e6b97431c7c30c16ca162520045",
+      "provides": [
+        "documentation"
+      ],
+      "project": null
+    },
+    "ffr-primary": {
+      "path": "references/personas/fraud-forensic-replay-primary.md",
+      "sha256": "68ef87112cdb0bcd9cb949c2458e3a5a09646b9a57b327e2a1f191c2502e39c8",
+      "provides": [],
+      "project": "fraud-forensic-replay"
+    },
+    "frontend-engineer": {
+      "path": "references/personas/frontend-engineer.md",
+      "sha256": "353a92b29b265d3921eb56400ed60ef73a84af9a88e8cda9f112b71710420099",
+      "provides": [
+        "frontend"
+      ],
+      "project": null
+    },
+    "fullstack-engineer": {
+      "path": "references/personas/fullstack-engineer.md",
+      "sha256": "39d7a1d5e207c735eaacfe2b25eddaa6ff0a78c16e691ed03f833fc0898b70e0",
+      "provides": [
+        "implementation"
+      ],
+      "project": null
+    },
+    "geospatial-viz-engineer": {
+      "path": "references/personas/geospatial-viz-engineer.md",
+      "sha256": "67ef4c71bb32607c01f929f7dd567e87ffe47b6aab99a026a9f384816abc5980",
+      "provides": [
+        "geospatial"
+      ],
+      "project": null
+    },
+    "information-architect": {
+      "path": "references/personas/information-architect.md",
+      "sha256": "d8cd672efaa1e95d1001346c3fa71c0fe7ea6a0dae6fc848b9c907ac396df2ee",
+      "provides": [
+        "information"
+      ],
+      "project": null
+    },
+    "qa-test-lead": {
+      "path": "references/personas/qa-test-lead.md",
+      "sha256": "f55e787078f88d9f66d31393bbd42af2039577d7ea9f1434694a7a9c02420b65",
+      "provides": [
+        "verification",
+        "testing"
+      ],
+      "project": null
+    },
+    "skill-author": {
+      "path": "references/personas/skill-author.md",
+      "sha256": "94b20e8b840be2ee2bb5f04f09fa64432e9337f8ad374e3039ce59852665d36c",
+      "provides": [
+        "skills"
+      ],
+      "project": null
+    },
+    "sprint-architect": {
+      "path": "references/personas/sprint-architect.md",
+      "sha256": "406222cb54d2956e73f2a1ae4c8bd16a42a2f00d3acbd4470e83f012d610fa49",
+      "provides": [
+        "planning"
+      ],
+      "project": null
+    },
+    "tech-lead-architect": {
+      "path": "references/personas/tech-lead-architect.md",
+      "sha256": "2ca400ebbc4e670dca4a75a1de7396d26582a5aa9ff1d83aefd37e6b94e5ef60",
+      "provides": [
+        "architecture"
+      ],
+      "project": null
+    },
+    "trust-safety-architect": {
+      "path": "references/personas/trust-safety-architect.md",
+      "sha256": "c75e54f302c18b0c79ff73b434a18e01f095296b127e997754de7f705f5e4485",
+      "provides": [
+        "security",
+        "privacy",
+        "trust-safety"
+      ],
+      "project": null
+    },
+    "ux-interaction-designer": {
+      "path": "references/personas/ux-interaction-designer.md",
+      "sha256": "4bcbd2ef74c10d62a26da319bd630b9e37c0303dfd2805f0285dd11aad04aa6e",
+      "provides": [
+        "ux"
+      ],
+      "project": null
+    }
+  }
+}

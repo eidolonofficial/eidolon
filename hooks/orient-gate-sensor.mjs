@@ -10,4 +10,4 @@
 import { runHook } from "./lib.mjs";
 import { recordRead } from "./orient-gate-core.mjs";
 
-runHook((j) => { recordRead(String(j.cwd || process.cwd()), j); });
+runHook((j) => { recordRead(String(j.cwd || process.cwd()), j); }, {enforcement:false});

@@ -35,3 +35,11 @@ Skill selection is advisory to the controller, not a permission bypass. Governan
 ## Freshness rule
 
 Platform-specific factual claims older than the current host documentation are hypotheses. Before changing model names, skill locations, hook schemas, restart behavior, or agent primitives, verify the running host or current first-party documentation and update this contract plus regression tests when the behavior materially changes.
+
+## Reviewed persona pipeline
+
+Read `orchestration-contract.md` for the current selection, actor-state,
+Interview Mode and context-injected dispatch contract. It resolves older mandatory
+swarm wording while preserving required coverage and human consent. Use the
+`deploy-plan` action in `scripts/orchestrate.mjs` before preparing native dispatch.
+Do not treat a printed plan as an agent execution or an approval.

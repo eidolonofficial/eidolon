@@ -1,7 +1,7 @@
 // hooks/lib.mjs
 //
 // Eidolon hook suite - shared plumbing. Every guard reads the same Claude Code
-// hook JSON from stdin, fails open on bad input, blocks via stderr + exit 2,
+// hook JSON from stdin, rejects invalid enforcement input, blocks via stderr + exit 2,
 // asks via the documented permissionDecision JSON (the consent tier), and
 // advises via stdout JSON. Before this module each guard carried its own
 // copy of that contract, and three of them had drifted into three different
@@ -14,6 +14,8 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {normalizeEvent} from "./operation.mjs";
+import {gitOperations, shellPathFacts} from "./shell-operation.mjs";
 
 // A real git-commit invocation: start of input or after a separator, optional
 // leading VAR=value assignments, optional -C/-c/--git-dir/--work-tree options,
@@ -23,7 +25,7 @@ export const GIT_COMMIT =
   /(?:^|[\n;&|]\s*)(?:[A-Za-z_]\w*=\S*\s+)*git(?:\s+-C\s+\S+|\s+-c\s+\S+|\s+--git-dir=\S+|\s+--work-tree=\S+)*\s+commit\b/;
 
 export function isGitCommit(cmd) {
-  return GIT_COMMIT.test(String(cmd));
+  return gitOperations(String(cmd)).some(op => op.subcommand === 'commit');
 }
 
 // A quoted message flag span: -m / --message in any of their spellings,
@@ -35,17 +37,16 @@ const MESSAGE_FLAG = /(?:^|\s)(?:--message=?|-[a-zA-Z]*m)\s*(['"])([^]*?)\1/g;
 // the message arrives some other way (heredoc, editor). Scanning the whole
 // command on fallback errs toward catching a claim, never toward missing one.
 export function commitMessageOf(cmd, cwd) {
-  cmd = String(cmd);
-  const parts = [];
-  for (const m of cmd.matchAll(MESSAGE_FLAG)) parts.push(m[2]);
-  if (parts.length) return parts.join("\n\n");
-  const f = cmd.match(/(?:-F|--file)[=\s]+(\S+)/);
-  if (f && f[1] !== "-") {
-    try {
-      return readFileSync(resolve(String(cwd || process.cwd()), f[1].replace(/^['"]|['"]$/g, "")), "utf8");
-    } catch { /* unreadable message file: fall through to the whole command */ }
+  const messages = [];
+  for (const op of gitOperations(String(cmd), cwd)) {
+    if (op.subcommand !== 'commit') continue;
+    if (op.messages.length) messages.push(...op.messages);
+    else if (op.messageFile && op.messageFile !== '-') {
+      try { messages.push(readFileSync(resolve(op.cwd, op.messageFile), 'utf8')); }
+      catch { messages.push(String(cmd)); }
+    } else messages.push(String(cmd));
   }
-  return cmd;
+  return messages.join('\n\n');
 }
 
 // The command with its message spans removed, so text inside -m '...' is never
@@ -71,23 +72,29 @@ const HOOKS_GOV_FILE = /hooks[\/\\]\S*\.(?:mjs|cjs|ps1|sh|py)\b/i;
 // Beneficial change (fewer false catches, never fewer true ones); proof + provenance in
 // docs/fixes/FIX-2026-06-16-engine-hook-suite-exemption.md.
 const ENGINE_TOKEN = /(^|[\s'"=:;&|(])(?:\.[\/\\])?engine[\/\\][^\s;&|]*/gi;
-export function touchesHookSuite(cmd) {
-  const scrubbed = String(cmd).replace(ENGINE_TOKEN, "$1 ");
-  return HOOKS_SEGMENT.test(scrubbed) || HOOKS_GOV_FILE.test(scrubbed);
+export function touchesHookSuite(cmd, cwd = process.cwd(), root = cwd) {
+  return shellPathFacts(String(cmd), cwd, root).some(f => f.kind === 'hooks' || f.kind === 'authority');
 }
 
 // Run a hook body against the parsed stdin JSON. A parse failure exits 0: a
 // malformed payload must never brick the workflow (fail open). The body may
 // exit itself (block/advise do); otherwise the hook allows.
-export function runHook(fn) {
-  let raw = "";
-  process.stdin.on("data", (c) => (raw += c));
-  process.stdin.on("end", () => {
-    let j;
-    try { j = JSON.parse((raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw).trim()); }
-    catch { process.exit(0); }
-    fn(j || {});
-    process.exit(0);
+export function runHook(fn, {enforcement = true} = {}) {
+  let raw = '', oversized = false;
+  process.stdin.on('data', c => {
+    if (Buffer.byteLength(raw) + c.length > 5 * 1024 * 1024) oversized = true;
+    else raw += c;
+  });
+  process.stdin.on('end', () => {
+    try {
+      if (oversized) throw Error('Input limit');
+      const at = process.argv.indexOf('--project');
+      const j = normalizeEvent(JSON.parse(raw.replace(/^\uFEFF/, '').trim()), at < 0 ? undefined : process.argv[at + 1]);
+      fn(j); process.exitCode = 0;
+    } catch {
+      process.stderr.write(enforcement ? 'EIDOLON POLICY: invalid event or enforcement state; operation blocked. No payload was logged.\n' : 'EIDOLON ADVISORY: unavailable; no enforcement claim.\n');
+      process.exitCode = enforcement ? 2 : 0;
+    }
   });
 }
 

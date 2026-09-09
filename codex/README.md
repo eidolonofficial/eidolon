@@ -28,7 +28,7 @@ tool names or rule meanings is performed.
 
 ## Installation
 
-Node.js 18 or newer and Git are required. From a checkout:
+Node.js 22 or newer and Git are required. From a checkout:
 
 ```sh
 node scripts/install.mjs --host codex --project /path/to/project
@@ -83,3 +83,21 @@ Codex or Claude model session completed a task. Before release, test a live
 session in each intended client: skill discovery, hook trust, benign edit,
 blocked record deletion, manual ask-tier handling and restart/compaction.
 Windows and macOS native GUI behavior require on-platform checks.
+
+## Reviewed runtime and persona pipeline
+
+The installed policy manifest is `.eidolon/policy-manifest.json`. Its owned
+handlers are checked semantically. Claude shell events cover Bash and PowerShell;
+Agent and Task use the same dispatch boundary. New installs require validated
+task/persona/context packets for dispatch. Use the `deploy-plan` action described
+in `references/orchestration-contract.md`.
+
+Successful outcome state and new persona seats are actor/session-scoped under
+`.eidolon/sessions`. Legacy controller seats are read-only fallback, not deleted
+by a rejected worker. A legacy Expediter seat may require explicit operator
+migration before workers can use their own seats; no actor identity is invented.
+A dispatch packet itself does not grant permissions or create a trusted seat.
+
+The shared ask policy maps to a Codex PreToolUse block. When Codex has already
+raised PermissionRequest, an ask returns no overriding decision and preserves
+its native prompt. Do not interpret this as support for raw PreToolUse ask.

@@ -23,8 +23,10 @@
 // I/O contract mirrors the lineage uncertainty-guard.mjs: fail open on bad input;
 // block via stderr + exit 2.
 
-import { readFileSync, existsSync, unlinkSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import {confinedPath} from './codex-patch.mjs';
+import {actorIdentity, actorPath, policyRoot, boundedRead} from "./operation.mjs";
 import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
 
 const CODE = /\.(mjs|cjs|js|jsx|ts|tsx|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift)$/i;
@@ -90,7 +92,7 @@ export function hasAnchor(seat) {
 // done-criteria, measures before dispatch, and holds sole authority over hooks and
 // loops. It is locked to the main session by design. A dispatched subagent that seats
 // or claims the Expediter has stepped outside its mandate (a worker conducting the
-// orchestra), so the guard hard-stops the action AND deactivates the seat itself.
+// orchestra), so the guard hard-stops the action without changing another actor's seat.
 // True when the seated persona identifies as the Expediter under any plain spelling.
 export function isExpediterSeat(seat) {
   if (!seat) return false;
@@ -124,6 +126,9 @@ function isSeatRepair(toolName, toolInput) {
 export function evaluateSeat(seat, toolName, toolInput, ctx = {}) {
   if (ctx.isSubagent && isExpediterSeat(seat)) return { kind: "subagent-expediter" };
   const ab = (seat && seat.anti_behaviors) || {};
+  if (!seat || Array.isArray(seat) || typeof seat !== 'object' ||
+      !ab || Array.isArray(ab) || typeof ab !== 'object' ||
+      [ab.floor, ab.specific].some(a => a != null && (!Array.isArray(a) || a.some(v => typeof v !== 'string')))) return {kind:'invalid-state'};
   const declared = [...(ab.floor || []), ...(ab.specific || [])];
   if (declared.length === 0) return null; // no persona teeth seated, nothing to enforce
   if (isSeatRepair(toolName, toolInput)) return null; // always allow repair/unseat of the seat file
@@ -138,18 +143,20 @@ export function evaluateSeat(seat, toolName, toolInput, ctx = {}) {
   return null;
 }
 
-// The full hook flow as one evaluator: read the seat, judge the action, and on
-// the Expediter lock clear the seat as a side effect. Returns a suite verdict
+// The full hook flow as one evaluator: read the actor-scoped seat, or read-only legacy default, and judge the action.
+// Preflight never clears another actor's state. Returns a suite verdict
 // ({ kind, label, why, tag? }) or null, so the dispatchers (hooks/guard-bash.mjs,
 // hooks/guard-write.mjs) and the standalone entry share one behavior.
 export function evalPersonaConduct(j) {
-  const cwd = String(j.cwd || process.cwd());
-  const seatFile = join(cwd, ".claude", "active-persona.json");
-  if (!existsSync(seatFile)) return null; // no persona seated, nothing to enforce
-
+  const cwd = policyRoot(j), identity = actorIdentity(j);
+  if(identity.worker && isSeatRepair(j.tool_name,j.tool_input||{}))return {kind:'block',label:'PERSONA CONDUCT GUARD',why:'A worker cannot edit or clear the shared controller seat. Return the repair to the controller; no state was changed.'};
+  const scoped = actorPath(j, 'persona.json');
+  const seatFile = existsSync(scoped) ? scoped : confinedPath(cwd,cwd,'.claude/active-persona.json');
+  if (!existsSync(seatFile)) return null;
   let seat;
-  try { seat = JSON.parse(readFileSync(seatFile, "utf8")); } catch { return null; }
-
+  try { seat = JSON.parse(boundedRead(seatFile, 65536).toString('utf8')); }
+  catch { return {kind:'block', label:'PERSONA CONDUCT GUARD', why:'Persona state is unreadable or invalid; retain it for operator recovery. No state was changed.'}; }
+  if (!seat || Array.isArray(seat) || typeof seat !== 'object') return {kind:'block',label:'PERSONA CONDUCT GUARD',why:'Invalid persona state; no state was changed.'};
   const name = String(j.tool_name || "");
   const ti = (j && j.tool_input) || {};
   const who = (seat.title || seat.persona || "the seated persona") + " (" + (seat.persona || "?") + ")";
@@ -158,23 +165,15 @@ export function evalPersonaConduct(j) {
   // "subagents" directory; the main session's transcript never lives there. Absent
   // or unrecognized transcript_path fails open (treated as the main session) so a
   // harness that omits the field never bricks normal work.
-  const isSubagent = /[\\/]subagents[\\/]/i.test(String(j.transcript_path || ""));
+  const isSubagent = identity.worker;
 
   const verdict = evaluateSeat(seat, name, ti, { isSubagent });
   if (!verdict) return null;
 
-  if (verdict.kind === "subagent-expediter") {
-    // Automatic deactivation: the guard clears the seat itself, so the very next
-    // action by this subagent runs unseated. Failure to unlink is tolerated (the
-    // block below still stands); it is never a reason to let the action through.
-    try { unlinkSync(seatFile); } catch { /* seat may be locked or already gone */ }
-    return { kind: "block", label: "PERSONA CONDUCT GUARD", tag: "HARD STOP - seat cleared", why:
-      "a dispatched subagent is seated as " + who + ".\n" +
-      "The Expediter is the controller's persona and is locked to the main session: it holds sole\n" +
-      "authority over hooks and loops, defines done-criteria, and dispatches the waves. A subagent\n" +
-      "that claims it has stepped outside its mandate, so this action is blocked and the seat has\n" +
-      "been deactivated (.claude/active-persona.json removed). Continue the task unseated, or seat a\n" +
-      "persona from references/personas/ that matches the work. Do not re-seat the Expediter." };
+  if (verdict.kind === 'invalid-state') return {kind:'block',label:'PERSONA CONDUCT GUARD',why:'Persona anti-behavior schema is invalid; operation blocked. No state was changed.'};
+  if (verdict.kind === 'subagent-expediter') {
+    return {kind:'block',label:'PERSONA CONDUCT GUARD',tag:'HARD STOP - controller state retained',why:
+      'A dispatched worker cannot act as the controller Expediter. The shared controller seat was retained unchanged. Use a separately scoped, grounded worker persona through the reviewed dispatch pipeline.'};
   }
 
   if (verdict.kind === "no-anchor") {
@@ -201,14 +200,14 @@ export function evalPersonaConduct(j) {
       " forbids '" + verdict.behavior + "'. This action crosses it at " + where + ": " + text + ". " +
       "Approve only if the two-safety-net pattern holds: an independent backup, a rollback " +
       "path stated before it runs, and a post-op verify. Otherwise honor the persona's line " +
-      "or unseat before acting." };
+      "or stop and ask the operator to review this scope." };
   }
 
   return { kind: "block", label: "PERSONA CONDUCT GUARD", why:
     "the seated persona " + who +
     " forbids '" + verdict.behavior + "'.\n" +
     "This action crosses it at " + where + ":\n    " + text + "\n" +
-    "The persona declared this anti-behavior; honor it or unseat the persona before acting." };
+    "The persona declared this anti-behavior; honor it or return the disputed rule for operator review." };
 }
 
 // Hook entry (only when this module is the entry point, never when imported by a test).

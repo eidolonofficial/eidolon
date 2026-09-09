@@ -15,8 +15,9 @@ const patch = body => '*** Begin Patch\n' + body + '\n*** End Patch\n';
 const check = (cwd, body) => codexOutput(evaluateCodex(event(cwd, 'apply_patch', { command: patch(body) })));
 function put(root, name, content) { const p = join(root, name); mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, content); return p; }
 
-test('Claude and Codex share the original 9 Bash and 5 Write policies', () => {
-  assert.equal(bashEvaluators.length, 9); assert.equal(writeEvaluators.length, 5);
+test('Claude and Codex retain the original policies plus shared health and runtime protection', () => {
+  assert.equal(bashEvaluators.length, 11); assert.equal(writeEvaluators.length, 7);
+  for (const suite of [bashEvaluators,writeEvaluators]) {assert.ok(suite.some(fn=>fn.name==='evalManagedState'));assert.ok(suite.some(fn=>fn.name==='evalRuntimeIntegrity'));}
   assert.equal(bashEvaluators.at(-1).name, 'evalEvolveEngine');
 });
 test('Codex patch adds a file without performing the write', t => {
