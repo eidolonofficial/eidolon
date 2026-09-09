@@ -17,6 +17,7 @@ from .embedding import EmbeddingService
 from .file_lock import InterProcessFileLock
 from .structures import Node
 from .vector_index import FAISSIndex
+from .safety import atomic_write, canonical, checked_path, read_json, integer, MAX_ITEMS
 
 
 class Database:
@@ -25,7 +26,7 @@ class Database:
     def __init__(
         self,
         storage_dir: Path,
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model: str | None = None,
         embedding_dim: int = 384,
         sampling_algorithm: str = "ucb1",
         sampling_kwargs: Optional[Dict[str, Any]] = None,
@@ -34,11 +35,12 @@ class Database:
     ):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        checked_path(self.storage_dir.parent.resolve(), self.storage_dir)
         self.lock = RLock()
         self.lock_path = self.storage_dir / ".database.lock"
         self.nodes: Dict[int, Node] = {}
         self.next_id = 0
-        self.max_size = max_size
+        self.max_size = MAX_ITEMS if max_size is None else integer(max_size, 'max_size', 1, MAX_ITEMS)
         self.embedding_dim = embedding_dim
         self.faiss_index_type = faiss_index_type
         self.embedding = EmbeddingService(
@@ -51,6 +53,7 @@ class Database:
         self.faiss = self._build_faiss_index()
 
     def sample(self, n: int, algorithm: Optional[str] = None, **kwargs) -> List[Node]:
+        integer(n, 'sample size', 1, MAX_ITEMS)
         with self._database_guard():
             nodes = list(self.nodes.values())
             sampler = (
@@ -65,6 +68,7 @@ class Database:
         return node_id
 
     def add_with_previous_nodes(self, node: Node) -> Tuple[int, List[Node]]:
+        self._validated_node(node)
         with self._database_guard():
             previous_nodes = self._clone_nodes(self.nodes.values())
             if self.max_size is not None and len(self.nodes) >= self.max_size:
@@ -144,27 +148,12 @@ class Database:
         if hasattr(self.default_sampler, "get_state"):
             payload["sampler_state"] = self.default_sampler.get_state()
 
-        temp_path: Optional[Path] = None
-        try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=self.storage_dir,
-                prefix="nodes.",
-                suffix=".tmp",
-                delete=False,
-            ) as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
-                handle.flush()
-                os.fsync(handle.fileno())
-                temp_path = Path(handle.name)
+        atomic_write(self.storage_dir / "nodes.json", canonical(payload))
 
-            os.replace(temp_path, self.storage_dir / "nodes.json")
-        finally:
-            if temp_path is not None and temp_path.exists():
-                temp_path.unlink(missing_ok=True)
-
-        self.faiss.save()
+    @staticmethod
+    def _validated_node(node):
+        # Validate after construction too: callers may have mutated a dataclass.
+        return Node.from_dict(node.to_dict())
 
     def _load_locked(self) -> None:
         data_file = self.storage_dir / "nodes.json"
@@ -174,11 +163,20 @@ class Database:
         self.faiss = self._build_faiss_index()
         if not data_file.exists():
             return
-        with open(data_file, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        self.next_id = payload.get("next_id", 0)
-        for node_id, node_data in payload.get("nodes", {}).items():
-            self.nodes[int(node_id)] = Node.from_dict(node_data)
+        payload = read_json(data_file)
+        if not isinstance(payload, dict) or not isinstance(payload.get('nodes'), dict) or len(payload['nodes']) > MAX_ITEMS:
+            raise ValueError('Invalid node database')
+        self.next_id = integer(payload.get('next_id'), 'next_id', 0, 2**53 - 1)
+        for key, node_data in payload['nodes'].items():
+            if not key.isdecimal() or str(int(key)) != key:
+                raise ValueError('Invalid node identity')
+            node_id = int(key)
+            node = Node.from_dict(node_data)
+            if node.id != node_id or node_id >= self.next_id:
+                raise ValueError('Inconsistent node identity')
+            self.nodes[node_id] = node
+            if node.get_context_text():
+                self.faiss.add(node_id, self.embedding.encode(node.get_context_text()))
         if hasattr(self.default_sampler, "load_state") and "sampler_state" in payload:
             self.default_sampler.load_state(payload["sampler_state"])
         if hasattr(self.default_sampler, "rebuild_from_nodes"):
@@ -188,7 +186,7 @@ class Database:
         return FAISSIndex(
             dimension=self.embedding_dim,
             index_type=self.faiss_index_type,
-            storage_path=self.storage_dir / "faiss",
+            embedding_id=self.embedding.fingerprint,
         )
 
     def _get_sampler_stats_locked(self) -> Optional[Dict[str, Any]]:
