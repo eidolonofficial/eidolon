@@ -2,7 +2,7 @@
 import {relative} from 'node:path';
 import {policyRoot, proposedFile} from './operation.mjs';
 import {shellPathFacts} from './shell-operation.mjs';
-const MANAGED = /^(?:\.(?:agents|claude)\/skills\/eidolon(?:\/|$)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.claude\/(?:eidolon-manifest\.yaml|security-grader-public\.pem|security-attestation\.json)|\.codex\/(?:hooks\.json|config\.toml|rules(?:\/|$)))/i;
+const MANAGED = /^(?:\.(?:agents|claude)\/skills\/eidolon(?:\/|$)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$)|engine-approvals(?:\/|$))|\.claude\/(?:eidolon-manifest\.yaml|security-grader-public\.pem|security-attestation\.json)|\.codex\/(?:hooks\.json|config\.toml|rules(?:\/|$))|\.evolve_runs\/[^/]+\/(?:run_spec\.yaml|runtime\.json|round_log\.jsonl|\.run\.lock|steps(?:\/|$)|best(?:\/|$)|database_data(?:\/|$)|cognition_data(?:\/|$)))/i;
 export function evalRuntimeIntegrity(j) {
   const block = why=>({kind:'block',label:'RUNTIME INTEGRITY GUARD',why});
   const root=policyRoot(j);

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import ast
+from .safety import bounded_text, checked_path
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -62,8 +64,8 @@ def run_has_recorded_nodes(run_dir: Path) -> bool:
 def resolve_sampling_path(workspace_root: Path, raw_path: str) -> Path:
     path = Path(raw_path)
     if path.is_absolute():
-        return path.resolve()
-    return (Path(workspace_root).resolve() / path).resolve()
+        return checked_path(Path(workspace_root), path)
+    return checked_path(Path(workspace_root), Path(workspace_root) / path)
 
 
 def custom_sampler_runtime_config(
@@ -131,11 +133,13 @@ def validate_custom_sampler_for_workspace(
         return ""
 
     try:
-        load_custom_sampler_class(
-            runtime_config["custom_sampler_path"],
-            custom_class,
-            search_paths=runtime_config.get("custom_sampler_search_paths"),
-        )
+        path = Path(runtime_config['custom_sampler_path'])
+        if workspace_root is not None:
+            checked_path(Path(workspace_root), path)
+        module = ast.parse(bounded_text(path), filename=str(path))
+        if not any(isinstance(node, ast.ClassDef) and node.name == custom_class for node in module.body):
+            raise ValueError('Named sampler class is absent')
+        # Static preflight only. Importing a plugin executes code and requires approval.
     except Exception as exc:  # pragma: no cover - surfaced validation path
         return str(exc)
     return ""

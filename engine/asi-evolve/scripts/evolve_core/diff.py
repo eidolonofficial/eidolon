@@ -26,8 +26,8 @@ def apply_diff(
 
     updated_code = original_code
     for search, replace in diff_blocks:
-        if search not in updated_code:
-            raise ValueError("SEARCH block not found in target text")
+        if not search or updated_code.count(search) != 1:
+            raise ValueError("SEARCH must identify exactly one nonempty span")
         updated_code = updated_code.replace(search, replace, 1)
     return updated_code
 

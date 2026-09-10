@@ -58,17 +58,27 @@ export function proposedFile(j) {
   return {root, path, present, before, after, beforeSha256: sha256(before)};
 }
 export function actorIdentity(j) {
-  const session = typeof j.session_id === 'string' && j.session_id ? j.session_id : 'legacy';
-  const explicit = typeof j.agent_id === 'string' && j.agent_id ? j.agent_id : null;
-  // Path detection is a conservative legacy fallback, never proof of controller authority.
-  const legacyWorker = /[\\/]subagents[\\/]/i.test(String(j.transcript_path || ''));
+  for (const key of ['session_id', 'agent_id']) {
+    if (j[key] != null && (typeof j[key] !== 'string' || !j[key] || j[key].length > 1024 || /[\0\r\n]/.test(j[key]))) throw Error('Invalid host actor identity');
+  }
+  const session = j.session_id ?? 'legacy';
+  const explicit = j.agent_id ?? null;
+  const transcript = typeof j.transcript_path === 'string' ? j.transcript_path : '';
+  const legacyWorker = /[\\/]subagents[\\/]/i.test(transcript);
   const worker = explicit !== null || legacyWorker;
-  return {session, actor: explicit || (legacyWorker ? 'unknown-worker' : 'controller'), worker, explicit: explicit !== null};
+  const actor = explicit ?? (legacyWorker ? 'transcript:' + sha256(transcript.replace(/\\/g, '/')) : 'controller');
+  return {session, actor, worker, explicit: explicit !== null, legacyWorker};
 }
 export function actorPath(j, name) {
   if (!/^[a-z-]+\.json$/.test(name)) throw Error('Invalid actor state name');
   const who = actorIdentity(j), root = policyRoot(j);
-  return confinedPath(root, root, '.eidolon/sessions/' + sha256(who.session) + '/actors/' + sha256(who.actor) + '/' + name);
+  const prefix = '.eidolon/sessions/' + sha256(who.session) + '/actors/';
+  // Domain separation: a worker literally named "controller" cannot address controller state.
+  const key = sha256(JSON.stringify(['actor-v2', who.worker ? 'worker' : 'controller', who.actor]));
+  const path = confinedPath(root, root, prefix + key + '/' + name);
+  const legacy = confinedPath(root, root, prefix + sha256(who.explicit ? who.actor : who.legacyWorker ? 'unknown-worker' : 'controller') + '/' + name);
+  if (!existsSync(path) && existsSync(legacy)) throw Error('Legacy actor state is ambiguous; operator-reviewed migration is required, not a silent reset');
+  return path;
 }
 
 export function fileTarget(j) {

@@ -14,8 +14,18 @@ export function mutationPaths(j,{after=false}={}) {
   if(j.tool_name!=='apply_patch')return [];
   if(!after)return parsePatch(ti.command,cwd,root).map(c=>c.destination||c.path);
   if(typeof ti.command!=='string'||Buffer.byteLength(ti.command)>4*1024*1024)throw Error('Invalid completed patch');
-  const paths=[...ti.command.matchAll(/^\*\*\* (?:Add File: |Update File: |Delete File: |Move to: )(.+)$/gm)].map(m=>confinedPath(root,cwd,m[1].replace(/\r$/,'')));
-  return [...new Set(paths)];
+  const text=ti.command.replace(/\r\n/g,'\n');
+  if(!text.startsWith('*** Begin Patch\n')||!text.trimEnd().endsWith('*** End Patch'))throw Error('Invalid completed patch envelope');
+  const paths=[];let lastKind='';
+  for(const m of text.matchAll(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/gm)) {
+    const path=confinedPath(root,cwd,m[2]);
+    if(m[1]==='Move to') {
+      if(lastKind!=='Update File'||!paths.length)throw Error('Invalid completed move');
+      paths[paths.length-1]=path;
+    } else paths.push(path);
+    lastKind=m[1];
+  }
+  return paths;
 }
 function state(j) {
   const file=actorPath(j,'drift.json');
@@ -41,7 +51,8 @@ export function successfulOutcome(j,host='claude') {
   if(j.hook_event_name!=='PostToolUse')return false;
   const r=j.tool_response;
   if(r&&typeof r==='object') {
-    if(r.isError||r.is_error||r.error||r.success===false||r.exit_code>0||r.exitCode>0)return false;
+    if(r.isError||r.is_error||r.error||r.success===false)return false;
+    for(const key of ['exit_code','exitCode']) if(key in r&&(!Number.isInteger(r[key])||r[key]!==0))return false;
     if(r.success===true||r.exit_code===0||r.exitCode===0)return true;
   }
   // Claude's PostToolUse itself denotes success; failed tools use PostToolUseFailure.

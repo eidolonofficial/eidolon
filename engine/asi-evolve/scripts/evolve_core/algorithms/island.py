@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import hashlib
+from ..safety import integer, finite
 import random
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple, TYPE_CHECKING
@@ -25,6 +27,12 @@ class IslandSampler(BaseSampler):
         feature_dimensions: Optional[List[str]] = None,
         feature_bins: int = 10,
     ):
+        integer(num_islands, 'num_islands', 1, 256)
+        integer(migration_interval, 'migration_interval', 1, 10000)
+        integer(feature_bins, 'feature_bins', 1, 1000)
+        for name, value in [('migration_rate', migration_rate), ('exploration_ratio', exploration_ratio), ('exploitation_ratio', exploitation_ratio)]:
+            if not 0 <= finite(value, name) <= 1:
+                raise ValueError(name + ' must be between zero and one')
         self.num_islands = num_islands
         self.migration_interval = migration_interval
         self.migration_rate = migration_rate
@@ -52,6 +60,7 @@ class IslandSampler(BaseSampler):
         self.all_nodes: Dict[int, "Node"] = {}
 
     def sample(self, nodes: List["Node"], n: int) -> List["Node"]:
+        integer(n, 'sample size', 1, 10000)
         if not nodes:
             return []
 
@@ -69,15 +78,16 @@ class IslandSampler(BaseSampler):
 
         selected: List["Node"] = []
         while len(selected) < min(n, len(island_nodes)):
+            remaining = [node for node in island_nodes if node not in selected]
+            if not remaining:
+                break
             roll = random.random()
             if roll < self.exploration_ratio:
-                candidate = self._sample_random(island_nodes)
+                candidate = self._sample_random(remaining)
             elif roll < self.exploration_ratio + self.exploitation_ratio:
-                candidate = self._sample_from_archive(nodes) or self._sample_weighted(
-                    island_nodes
-                )
+                candidate = self._sample_from_archive(remaining) or self._sample_weighted(remaining)
             else:
-                candidate = self._sample_weighted(island_nodes)
+                candidate = self._sample_weighted(remaining)
 
             if candidate is None or candidate in selected:
                 continue
@@ -202,7 +212,8 @@ class IslandSampler(BaseSampler):
     def _sample_weighted(nodes: List["Node"]) -> Optional["Node"]:
         if not nodes:
             return None
-        weights = [max(node.score, 0.001) for node in nodes]
+        scale = max(1.0, max(finite(node.score) for node in nodes))
+        weights = [max(node.score / scale, 1e-12) for node in nodes]
         return random.choices(nodes, weights=weights, k=1)[0]
 
     def _sample_from_archive(self, nodes: List["Node"]) -> Optional["Node"]:
@@ -257,7 +268,7 @@ class IslandSampler(BaseSampler):
         if not node.code:
             return 0.0
 
-        code_hash = hash(node.code)
+        code_hash = int.from_bytes(hashlib.sha256(node.code.encode('utf-8')).digest()[:8], 'big')
         cached = self.diversity_cache.get(code_hash)
         if cached:
             return cached["value"]

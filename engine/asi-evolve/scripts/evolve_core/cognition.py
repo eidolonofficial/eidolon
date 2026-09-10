@@ -1,127 +1,105 @@
-"""Persistent cognition store with semantic retrieval."""
-
+"""Atomic, process-serialized cognition with text as the only source of truth."""
 from __future__ import annotations
 
-import json
+import copy
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
-from typing import Dict, List, Optional, Tuple
 
 from .embedding import EmbeddingService
+from .file_lock import InterProcessFileLock
+from .safety import MAX_ITEMS, atomic_write, canonical, checked_path, integer, read_json
 from .structures import CognitionItem
 from .vector_index import FAISSIndex
 
 
 class Cognition:
-    """Persistent cognition store with embedding-backed retrieval."""
-
-    def __init__(
-        self,
-        storage_dir: Path,
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-        embedding_dim: int = 384,
-        retrieval_top_k: int = 5,
-        score_threshold: float = 0.3,
-        faiss_index_type: str = "IP",
-    ):
+    def __init__(self, storage_dir: Path, embedding_model: str | None = None,
+                 embedding_dim: int = 384, retrieval_top_k: int = 5,
+                 score_threshold: float = 0.3, faiss_index_type: str = 'IP'):
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        checked_path(self.storage_dir.parent.resolve(), self.storage_dir)
         self.lock = RLock()
-        self.retrieval_top_k = retrieval_top_k
+        self.retrieval_top_k = integer(retrieval_top_k, 'retrieval_top_k', 1, MAX_ITEMS)
         self.score_threshold = score_threshold
-        self.items: Dict[str, CognitionItem] = {}
-        self.embedding = EmbeddingService(
-            model_name=embedding_model,
-            dimension=embedding_dim,
-        )
-        self.faiss = FAISSIndex(
-            dimension=embedding_dim,
-            index_type=faiss_index_type,
-            storage_path=self.storage_dir / "faiss",
-        )
-        self.str_to_int: Dict[str, int] = {}
-        self.int_to_str: Dict[int, str] = {}
-        self.next_int_id = 0
-        self._load()
+        self.embedding = EmbeddingService(model_name=embedding_model, dimension=embedding_dim)
+        self.index_type = faiss_index_type
+        self.items = {}
+        with self._guard():
+            pass
+
+    @contextmanager
+    def _guard(self):
+        with self.lock, InterProcessFileLock(self.storage_dir / '.cognition.lock'):
+            self._load()
+            yield
 
     def add(self, item: CognitionItem) -> str:
-        with self.lock:
-            if not item.id:
-                item.id = str(uuid.uuid4())
-            self.items[item.id] = item
-            if item.content:
-                int_id = self._get_int_id(item.id)
-                self.faiss.add(int_id, self.embedding.encode(item.content))
-            self._save()
-            return item.id
+        return self.add_batch([item])[0]
 
-    def add_batch(self, items: List[CognitionItem]) -> List[str]:
-        return [self.add(item) for item in items]
+    def add_batch(self, items):
+        if not isinstance(items, list) or len(items) > MAX_ITEMS:
+            raise ValueError('Invalid cognition batch')
+        with self._guard():
+            updated = copy.deepcopy(self.items)
+            ids = []
+            for item in items:
+                item = CognitionItem.from_dict(copy.deepcopy(item.to_dict()))
+                item.id = item.id or str(uuid.uuid4())
+                updated[item.id] = item
+                ids.append(item.id)
+            if len(updated) > MAX_ITEMS:
+                raise ValueError('Cognition capacity exceeded')
+            # Publish once: failure never persists a partial batch.
+            atomic_write(self.storage_dir / 'cognition.json', canonical({
+                'version': 2, 'items': {key: item.to_dict() for key, item in updated.items()}
+            }))
+            self.items = updated
+            return ids
 
-    def search(self, query: str, top_k: Optional[int] = None) -> List[CognitionItem]:
-        return [item for item, _ in self.retrieve(query, top_k=top_k)]
+    def search(self, query, top_k=None):
+        return [item for item, _ in self.retrieve(query, top_k)]
 
-    def retrieve(
-        self,
-        query: str,
-        top_k: Optional[int] = None,
-        score_threshold: Optional[float] = None,
-    ) -> List[Tuple[CognitionItem, float]]:
-        top_k = top_k or self.retrieval_top_k
+    def retrieve(self, query, top_k=None, score_threshold=None):
+        n = self.retrieval_top_k if top_k is None else integer(top_k, 'top_k', 1, MAX_ITEMS)
         threshold = self.score_threshold if score_threshold is None else score_threshold
-        results = self.faiss.search(self.embedding.encode(query), top_k, threshold)
+        with self._guard():
+            # Do not load pickles, native caches, or stale cross-file ID mappings.
+            index = FAISSIndex(dimension=self.embedding.dimension, index_type=self.index_type,
+                               embedding_id=self.embedding.fingerprint)
+            ordered = list(self.items.values())
+            for i, item in enumerate(ordered):
+                if item.content:
+                    index.add(i, self.embedding.encode(item.content))
+            return [(copy.deepcopy(ordered[i]), score) for i, score in
+                    index.search(self.embedding.encode(query), n, threshold)]
 
-        enriched: List[Tuple[CognitionItem, float]] = []
-        for int_id, score in results:
-            item_id = self.int_to_str.get(int_id)
-            if item_id and item_id in self.items:
-                enriched.append((self.items[item_id], score))
-        return enriched
+    def get_all(self):
+        with self._guard():
+            return copy.deepcopy(list(self.items.values()))
 
-    def get_all(self) -> List[CognitionItem]:
-        return list(self.items.values())
+    def reset(self):
+        with self._guard():
+            atomic_write(self.storage_dir / 'cognition.json', canonical({'version': 2, 'items': {}}))
+            self.items = {}
 
-    def reset(self) -> None:
-        with self.lock:
-            self.items.clear()
-            self.str_to_int.clear()
-            self.int_to_str.clear()
-            self.next_int_id = 0
-            self.faiss.reset()
-            data_file = self.storage_dir / "cognition.json"
-            if data_file.exists():
-                data_file.unlink()
-
-    def _get_int_id(self, item_id: str) -> int:
-        if item_id not in self.str_to_int:
-            self.str_to_int[item_id] = self.next_int_id
-            self.int_to_str[self.next_int_id] = item_id
-            self.next_int_id += 1
-        return self.str_to_int[item_id]
-
-    def _save(self) -> None:
-        payload = {
-            "items": {item_id: item.to_dict() for item_id, item in self.items.items()},
-            "str_to_int": self.str_to_int,
-            "int_to_str": {str(key): value for key, value in self.int_to_str.items()},
-            "next_int_id": self.next_int_id,
-        }
-        with open(self.storage_dir / "cognition.json", "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2)
-        self.faiss.save()
-
-    def _load(self) -> None:
-        data_file = self.storage_dir / "cognition.json"
-        if not data_file.exists():
+    def _load(self):
+        path = self.storage_dir / 'cognition.json'
+        self.items = {}
+        if not path.exists():
             return
-        with open(data_file, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        for item_id, raw_item in payload.get("items", {}).items():
-            self.items[item_id] = CognitionItem.from_dict(raw_item)
-        self.str_to_int = payload.get("str_to_int", {})
-        self.int_to_str = {int(key): value for key, value in payload.get("int_to_str", {}).items()}
-        self.next_int_id = payload.get("next_int_id", 0)
+        raw = read_json(path)
+        entries = raw.get('items') if isinstance(raw, dict) else None
+        if not isinstance(entries, dict) or len(entries) > MAX_ITEMS:
+            raise ValueError('Invalid cognition state')
+        for key, value in entries.items():
+            item = CognitionItem.from_dict(value)
+            if not isinstance(key, str) or not key or len(key) > 200 or item.id not in (None, key):
+                raise ValueError('Invalid cognition identity')
+            item.id = key
+            self.items[key] = item
 
-    def __len__(self) -> int:
-        return len(self.items)
+    def __len__(self):
+        return len(self.get_all())

@@ -127,7 +127,7 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], h
     const guide = '## Eidolon\nRead the installed references/orchestration-contract.md, then Eidolon SKILL.md before repository work. Preserve human consent gates.\nCodex: .agents/skills/eidolon/SKILL.md. Claude: .claude/skills/eidolon/SKILL.md.\nRun tests and report observed evidence. Never bypass a denied hook.\nCodex ask-tier operations remain blocked for manual operator review; a chat yes is not a bypass.';
     textItem(join(root, 'AGENTS.md'), markedText(join(root, 'AGENTS.md'), guide));
     if (hosts.includes('claude')) textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), '@AGENTS.md'));
-    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies\n.eidolon/backups/\n.eidolon/sessions/\n.eidolon/tasks/\n.eidolon/install.lock/\n.claude/.drift-count\n.claude/.session-state\n.claude/.orient-gate.*.json'));
+    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies\n.eidolon/backups/\n.eidolon/sessions/\n.eidolon/tasks/\n.eidolon/engine-approvals/\n.evolve_runs/\n.eidolon/install.lock/\n.claude/.drift-count\n.claude/.session-state\n.claude/.orient-gate.*.json'));
   }
   for (const item of items) item.original = fingerprint(item.path);
   const plan = {version:1, root, items, host, workType, dispatchContext, replace,
@@ -151,8 +151,15 @@ function assertFresh(plan) {
   }
 }
 function durableJson(path,value) {
-  const data=json(value), fd=openSync(path,'w',0o600);
-  try {writeFileSync(fd,data,'utf8');fsyncSync(fd);} finally {closeSync(fd);}
+  const stage=path+'.journal-stage-'+randomUUID();
+  const fd=openSync(stage,'wx',0o600);
+  try {writeFileSync(fd,json(value),'utf8');fsyncSync(fd);} finally {closeSync(fd);}
+  try {
+    renameSync(stage,path);
+    if(process.platform!=='win32') {
+      const dir=openSync(dirname(path),'r');try{fsyncSync(dir);}finally{closeSync(dir);}
+    }
+  } finally {if(existsSync(stage))rmSync(stage);}
 }
 export function applyPlan(plan, {dryRun=true,replace=false,beforeCommit}={}) {
   const {root,items}=plan;
@@ -182,10 +189,13 @@ export function applyPlan(plan, {dryRun=true,replace=false,beforeCommit}={}) {
     }
     beforeCommit?.();
     assertFresh(plan);
+    for(const item of prepared) {confinedPath(root,root,item.stage);if(fingerprint(item.stage)!==item.installed)throw Error('Staged installation changed; no reviewed bytes were replaced');}
     journal.phase='applying';
     journal.changes=prepared.map(x=>({path:x.path,stage:x.stage,backup:x.original===null?null:x.backup,original:x.original,installedSha256:x.installed,phase:x.phase}));persist();
     for(let i=0;i<prepared.length;i++) {
       const item=prepared[i];
+      confinedPath(root,root,item.stage);
+      if(fingerprint(item.stage)!==item.installed)throw Error('Staged installation changed before commit');
       confinedPath(root,root,item.path);
       if(fingerprint(item.path)!==item.original)throw Error('Destination changed during installation');
       if(item.original===item.installed){rmSync(item.stage,{recursive:true,force:true});journal.changes[i].phase='unchanged';persist();continue;}
