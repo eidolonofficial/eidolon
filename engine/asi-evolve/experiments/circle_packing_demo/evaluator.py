@@ -117,7 +117,9 @@ def run_with_timeout(program_path, timeout_seconds=20):
     source = Path(program_path).absolute()
     bounded_bytes(source, 4 * 1024 * 1024)
     with tempfile.TemporaryDirectory(prefix='evolve-packing-') as directory:
-        step = Path(directory)
+        # Canonicalize only the fresh directory we created. OS temp roots may
+        # use /var aliases or Windows short names; candidate paths stay checked.
+        step = Path(directory).resolve(strict=True)
         worker, output = step / 'worker.py', step / 'packing.json'
         atomic_write(worker, _WORKER)
         rc, reason = supervise([sys.executable, '-I', str(worker), str(source), str(output)],
