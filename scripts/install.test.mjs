@@ -23,7 +23,7 @@ for (const host of ['codex', 'claude', 'both']) test('installs selected host ' +
     const conf = JSON.parse(readFileSync(join(root, '.codex/hooks.json'))); assert.equal(conf.hooks.PreToolUse.length, 1);
     assert.equal(conf.hooks.SessionStart[0].hooks[0].async, undefined);
   }
-  if (host !== 'codex') assert.match(readFileSync(join(root, 'CLAUDE.md'), 'utf8'), /@AGENTS.md/);
+  if (host !== 'codex') { const claude = readFileSync(join(root, 'CLAUDE.md'), 'utf8'); assert.match(claude, /## Eidolon for Claude Code/); assert.doesNotMatch(claude, /@AGENTS\.md/); }
 });
 test('user skill install does not wire global hooks', t => {
   const root = tmp(t); install({ home: root, host: 'codex', dryRun: false });
