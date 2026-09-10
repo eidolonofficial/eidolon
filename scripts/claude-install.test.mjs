@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync} from 'node:fs';
+import {mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {install, planInstall, applyPlan} from './install.mjs';
 const temporary = t => {
-  const root = mkdtempSync(join(tmpdir(), 'claude-native-'));
+  // Match the installer's canonical path for this fresh, test-owned directory.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'claude-native-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   return root;
 };
