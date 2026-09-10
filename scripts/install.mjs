@@ -126,7 +126,28 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], h
   if (project) {
     const guide = '## Eidolon\nRead the installed references/orchestration-contract.md, then Eidolon SKILL.md before repository work. Preserve human consent gates.\nCodex: .agents/skills/eidolon/SKILL.md. Claude: .claude/skills/eidolon/SKILL.md.\nRun tests and report observed evidence. Never bypass a denied hook.\nCodex ask-tier operations remain blocked for manual operator review; a chat yes is not a bypass.';
     textItem(join(root, 'AGENTS.md'), markedText(join(root, 'AGENTS.md'), guide));
-    if (hosts.includes('claude')) textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), '@AGENTS.md'));
+    if (hosts.includes('claude')) {
+      const claudeGuide = [
+        '## Eidolon for Claude Code',
+        '',
+        'Autonomous execution, consent-gated side effects. Claude is the engineer.',
+        'Read .claude/skills/eidolon/SKILL.md for the native setup, build, and evolve workflow.',
+        'Read .claude/skills/eidolon/references/current-platform-contract.md before assuming host behavior.',
+        'Read .claude/skills/eidolon/references/orchestration-contract.md and .claude/skills/eidolon/references/persona-pipeline.md before dispatch.',
+        'Choose the smallest sufficient skill set using .claude/skills/eidolon/references/skill-selection.md; work directly when delegation adds no evidence.',
+        'Inspect the real project before changing it. Reuse answered questions and preserve existing instructions.',
+        'Name the outcome before starting. Run the check and observe the state change before calling it done.',
+        'Preview installation first. Apply only the exact approved plan; require separate replacement consent and retain backups.',
+        'Keep Claude native permission checks intact. Never bypass a denied hook or manufacture consent through another tool.',
+        'Keep controller and worker identity separate. A worker cannot clear state belonging to another actor or inherit controller authority.',
+        'Before evolve work, read .claude/skills/eidolon/references/evolve-engine.md and .claude/skills/eidolon/engine/SECURITY.md. Approval binds to the exact plan digest, evaluator, inputs, runtime, and budget.',
+        'Trusted-local execution is not an operating-system sandbox. Untrusted candidates require a disposable sandbox.',
+        'Optional models and memory services require separate approval; preserve automatic-install holds.',
+        'Write what broke to docs/fixes and what worked to docs/insights. Append or supersede history; retire only active guidance.',
+        'Report executed evidence separately from inspection, native-client observations, and unresolved uncertainty.',
+      ].join('\n');
+      textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), claudeGuide));
+    }
     textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies\n.eidolon/backups/\n.eidolon/sessions/\n.eidolon/tasks/\n.eidolon/engine-approvals/\n.evolve_runs/\n.eidolon/install.lock/\n.claude/.drift-count\n.claude/.session-state\n.claude/.orient-gate.*.json'));
   }
   for (const item of items) item.original = fingerprint(item.path);
