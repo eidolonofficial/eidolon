@@ -22,9 +22,12 @@ enforcement (Opus audit of the hooks by code read; the Sept 13
 2. The three uncommitted lines are preserved as archive branches, never merged:
    `archive/2026-07-09-triage` (eidolon fc250f6, eidolon-setup 1651e7c),
    `archive/2026-07-09-remirror` (Hearth 755f9cd),
-   `archive/2026-09-13-safety-program` (eidolon ce7c068, eidolon-setup 3684c39,
-   Hearth 0bec1f7). One Slack-token-shaped test fixture string in the setup
-   archive was replaced so push protection would accept it.
+   `archive/2026-09-13-safety-program` (eidolon ce7c068, eidolon-setup 48032e2,
+   Hearth 0bec1f7). Two test fixture strings in the setup archive were rewritten
+   on 2026-10-13: a Slack-token-shaped one so push protection would accept the
+   branch, and a JWT-shaped one (the textbook example token, now assembled at run
+   time) so the history scan in CI passes. The archive is otherwise byte for byte
+   the uncommitted tree it preserves.
 3. Claude Code is the product. The Codex adapter, the vendored ASI-Evolve
    engine (its home is the standalone projects/asi-evolve MCP server), the
    three graphical installers, the security-attestation and review-receipt
