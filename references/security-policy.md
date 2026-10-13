@@ -1,17 +1,16 @@
 # Eidolon agent security policy (v0)
 
-The policy an agent reads and hashes at the start of the security-awareness loop
-(references/security-awareness.md). It is tailored to Eidolon's own threat surface:
+The policy an agent reads before sensitive work. It is tailored to Eidolon's own threat surface:
 an orchestrator that dispatches subagents, reads untrusted external content, holds
 credentials, and can run irreversible operations. Each rule names the antibehavior it
 guards (references/antibehavior-catalog.md) and the hook that enforces it, so the policy
 and the deterministic floor say the same thing. This policy is example-grade and meant to
-be reviewed and extended per deployment; the quiz tests application of it, not recall.
+be reviewed and extended per deployment.
 
-> Honest framing: reading this policy and passing the quiz is a SOFT comprehension layer.
+> Honest framing: reading this policy is a SOFT comprehension layer.
 > It does not make an agent injection-proof. The deterministic guardrails (the hook suite,
-> the two-layer floor) do the real work; an agent with a fresh attestation is exactly as
-> prompt-injectable as one without.
+> the two-layer floor) do the real work; an agent that has read it is exactly as
+> prompt-injectable as one that has not.
 
 ## non_negotiables
 
@@ -67,10 +66,9 @@ deploy_or_ship:
 
 dispatch_sensitive_work:
   trigger: dispatching destructive or sensitive work (security/trust-safety swarm, a deploy,
-           a migration, anything touching prod, PII, payments, or credentials) with no valid
-           security attestation in effect.
+           a migration, anything touching prod, PII, payments, or credentials).
   action:  the dispatch ASKS the human (the consent tier); proceed on an explicit yes.
-  enforce: dispatch-attestation-guard (ask)
+  enforce: guard-dispatch (ask)
 
 subagent_out_of_lane:
   trigger: a dispatched subagent is asked to (or tries to) seat the Expediter, call an
@@ -104,5 +102,4 @@ persona_seat:    a persona with anti-behaviors but no framework anchor does not 
 The rows map one to one onto references/antibehavior-catalog.md and the hooks in hooks/
 (hooks/README.md lists the suite). The security and trust-safety review methodologies that
 exercise these in depth live in references/security-swarm.md and
-references/trust-safety-swarm.md. The attestation that an agent read and applied this policy
-is issued and checked by scripts/security-attestation.mjs.
+references/review-swarms.md.

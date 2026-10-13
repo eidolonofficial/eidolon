@@ -16,26 +16,36 @@
 // Deterministic; additive; never blocks; never crashes a session start (sibling of
 // graphify-orient / session-restore). Any failure -> exit 0 silently so the fallback fires.
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, readdirSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, readdirSync, unlinkSync, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
 import { pathToFileURL } from "node:url";
-import { repoRoot } from "./orient-gate-core.mjs";
 
-const WING = "<WING>"; // installer fills the project's MemPalace wing (Stage 7), like orient-gate-core
+// Walk up from `start` to the git repo root (the dir containing .git); fall back to
+// `start` when none is found, so a subdir cwd does not fragment the sentinel.
+export function repoRoot(start) {
+  let dir = String(start || ".");
+  for (let i = 0; i < 40; i++) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return String(start || ".");
+}
+
+const WING = "<WING>"; // installer fills the project's MemPalace wing (Stage 7)
 
 const PRIMARY_SENTINEL_PREFIX = ".primary-orient.";
 const PRIMARY_SENTINEL_SUFFIX = ".json";
 const sanitizeSession = (sid) => String(sid || "").replace(/[^A-Za-z0-9_-]/g, "");
-
-// The per-session sentinel graphify-orient checks. Per-session + git-root anchored (same
-// convention as orient-gate-core) so concurrent sessions never clobber and a subdir cwd
-// does not fragment it.
+// The per-session sentinel graphify-orient checks. Per-session + git-root anchored
+// so concurrent sessions never clobber and a subdir cwd does not fragment it.
 export function primarySentinelPath(root, sessionId) {
   return join(repoRoot(root), ".claude", PRIMARY_SENTINEL_PREFIX + sanitizeSession(sessionId) + PRIMARY_SENTINEL_SUFFIX);
 }
 
 // Best-effort prune of stale primary-orient sentinels (>24h) so .claude/ does not accumulate
-// one file per past session. Mirrors orient-gate-core's pruneStale; never throws.
+// one file per past session. Never throws.
 const TTL_MS = 24 * 60 * 60 * 1000;
 function prunePrimarySentinels(root) {
   try {
@@ -63,7 +73,7 @@ export function shortQN(qn) {
 
 // Pure: parsed `get_architecture` JSON -> the injected directive body. Tolerates missing
 // arrays (an empty/partial arch still emits the ENFORCED ORIENT-GATE block). The mempalace
-// recall command in the gate block fills <WING> at install, like orient-gate-core.
+// recall command in the gate block fills <WING> at install.
 export function formatArch(arch, { exe, project, wing } = {}) {
   const a = arch || {};
   const nodes = a.total_nodes ?? 0;

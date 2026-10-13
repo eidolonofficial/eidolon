@@ -2,9 +2,9 @@
 import { existsSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { confinedPath } from './codex-patch.mjs';
+import { confinedPath } from './confined-path.mjs';
 export const SHELL_TOOLS = ['Bash', 'PowerShell'];
-export const DISPATCH_TOOLS = ['Task', 'Agent', 'spawn_agent', 'send_input'];
+export const DISPATCH_TOOLS = ['Agent', 'Task'];
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const isShell = name => SHELL_TOOLS.some(n => n.toLowerCase() === String(name || '').toLowerCase());

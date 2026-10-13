@@ -8,8 +8,8 @@ trigger: /eidolon
 
 Any repo → detected stack → a complete, verified Claude Code environment.
 Four phases, eleven stages (1 to 10 plus the 2.5 persona interview), three
-operator checkpoints, and six consent-gate moments (install, seat, deploy,
-irreversible, unattested sensitive dispatch, evolve-run confirm). Autonomous
+operator checkpoints, and five consent-gate moments (install, seat, deploy,
+irreversible, sensitive dispatch). Autonomous
 execution, consent-gated side effects: nothing is
 written before the plan is approved, and every generated command is verified
 against an independent second signal before it ships.
@@ -47,11 +47,8 @@ gating:
             irreversible, deploying, or seating an identity
     moments: install a skill (Stage 4) | seat the primary persona (Stage 2.5 ratify,
              Stage 10 seat) | deploy (SHIP) | run an irreversible op (the ask tier) |
-             dispatch destructive/sensitive work with no valid security attestation (the ask tier,
-             hooks/dispatch-attestation-guard.mjs; references/security-awareness.md) |
-             confirm an evolve run -- the preflight --confirmed true flip that unlocks the engine's
-             mutate/evaluate loop on a real compute budget (the ask tier, one confirm per run,
-             hooks/evolve-engine-guard.mjs; references/evolve-engine.md)
+             dispatch destructive/sensitive work (the ask tier, hooks/guard-dispatch.mjs;
+             references/security-policy.md)
     shape:  one AskUserQuestion each, with a why/liability line; never a typed menu
 verification:                                           # the load-bearing discipline
   funnel: REFERENCE trust-but-verify SKILL.md § "what verification MUST be"  # do not restate
@@ -106,9 +103,6 @@ orchestration:                                          # running subagents and 
            the state change landed (files changed / git status / row counts / live signal)
   supervise: watch the line by STATE, not by reports - TaskOutput may not track a background
            agent; brief agents OFF known-dead and forbidden tools so they neither wander nor hang
-  advisor: subagents NEVER call an advisor tool (hooks/advisor-guard.mjs hard-stops it); the
-           controller routes uncertainty by type - factual to a research agent, fork-level to
-           the decision tools, behavioral to the verification gates
   authority: hook and loop infrastructure is the Expediter's alone, controller-direct, and
            only ever BENEFICIAL - a guard may be made more accurate (fewer false catches,
            never fewer true ones), proven by executing its logic before and after, disclosed
@@ -121,26 +115,17 @@ orchestration:                                          # running subagents and 
 
 ## Modes
 
-Eidolon runs in one of three modes. Pick by what was asked; state which at the top.
+Eidolon runs in one of two modes. Pick by what was asked; state which at the top.
 
 ```yaml
 setup:  no work item, or "set up / configure this repo"  ->  run the ten stages below (install the room)
 build:  a work item to build, change, or fix             ->  run the Build pipeline (work in the room)
-evolve: a MEASURABLE numeric-optimization / AI-R&D item   ->  run the Evolve pipeline (the vendored
-        - a scorer exists that ranks candidate solutions       ASI-Evolve toolbelt, agent-driven)
 ```
 
 Setup installs the environment once. Build runs each time there is real work.
 Build's SPECIFY stage reuses Setup's recon and Interview Mode; it does not
 re-install. If both apply (a fresh repo plus a first work item), run setup, then
 build.
-
-Evolve is the narrow mode: it applies ONLY when the work item is an evaluator-driven
-search - a measurable scorer ranks candidate solutions. Without a scorer it is a
-build, not an evolve. Evolve drives the vendored ASI-Evolve toolbelt
-(engine/asi-evolve/) as the agent-driven engine - Claude is the engineer - and routes
-the scored result back through verification and memory; the contract is
-references/evolve-engine.md.
 
 ## What You Must Do When Invoked
 
@@ -313,8 +298,8 @@ Evaluated by Claude Code's own parser, so it survives `disableAllHooks`:
 Layer B - the hook suite: generate `hooks/*.mjs` (Node) + `hooks/*.ps1`
 (PowerShell) + `hooks/README.md` (table). Wire the consolidated dispatcher
 shape in `.claude/settings.json`: one `guard-bash` entry, one `guard-write`
-entry, the `.*advisor.*` entry, and the standalone `Task` entry for
-`dispatch-attestation-guard` (four entries; see hooks/README.md "Wiring"). Mirror the verdict tiers: advisory injects
+entry, and the `Agent|Task` entry for
+`guard-dispatch` (three entries; see hooks/README.md "Wiring"). Mirror the verdict tiers: advisory injects
 `additionalContext`; ask emits `permissionDecision "ask"` (the consent tier);
 hard block exits `2`.
 
@@ -405,8 +390,7 @@ The SessionStart ORIENT leg has a PRIMARY + FALLBACK pair for the structural gra
 codebase-memory-orient (PRIMARY - sources god nodes + layers from the
 codebase-memory-mcp index, when installed) and graphify-orient (the automatic
 FALLBACK - surfaces graphify-out/GRAPH_REPORT.md only when the primary produced
-nothing this session, detected via a per-session sentinel). Either satisfies the
-orient-gate's structural half. See the hooks/README.md orient-trio note.
+nothing this session, detected via a per-session sentinel).
 
 #### Stage 8 - MCP config
 
@@ -486,11 +470,7 @@ artifacts:
   - path: CLAUDE.md           kind: core      status: <new|merge>  last_verified: <date>
   - path: .claude/skills/...  kind: skill     status: ...          last_verified: <date>
   - path: hooks/...           kind: hook      status: ...          last_verified: <date>
-  - path: hooks/dispatch-attestation-guard.mjs  kind: hook  wired: PreToolUse(Task)  last_verified: <date>  # the consent gate; list it so settings-integrity-guard protects it
-  - path: hooks/security-surface.mjs            kind: hook  wired: SessionStart      last_verified: <date>  # template; the security-awareness surface
-  - path: hooks/evolve-engine-guard.mjs         kind: hook  wired: PreToolUse(Bash) via guard-bash  last_verified: <date>  # evolve mode: the consent gate; rides the dispatcher
-  - path: engine/asi-evolve/   kind: engine    status: vendored  upstream: GAIR-NLP/ASI-Evolve@fb8a67e  license: Apache-2.0  last_verified: <date>  # only when evolve mode is used
-  - path: references/evolve-engine.md  kind: reference  last_verified: <date>  # the evolve engine contract
+  - path: hooks/guard-dispatch.mjs  kind: hook  wired: PreToolUse(Agent|Task)  last_verified: <date>  # the consent gate; list it so settings-integrity-guard protects it
   - path: "<effective-post-commit-path>"  kind: capture  last_verified: <date>  # Stage 9 postCommit.path, never a hardcoded default
 logs:
   fixes:    docs/fixes/        # FIX-YYYY-MM-DD-<slug>.md, flat markdown
@@ -568,13 +548,6 @@ uncertainty:     docs/spec design § 9 - subagents return literal evidence (file
                  evidence itself and names the second signal; hedged language is refused.
 security_swarm:  references/security-swarm.md - red/blue methodology, the coverage manifest,
                  the seeded-defect fire drill, the five anti-handwave gates.
-security_awareness: references/security-awareness.md - the read-hash-quiz-externally-grade-attest
-                 comprehension loop (adapted from slartz/agent-security-awareness-training, MIT);
-                 the agent reads references/security-policy.md, is graded by an EXTERNAL validator,
-                 and a destructive/sensitive dispatch with no valid signed attestation asks the human
-                 (hooks/dispatch-attestation-guard.mjs, ask; hooks/security-surface.mjs surfaces the
-                 status; scripts/security-attestation.mjs signs/verifies, reusing the review receipt).
-                 A SOFT layer: it asks, it never replaces the deterministic gates.
 explain_mode:    references/explain-mode.md - plain-language teaching, comprehension checks,
                  the favorite-teacher disposition; available at every stage on request.
 personas:        references/persona-template.md - the ten-part construction template, the
@@ -585,18 +558,18 @@ primary_persona: references/primary-persona.md - Stage 2.5: the user's own house
                  against the template, linted by the same rail (a FAIL re-prompts, never
                  seats), and seated at Stage 10 (.claude/active-persona.json) so the conduct
                  guard enforces from message 1.
-engineering_swarm: references/engineering-swarm.md - builds against the spec, TDD per task,
+engineering_swarm: references/review-swarms.md - builds against the spec, TDD per task,
                  with the seeded-failing-test fire drill and the no-stub closeout gate.
 conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona against its own
                  declared anti-behaviors (.claude/active-persona.json) and enforces the rail at
                  the seat boundary (teeth but no anchor does not get to act); halts and names the line.
-trust_safety_swarm: references/trust-safety-swarm.md - harm, abuse, privacy/PII, a11y, fairness
+trust_safety_swarm: references/review-swarms.md - harm, abuse, privacy/PII, a11y, fairness
                  (GDPR, CCPA, WCAG 2.2); the seeded-PII fire drill and the coverage manifest.
-code_review_swarm: references/code-review-swarm.md - behavior-preserving only; a behavior change
+code_review_swarm: references/review-swarms.md - behavior-preserving only; a behavior change
                  is a finding for engineering; the suite-guards-behavior fire drill.
 architect_synthesis: references/architect-synthesis.md - ingests every swarm's findings plus the
                  three logs in one pass; the disposition table; no finding silently dropped.
-ship_upload_swarm: references/ship-upload-swarm.md - the deploy-readiness interview (reuses
+ship_upload_swarm: references/review-swarms.md - the deploy-readiness interview (reuses
                  Interview Mode) and the SHIP stage; the seeded missing-env-var / staged-secret
                  fire drill; no deploy on a red gate; the user is the final eyes.
 expert_hiring:   references/expert-hiring.md - when recon finds a need the base roster does not
@@ -617,44 +590,19 @@ antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplica
                  catalog (section 10); each row names its owning stage and enforcing hook.
 hook_suite:      hooks/README.md - the full governance hook suite (section 11): the
                  verification, commit-quality, append-only, persona-conduct, hook-integrity,
-                 deletion, protected-paths, visual-evidence, conduct, drift, settings-
-                 integrity, advisor, dispatch-attestation, and evolve-engine guards, plus
-                 the orient/surface and session hooks; see the table for the full set.
-scaling:         references/scaling.md - the three risk tiers, the cost ceiling, and the
-                 in-session vs cross-session decision (section 12).
+                 deletion, protected-paths, visual-evidence, drift, settings-integrity,
+                 and dispatch guards, plus the orient and session hooks; see the table for the full set.
 cross_session:   references/cross-session.md - the higher isolation tier: a separate session
                  verifies from a self-contained packet (scripts/verify-packet.mjs), graduated
                  per run on high-risk work.
-review_receipt:  references/review-receipt.md - a signed, re-judgeable attestation of a review
-                 verdict over a verify packet (scripts/review-receipt.mjs); the anti-synthetic
-                 rail applies (no anchor, no receipt). Verify is deterministic (the evidence
-                 re-hashes bit-identically, the Ed25519 signature is valid for a trusted key);
-                 the verdict stays an AI judgment, re-judged within a declared agreement band.
-process_doctrine: references/process-doctrine.md - the learned operating rules (calibrate
-                 verification to risk; mind background work), surfaced at session start by
-                 hooks/process-doctrine.mjs.
 conductor_standard: references/conductor-standard.md - the 2026-06-12 uplift: conductor lanes,
                  swarm-first dispatch law, personas-every-dispatch, the model cascade,
                  supervise-by-state, done-is-the-outcome, the spec foundry, edge-only gates;
                  closes with the anti-patterns index mapping every clause it replaces.
-process_supervision: references/process-supervision.md - dev-process staleness doctrine
-                 (field-proven 2026-06-11): boot-id health stamps plus a git-sha code stamp as
-                 next hardening, client staleness banners, restart drills with two-view proof;
-                 Stage 1 recon records each dev process's reload/port/supervisor and Stage 9
-                 treats an unsupervised non-reloading dev process as a finding to surface.
 heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing self-rearming
                  heartbeat at the lease-window cadence: state pulse, zombie reap with
                  state-injected respawns, one swarm-conducting wave per firing, parks only at
                  human gates; 25-minute default leases; a stale queue is a defect to re-seed.
-evolve_engine:   references/evolve-engine.md - the evolve mode's engine contract: the vendored
-                 agent-driven ASI-Evolve toolbelt (engine/asi-evolve/, Apache-2.0) run on a
-                 MEASURABLE numeric-optimization work item, Claude the engineer, the preflight
-                 --confirmed flip consent-gated (hooks/evolve-engine-guard.mjs), the engine's
-                 reported best score re-verified COLD as the second signal, the distilled result
-                 routed to docs/notes + mempalace + the manifest. The DELIBERATE home for the
-                 population-search / numeric-fitness machinery references/loop-suite.md's fence
-                 holds out of the delivery loop (ADR docs/decisions/2026-06-16-fold-asi-evolve-
-                 evolve-mode.md); the fence now cross-references this mode, not contradicts it.
 ```
 
 ### What you must do in build mode
@@ -676,10 +624,8 @@ evolve_engine:   references/evolve-engine.md - the evolve mode's engine contract
    trust-and-safety swarm, and the code-review swarm, in parallel. Each red finding
    becomes a blue hardening task, closed only when its post-fix verify passes; a
    code-review behavior change is a finding for engineering, not a silent edit.
-   Dispatching these sensitive swarms (and any destructive or deploy work) surfaces the
-   security attestation status; with no valid signed attestation in effect, the dispatch
-   asks the human (the consent tier, hooks/dispatch-attestation-guard.mjs;
-   references/security-awareness.md). Awareness is a soft layer; the gate asks, it never blocks.
+   Dispatching these sensitive swarms (and any destructive or deploy work) asks the human
+   (the consent tier, hooks/guard-dispatch.mjs; references/security-policy.md).
 6. SYNTHESIZE: the solutions architect ingests every swarm's findings plus the three
    logs in one pass and produces one ordered disposition table; no finding is
    dropped. The plan it commits to is gated before continuing.
@@ -693,55 +639,4 @@ evolve_engine:   references/evolve-engine.md - the evolve mode's engine contract
    interview, then deploys only when every checklist item is green with its signal and
    every upstream manifest is clean. The user approves the deploy as the final eyes.
 10. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
-   On a review anchored to a named framework, emit a signed review receipt
-   (scripts/review-receipt.mjs) over the verify packet, so the verdict travels with the
-   change as a tamper-evident, attributable record (references/review-receipt.md).
    Do not declare done while any finding is unverified or any AMBIGUOUS stands.
-
----
-
-## Evolve pipeline (numeric-optimization mode)
-
-For a MEASURABLE evaluator-driven search - a scorer ranks candidate solutions - Eidolon drives the
-vendored ASI-Evolve toolbelt (engine/asi-evolve/) as the agent-driven engine. Claude is the
-engineer; the toolbelt is deterministic bookkeeping (cognition store, experiment DB, samplers, run
-state). The full contract, the toolbelt commands, and the ASI-Evolve->Eidolon mapping live in
-references/evolve-engine.md; read engine/asi-evolve/SKILL.md for the engine's own operating policy.
-
-```
-  work item (a measurable optimization problem with a scorer)
-    ->  FRAME    (confirm a numeric evaluator exists; reuse Stage 1 recon + Interview Mode for the
-                 objective, score, evaluator + MANDATORY timeout, writable scope, round budget)
-        [gate 1: approve the evolve framing + round/compute ceiling before any tokens or compute burn]
-    ->  SCAFFOLD (evolve-brief normalize -> .evolve_runs/<run>/; draft the run spec, NOT confirmed)
-    ->  PROVISION (create engine/.venv on demand, pip install numpy + pyyaml; the install moment)
-    ->  CONFIRM  (evolve-brief normalize ... --confirmed true: the SINGLE consent gate -- it unlocks
-                 the mutate/evaluate loop; hooks/evolve-engine-guard.mjs asks the human here)
-    ->  ROUNDS   (per round: evolve-db sample a parent -> design the next candidate (cognition lookup
-                 or web refresh) -> evolve-files write inside the mutation scope -> evolve-eval run ->
-                 analyze -> evolve-db record. Serialize evolve-db; one task of search per round.)
-    ->  VERIFY   (the score IS the second signal: re-run the evaluator COLD on the best candidate and
-                 confirm the engine's reported score reproduces; a non-reproducible score is a RED)
-    ->  ROUTE    (distilled lessons -> docs/notes/EVOLVE-<slug>-<date>.md + mempalace; the verified
-                 best program -> the working tree as a candidate; the run -> the manifest)
-    ->  CLOSE    (only now commit, same CLOSE as build: decision-log entry + memory sync)
-```
-
-### The evolve load-bearing rules
-
-```yaml
-# why: an evolve run mutates files and burns compute; bound it and trust nothing unverified
-scorer_required:    no evaluator, no evolve. If you cannot name the number that goes up, run build.
-consent_to_run:     the preflight --confirmed true flip is the one consent moment (install + unlock
-                    the mutate/evaluate loop); never self-confirm because the task seemed detailed.
-score_is_second_signal: the engine's reported best score is a CLAIM; VERIFY re-runs the evaluator
-                    cold and reads the number itself (trust-but-verify on a scalar).
-engine_is_vendored: Eidolon never edits engine/asi-evolve/ during a run; the run lives entirely
-                    under .evolve_runs/ (gitignored) and only the distilled result enters the tree.
-deps_isolated:      engine deps live in the on-demand venv engine/.venv (numpy + pyyaml; faiss /
-                    sentence-transformers optional, graceful fallback); no LLM-API key; the skill
-                    stays pure Markdown + .mjs.
-fence_superseded:   evolve is the sanctioned home for the population-search / numeric-fitness
-                    machinery references/loop-suite.md's fence holds out of the DELIVERY loop
-                    (ADR docs/decisions/2026-06-16-fold-asi-evolve-evolve-mode.md).
-```

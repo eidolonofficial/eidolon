@@ -79,11 +79,10 @@ export function protectedKind(value, cwd = process.cwd(), root = cwd) {
   const absolute = resolvedOperand(value, cwd); if (!absolute) return null;
   const rel = relative(resolve(root), absolute).replace(/\\/g, '/');
   const lexical = posix.normalize(String(value).replace(/\\/g, '/'));
-  if (/^engine(?:\/|$)/i.test(rel)) return null;
   if (/(?:^|\/)hooks\/[^\s]*\.(?:mjs|cjs|ps1|sh|py)$/i.test(absolute.replace(/\\/g,'/'))) return 'hooks';
   const local = rel.startsWith('../') ? lexical : rel;
-  if (/^(?:\.git(?:\/|$)|\.(?:claude|codex)\/(?:settings(?:\.local)?\.json|hooks\.json|config\.toml|eidolon-manifest\.yaml|security-[^/]+)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.(?:claude|agents)\/skills\/eidolon(?:\/|$))/i.test(local)) return 'authority';
-  if (/^(?:hooks(?:\/|$)|references\/(?:persona-template\.md|persona-registry\.json|security-policy\.md))/i.test(local)) return 'hooks';
+  if (/^(?:\.git(?:\/|$)|\.claude\/(?:settings(?:\.local)?\.json|eidolon-manifest\.yaml|security-[^/]+)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.claude\/skills\/eidolon(?:\/|$))/i.test(local)) return 'authority';
+  if (/^(?:hooks(?:\/|$)|references\/(?:persona-template\.md|security-policy\.md))/i.test(local)) return 'hooks';
   if (/^(?:docs\/(?:fixes|insights|decisions)(?:\/|$)|DECISIONS?\.md$)/i.test(local)) return 'record';
   return null;
 }

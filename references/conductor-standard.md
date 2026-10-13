@@ -3,8 +3,8 @@
 The operating standard for the orchestrating session. The conductor is the single
 session that holds the baton across a whole delivery: it conducts, it does not cook.
 User-ordered 2026-06-12; field-proven on fraud-forensic-replay across the 2026-06-11/12
-swarm runs. Where it tightens scaling.md, expert-hiring.md, loop-suite.md, or
-process-doctrine.md, the named anti-pattern it replaces is called out at that line.
+swarm runs. Where it tightens expert-hiring.md or loop-suite.md, the named anti-pattern
+it replaces is called out at that line.
 
 ```yaml
 # why: the failure this standard exists to kill
@@ -64,7 +64,7 @@ parallel_spawn: all independent agents launch in ONE controller message; sequent
                 proven by the ffr-pipeline build-chain fan-out 2026-06-11)
 fan_out_size:   sized to coverage - the minimum that satisfies the swarm's coverage
                 manifest, never smaller
-# replaces SKILL.md:527 / scaling.md:14-15 "at small fan-out": breadth is not waste;
+# replaces the old "at small fan-out" wording: breadth is not waste;
 # token cost is not the constraint, correctness is - "small" anchored the default at the
 # minimum instead of at coverage sufficiency (see section 4)
 worktrees:      overlapping scopes get worktree isolation so two agents never write the
@@ -146,7 +146,7 @@ resolver:        host aliases such as opus/sonnet/haiku are availability-resolve
 ```
 
 ```yaml
-# the coverage budget - replaces scaling.md:23-35 "the cost ceiling" framing
+# the coverage budget - replaces the old "cost ceiling" framing
 # the audit named this cost-timidity: a ceiling framed only as a runaway-cost guard
 # incentivizes setting it LOW (to stay under) instead of coverage-sufficient
 budget_is_a_floor: the ceiling is a coverage floor stated as a budget - high enough to run
@@ -154,11 +154,11 @@ budget_is_a_floor: the ceiling is a coverage floor stated as a budget - high eno
                 correctness failure, not a cost saving
 on_approach:    when a run nears its ceiling, pause and state what coverage remains unverified;
                 the DEFAULT is to raise the ceiling to complete coverage
-                # replaces scaling.md:29-30 "raise the ceiling OR narrow scope" as co-equals
+                # replaces the old "raise the ceiling OR narrow scope" as co-equals
 narrowing:      narrowing scope is a user-approved correctness trade-off, stated explicitly as
                 "this coverage will not run" - never a neutral cost choice
 no_silent_cap:  a bounded run says what it dropped; a silent truncation reads as "covered
-                everything" when it did not (scaling.md no_silent_cap, kept)
+                everything" when it did not (no_silent_cap, kept)
 ```
 
 ## 5. Supervise by state
@@ -205,7 +205,7 @@ verify_by_exec: verification executes the thing and observes the result; reading
 ```
 
 ```yaml
-# the canonical proof - replaces the audit's process-staleness gap (no doctrine in process-doctrine.md)
+# the canonical proof - replaces the audit's process-staleness gap
 restart_banner: the staleness-banner drill was proven only by a REAL kill-and-restart watched
                 by a live browser tab with a screenshot - after two green commits (8af4669,
                 43400aa) and green unit tests had said NOTHING about the running world
@@ -263,18 +263,13 @@ how_asked:      surface findings and forks ONE at a time via AskUserQuestion, ea
 ask_first:      stop-and-confirm before commit/push, before changing canonical data, before
                 touching hook/guard infra, and before a long autonomous run
                 (ask-first-boundaries memory, all four lines user-set 2026-06-10)
-attestation_gate: before dispatching destructive or sensitive work (the security/trust-safety
+dispatch_gate:  before dispatching destructive or sensitive work (the security/trust-safety
                 swarm, a deploy, a migration, anything touching prod, PII, payments, or
-                credentials) with no valid signed security attestation in effect, the dispatch
-                ASKS the human (the consent tier, hooks/dispatch-attestation-guard.mjs). It rides
-                as a standalone PreToolUse hook on the dispatch-tool (Task) matcher, NOT on
-                guard-bash/guard-write (those match Bash/Write/Edit, never the dispatch tool). A
-                soft layer: it asks, it never blocks (references/security-awareness.md).
-evolve_gate:    before launching an evolve run, the preflight --confirmed true flip (evolve-brief)
-                ASKS the human (the consent tier, hooks/evolve-engine-guard.mjs): it unlocks the
-                vendored ASI-Evolve engine's mutate/evaluate loop on a real compute budget. One
-                confirm per run; the engine's reported best score is a CLAIM the conductor
-                re-verifies COLD (re-run the evaluator) before trusting (references/evolve-engine.md).
+                credentials), the dispatch ASKS the human (the consent tier,
+                hooks/guard-dispatch.mjs). It rides as a standalone PreToolUse hook on the
+                dispatch-tool (Agent|Task) matcher, NOT on guard-bash/guard-write (those match
+                Bash/Write/Edit, never the dispatch tool). It asks, it never blocks
+                (references/security-policy.md).
 ```
 
 ## 9. Resolve uncertainty by climbing the ladder

@@ -3,7 +3,7 @@ import {relative} from 'node:path';
 import {runHook,emitVerdict} from './lib.mjs';
 import {proposedFile,fileTarget} from './operation.mjs';
 import {manifestAt,handlerKeys,assertManagedWiring} from './policy-manifest.mjs';
-const SETTINGS=/(?:^|[\\/])\.(?:claude[\\/]settings(?:\.local)?|codex[\\/]hooks)\.json$/i;
+const SETTINGS=/(?:^|[\\/])\.claude[\\/]settings(?:\.local)?\.json$/i;
 function object(bytes){const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,''));if(!value||Array.isArray(value)||typeof value!=='object')throw Error('Settings must be an object');return value;}
 export function evalSettingsIntegrity(j){
   if(!['Write','Edit'].includes(j.tool_name))return null;

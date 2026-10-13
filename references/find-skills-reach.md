@@ -7,9 +7,8 @@ codebase, Eidolon invokes find-skills to discover an installable skill that fill
 the gap. So a codebase with an unusual need pulls the right tool instead of being
 served by an approximate one, and the loadout still does not become a junk drawer.
 
-This reach is the fallback after `references/skill-selection.md`: first route over
-the installed set using task intent, inspected repository signals, risk, scope and
-exclusions. Reach outside the installed set only when that pass returns a named gap.
+This reach is the fallback after routing over the installed set using task intent,
+inspected repository signals, risk, scope and exclusions. Reach outside the installed set only when that pass returns a named gap.
 
 ## When to reach
 
@@ -41,8 +40,7 @@ controller routes):
 
 ```
 discover -> a READ-ONLY scout searches, reads, and RETURNS candidates as evidence.
-            Claude may use the project skill-scout subagent; Codex may use an
-            equivalent read-only subagent/workflow when available. Installs nothing.
+            Claude may use the project skill-scout subagent. Installs nothing.
             Writes nothing.
 decide   -> the CONTROLLER surfaces ONE operator decision per gap with the
             candidate's name, source, license, verbatim frontmatter description,
@@ -54,9 +52,8 @@ install  -> the CONTROLLER executes only on an explicit yes, then VERIFIES befor
 
 This shape is mechanical, not stylistic: discovery cannot authorize its own
 side effect. If the current host has a native question/permission primitive, use
-it. Otherwise ask plainly in the main conversation and wait. Never invent a
-Claude-only tool name in Codex and never treat a subagent's recommendation as
-operator consent.
+it. Otherwise ask plainly in the main conversation and wait. Never treat a
+subagent's recommendation as operator consent.
 
 ## The consent gate (one gap at a time)
 
@@ -124,5 +121,5 @@ need, was consented to, and was verified.
 
 The find-skills reach and its rails are design spec section 16 ("Reaching beyond
 the installed set"); the per-expert retooling it feeds is the hire's step 3
-(`references/expert-hiring.md`). The current routing order and host freshness rules
-are `references/skill-selection.md` and `references/current-platform-contract.md`.
+(`references/expert-hiring.md`). The current host freshness rules
+are `references/current-platform-contract.md`.

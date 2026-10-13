@@ -2,7 +2,7 @@
 import {existsSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {confinedPath} from './codex-patch.mjs';
+import {confinedPath} from './confined-path.mjs';
 import {boundedRead} from './operation.mjs';
 export const MANIFEST = '.eidolon/policy-manifest.json';
 export function stable(value) {
@@ -21,7 +21,7 @@ export function manifestAt(root) {
   if(value.configurations.length>4||value.protectedPaths.length>128||value.protectedPaths.some(x=>typeof x!=='string'||!x))throw Error('Invalid policy inventory');
   const seen=new Set();
   for(const entry of value.configurations){
-    if(!entry||!['.claude/settings.json','.codex/hooks.json'].includes(entry.path)||seen.has(entry.path)||!Array.isArray(entry.handlers)||!entry.handlers.length||entry.handlers.length>128||!Array.isArray(entry.deny)||entry.deny.some(x=>typeof x!=='string'))throw Error('Invalid managed configuration');
+    if(!entry||entry.path!=='.claude/settings.json'||seen.has(entry.path)||!Array.isArray(entry.handlers)||!entry.handlers.length||entry.handlers.length>128||!Array.isArray(entry.deny)||entry.deny.some(x=>typeof x!=='string'))throw Error('Invalid managed configuration');
     seen.add(entry.path);
     for(const key of entry.handlers){
       if(typeof key!=='string'||key.length>32768)throw Error('Invalid handler key');
@@ -30,7 +30,6 @@ export function manifestAt(root) {
     }
   }
   if(value.workType!=null&&!['standard','infrastructure'].includes(value.workType))throw Error('Invalid work profile');
-  if(value.dispatchContext!=null&&!['required','legacy'].includes(value.dispatchContext))throw Error('Invalid dispatch profile');
   return value;
 }
 export function handlerKeys(config) {

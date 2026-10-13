@@ -25,7 +25,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import {confinedPath} from './codex-patch.mjs';
+import {confinedPath} from './confined-path.mjs';
 import {actorIdentity, actorPath, policyRoot, boundedRead} from "./operation.mjs";
 import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
 

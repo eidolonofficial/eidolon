@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,symlinkSync,realpathSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {confinedPath} from './codex-patch.mjs';
+import {confinedPath} from './confined-path.mjs';
 import {normalizeEvent,proposedFile,fileTarget} from './operation.mjs';
 test('an approved project root alias maps to canonical bytes without accepting interior symlinks',t=>{
  const base=mkdtempSync(join(tmpdir(),'eidolon-alias-'));t.after(()=>rmSync(base,{recursive:true,force:true}));

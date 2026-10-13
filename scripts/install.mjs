@@ -1,4 +1,4 @@
-// Dependency-free, byte-preserving installer for Claude Code and Codex.
+// Dependency-free, byte-preserving installer for Claude Code.
 // Dry-run unless --yes; replacing an existing skill also requires --replace.
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync,
   realpathSync, renameSync, rmSync, writeFileSync, openSync, closeSync, fsyncSync } from 'node:fs';
@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
-import { confinedPath } from '../hooks/codex-patch.mjs';
+import { confinedPath } from '../hooks/confined-path.mjs';
 import {MANIFEST, stable, handlerKeys} from '../hooks/policy-manifest.mjs';
 import {SHELL_TOOLS, DISPATCH_TOOLS} from '../hooks/operation.mjs';
 
@@ -14,11 +14,6 @@ const SOURCE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP = new Set(['.git', '.github', '.agents', '.claude', '.codex', '.eidolon', '.venv', '__pycache__', 'node_modules', '.ci-evidence']);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, null, 2) + '\n';
-const shQuote = value => "'" + value.replace(/'/g, "'\\''") + "'";
-function winQuote(value) {
-  if (/[\r\n"$`%!&|<>^]/.test(value)) throw Error('This Windows path contains unsupported shell characters');
-  return '"' + value + '"';
-}
 export function inventory(root, filtered = false) {
   const files = new Map();
   function walk(dir, rel = '') {
@@ -40,16 +35,10 @@ export function fingerprint(path) {
   return hash([...inventory(path)].map(([key, v]) => key + ':' + hash(v.bytes) + ':' + (v.mode & 0o111)).join('\n'));
 }
 const planSeals = new WeakMap();
-function bundle(source, host) {
+function bundle(source) {
   const files = inventory(source, true);
   if (!files.has('SKILL.md')) throw Error('Bundle has no SKILL.md');
-  if (host === 'claude' && files.has('references/claude-workflow.md')) files.set('SKILL.md', files.get('references/claude-workflow.md'));
-  if (host === 'codex') {
-    const adapter = files.get('codex/SKILL.md');
-    if (!adapter) throw Error('Bundle has no Codex skill adapter');
-    if (!files.has('references/claude-workflow.md')) files.set('references/claude-workflow.md', files.get('SKILL.md'));
-    files.set('SKILL.md', adapter);
-  }
+  if (files.has('references/claude-workflow.md')) files.set('SKILL.md', files.get('references/claude-workflow.md'));
   return files;
 }
 function readJson(path) {
@@ -75,83 +64,60 @@ function markedText(path, block) {
   return before + (before && !before.endsWith('\n') ? '\n' : '') + '\n' + block + '\n';
 }
 
-export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], host = 'codex', project, home = homedir(), wireHooks = !!project, workType = 'standard', replace = false, dispatchContext = 'required' } = {}) {
+export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], project, home = homedir(), wireHooks = !!project, workType = 'standard', replace = false } = {}) {
   if (Number(process.versions.node.split('.')[0]) < 22) throw Error('Node.js 22 or newer is required; nothing was installed');
-  if (!['claude', 'codex', 'both'].includes(host)) throw Error('host must be claude, codex or both');
-  if (!['standard','infrastructure'].includes(workType) || !['required','legacy'].includes(dispatchContext)) throw Error('Invalid work type');
+  if (!['standard','infrastructure'].includes(workType)) throw Error('Invalid work type');
   const root = realpathSync(resolve(project || home));
-  const hosts = host === 'both' ? ['claude', 'codex'] : [host];
   const items = [], configurations = [];
   const textItem = (path, text) => items.push({ path: confinedPath(root, root, path), text, merge: true });
-  for (const targetHost of hosts) {
-    const parent = targetHost === 'codex' ? '.agents/skills' : '.claude/skills';
-    for (const src of sources) {
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(src.name)) throw Error('Invalid skill name');
-      const path = confinedPath(root, root, parent + '/' + src.name);
-      items.push({ path, files: bundle(resolve(src.source), targetHost), merge: false });
-    }
-    if (!wireHooks) continue;
+  for (const src of sources) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(src.name)) throw Error('Invalid skill name');
+    const path = confinedPath(root, root, '.claude/skills/' + src.name);
+    items.push({ path, files: bundle(resolve(src.source)), merge: false });
+  }
+  if (wireHooks) {
     if (!project || !sources.some(s => s.name === 'eidolon')) throw Error('Project hook wiring requires an Eidolon bundle');
-    const runtime = join(root, parent, 'eidolon', 'hooks');
-    if (targetHost === 'codex') {
-      const path = join(root, '.codex', 'hooks.json');
-      const command = [process.execPath, join(runtime, 'codex-entry.mjs'), '--project', root].map(shQuote).join(' ');
-      // 'node' is unquoted so this works in both cmd.exe and PowerShell; Node must be on PATH.
-      const commandWindows = process.platform === 'win32' ? 'node ' + [join(runtime, 'codex-entry.mjs'), '--project', root].map(winQuote).join(' ') : undefined;
-      const handler = { type: 'command', command, commandWindows, timeout: 20, statusMessage: 'Eidolon policy checks' };
-      const groups = Object.fromEntries(['PreToolUse', 'PermissionRequest', 'PostToolUse', 'SessionStart', 'PreCompact'].map(event => [event, [{ hooks: [handler] }]]));
-      textItem(path, json(mergeGroups(readJson(path), groups)));
-      configurations.push({path:'.codex/hooks.json', handlers:[...handlerKeys({hooks:groups})], deny:[]});
-    } else {
-      const path = join(root, '.claude', 'settings.json');
-      const conf = readJson(path);
-      const group = (matcher, file) => ({ matcher, hooks: [{ type: 'command', command: process.execPath, args: [join(runtime, file), '--project', root], timeout: 20 }] });
-      const groups = {PreToolUse:[group(SHELL_TOOLS.join('|'),'guard-bash.mjs'),group('Write|Edit','guard-write.mjs'),group('.*advisor.*','advisor-guard.mjs'),group(DISPATCH_TOOLS.slice(0,2).join('|'),'guard-dispatch.mjs')],PostToolUse:[group('Write|Edit','post-tool-entry.mjs')]};
-      mergeGroups(conf, groups);
-      const floor = ['Bash(git push --force *)', 'Bash(git push * --force *)', 'Bash(git push -f *)', 'Bash(git push * -f *)', 'Bash(git config*core.hooksPath*)', 'Bash(git filter-branch *)', 'Bash(git filter-repo *)', 'Write(**/.claude/settings.local.json)', 'Edit(**/.claude/settings.local.json)'];
-      for (const tool of ['Write','Edit']) for (const target of ['**/.claude/skills/eidolon/**','**/.agents/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.eidolon/sessions/**','**/.claude/security-grader-public.pem']) floor.push(tool+'('+target+')');
-      for (const protectedPath of ['**/.claude/skills/eidolon/**','**/.agents/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.claude/security-grader-public.pem','**/.claude/eidolon-manifest.yaml']) for (const tool of ['Write','Edit']) floor.push(tool+'('+protectedPath+')');
-      conf.permissions ??= {}; conf.permissions.deny = [...new Set([...(conf.permissions.deny || []), ...floor])];
-      textItem(path, json(conf));
-      configurations.push({path:'.claude/settings.json',handlers:[...handlerKeys({hooks:groups})],deny:[...new Set(floor)]});
-    }
+    const runtime = join(root, '.claude/skills', 'eidolon', 'hooks');
+    const path = join(root, '.claude', 'settings.json');
+    const conf = readJson(path);
+    const group = (matcher, file) => ({ matcher, hooks: [{ type: 'command', command: process.execPath, args: [join(runtime, file), '--project', root], timeout: 20 }] });
+    const groups = {PreToolUse:[group(SHELL_TOOLS.join('|'),'guard-bash.mjs'),group('Write|Edit','guard-write.mjs'),group(DISPATCH_TOOLS.join('|'),'guard-dispatch.mjs')],PostToolUse:[group('Write|Edit','post-tool-entry.mjs')]};
+    mergeGroups(conf, groups);
+    const floor = ['Bash(git push --force *)', 'Bash(git push * --force *)', 'Bash(git push -f *)', 'Bash(git push * -f *)', 'Bash(git config*core.hooksPath*)', 'Bash(git filter-branch *)', 'Bash(git filter-repo *)', 'Write(**/.claude/settings.local.json)', 'Edit(**/.claude/settings.local.json)'];
+    for (const tool of ['Write','Edit']) for (const target of ['**/.claude/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.eidolon/sessions/**','**/.claude/security-grader-public.pem']) floor.push(tool+'('+target+')');
+    for (const protectedPath of ['**/.claude/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.claude/security-grader-public.pem','**/.claude/eidolon-manifest.yaml']) for (const tool of ['Write','Edit']) floor.push(tool+'('+protectedPath+')');
+    conf.permissions ??= {}; conf.permissions.deny = [...new Set([...(conf.permissions.deny || []), ...floor])];
+    textItem(path, json(conf));
+    configurations.push({path:'.claude/settings.json',handlers:[...handlerKeys({hooks:groups})],deny:[...new Set(floor)]});
   }
   if (project && wireHooks) {
     const previous=readJson(join(root,MANIFEST));
     const keep=Array.isArray(previous.configurations)?previous.configurations.filter(c=>!configurations.some(n=>n.path===c.path)):[];
-    textItem(join(root,MANIFEST),json({version:1,owner:'Eidolon',workType,dispatchContext,configurations:[...keep,...configurations],protectedPaths:['.claude/skills/eidolon','.agents/skills/eidolon',MANIFEST,'.claude/eidolon-manifest.yaml','.claude/security-grader-public.pem']}));
+    textItem(join(root,MANIFEST),json({version:1,owner:'Eidolon',workType,configurations:[...keep,...configurations],protectedPaths:['.claude/skills/eidolon',MANIFEST,'.claude/eidolon-manifest.yaml','.claude/security-grader-public.pem']}));
     const legacy=join(root,'.claude/eidolon-manifest.yaml');
     if (!existsSync(legacy)) textItem(legacy,'version: 1\npolicy_manifest: .eidolon/policy-manifest.json\n');
   }
   if (project) {
-    const guide = '## Eidolon\nRead the installed references/orchestration-contract.md, then Eidolon SKILL.md before repository work. Preserve human consent gates.\nCodex: .agents/skills/eidolon/SKILL.md. Claude: .claude/skills/eidolon/SKILL.md.\nRun tests and report observed evidence. Never bypass a denied hook.\nCodex ask-tier operations remain blocked for manual operator review; a chat yes is not a bypass.';
-    textItem(join(root, 'AGENTS.md'), markedText(join(root, 'AGENTS.md'), guide));
-    if (hosts.includes('claude')) {
-      const claudeGuide = [
-        '## Eidolon for Claude Code',
-        '',
-        'Autonomous execution, consent-gated side effects. Claude is the engineer.',
-        'Read .claude/skills/eidolon/SKILL.md for the native setup, build, and evolve workflow.',
-        'Read .claude/skills/eidolon/references/current-platform-contract.md before assuming host behavior.',
-        'Read .claude/skills/eidolon/references/orchestration-contract.md and .claude/skills/eidolon/references/persona-pipeline.md before dispatch.',
-        'Choose the smallest sufficient skill set using .claude/skills/eidolon/references/skill-selection.md; work directly when delegation adds no evidence.',
-        'Inspect the real project before changing it. Reuse answered questions and preserve existing instructions.',
-        'Name the outcome before starting. Run the check and observe the state change before calling it done.',
-        'Preview installation first. Apply only the exact approved plan; require separate replacement consent and retain backups.',
-        'Keep Claude native permission checks intact. Never bypass a denied hook or manufacture consent through another tool.',
-        'Keep controller and worker identity separate. A worker cannot clear state belonging to another actor or inherit controller authority.',
-        'Before evolve work, read .claude/skills/eidolon/references/evolve-engine.md and .claude/skills/eidolon/engine/SECURITY.md. Approval binds to the exact plan digest, evaluator, inputs, runtime, and budget.',
-        'Trusted-local execution is not an operating-system sandbox. Untrusted candidates require a disposable sandbox.',
-        'Optional models and memory services require separate approval; preserve automatic-install holds.',
-        'Write what broke to docs/fixes and what worked to docs/insights. Append or supersede history; retire only active guidance.',
-        'Report executed evidence separately from inspection, native-client observations, and unresolved uncertainty.',
-      ].join('\n');
-      textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), claudeGuide));
-    }
-    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies\n.eidolon/backups/\n.eidolon/sessions/\n.eidolon/tasks/\n.eidolon/engine-approvals/\n.evolve_runs/\n.eidolon/install.lock/\n.claude/.drift-count\n.claude/.session-state\n.claude/.orient-gate.*.json'));
+    const claudeGuide = [
+      '## Eidolon for Claude Code',
+      '',
+      'Autonomous execution, consent-gated side effects. Claude is the engineer.',
+      'Read .claude/skills/eidolon/SKILL.md for the native setup and build workflow.',
+      'Read .claude/skills/eidolon/references/current-platform-contract.md before assuming host behavior.',
+      'Inspect the real project before changing it. Reuse answered questions and preserve existing instructions.',
+      'Name the outcome before starting. Run the check and observe the state change before calling it done.',
+      'Preview installation first. Apply only the exact approved plan; require separate replacement consent and retain backups.',
+      'Keep Claude native permission checks intact. Never bypass a denied hook or manufacture consent through another tool.',
+      'Keep controller and worker identity separate. A worker cannot clear state belonging to another actor or inherit controller authority.',
+      'Optional models and memory services require separate approval; preserve automatic-install holds.',
+      'Write what broke to docs/fixes and what worked to docs/insights. Append or supersede history; retire only active guidance.',
+      'Report executed evidence separately from inspection, native-client observations, and unresolved uncertainty.',
+    ].join('\n');
+    textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), claudeGuide));
+    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies\n.eidolon/backups/\n.eidolon/sessions/\n.eidolon/tasks/\n.eidolon/install.lock/\n.claude/.drift-count\n.claude/.session-state\n.claude/.orient-gate.*.json'));
   }
   for (const item of items) item.original = fingerprint(item.path);
-  const plan = {version:1, root, items, host, workType, dispatchContext, replace,
+  const plan = {version:1, root, items, workType, replace,
     sourcePins:sources.map(src=>({name:src.name,path:realpathSync(resolve(src.source)),fingerprint:sourceFingerprint(src.source)}))};
   plan.digest=planDigest(plan); planSeals.set(plan,plan.digest); return plan;
 }
@@ -160,7 +126,7 @@ function sourceFingerprint(source) {
   return hash([...inventory(resolve(source),true)].map(([key,v])=>key+':'+hash(v.bytes)+':'+(v.mode&0o111)).join('\n'));
 }
 export function planDigest(plan) {
-  return hash(stable({version:plan.version,root:plan.root,sourcePins:plan.sourcePins,replace:plan.replace,host:plan.host,workType:plan.workType,dispatchContext:plan.dispatchContext,
+  return hash(stable({version:plan.version,root:plan.root,sourcePins:plan.sourcePins,replace:plan.replace,workType:plan.workType,
     items:plan.items.map(i=>({path:i.path,original:i.original,merge:i.merge,text:i.text,files:i.files?[...i.files].map(([name,f])=>[name,hash(f.bytes),f.mode]):null}))}));
 }
 function assertFresh(plan) {
@@ -255,14 +221,14 @@ export function install(options = {}) { const plan=planInstall(options); if(opti
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const args = process.argv.slice(2), allowed = new Set(['--host', '--project', '--home', '--yes', '--replace', '--help', '--work-type', '--dispatch-context', '--expect-plan']);
+    const args = process.argv.slice(2), allowed = new Set(['--project', '--home', '--yes', '--replace', '--help', '--work-type', '--expect-plan']);
     const options = { dryRun: true };
     for (let i = 0; i < args.length; i++) {
       const flag = args[i]; if (!allowed.has(flag)) throw Error('Unknown option');
-      if (flag === '--help') { console.log('node scripts/install.mjs --host codex|claude|both [--project PATH | --home PATH] [--yes] [--replace]\nDefault: preview only. Home installs skills only; project installs also wire hooks.'); process.exit(0); }
+      if (flag === '--help') { console.log('node scripts/install.mjs [--project PATH | --home PATH] [--yes] [--replace]\nDefault: preview only. Home installs skills only; project installs also wire hooks.'); process.exit(0); }
       if (flag === '--yes') options.dryRun = false;
       else if (flag === '--replace') options.replace = true;
-      else { const value = args[++i]; if (!value || value.startsWith('--')) throw Error('Missing option value'); options[flag==='--work-type'?'workType':flag==='--expect-plan'?'expectedPlan':flag==='--dispatch-context'?'dispatchContext':flag.slice(2)] = value; }
+      else { const value = args[++i]; if (!value || value.startsWith('--')) throw Error('Missing option value'); options[flag==='--work-type'?'workType':flag==='--expect-plan'?'expectedPlan':flag.slice(2)] = value; }
     }
     if (options.project && options.home) throw Error('Choose project or home, not both');
     console.log(json(install(options)));
