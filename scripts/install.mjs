@@ -190,6 +190,16 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
       'Report executed evidence separately from inspection, native-client observations, and unresolved uncertainty.',
     ].join('\n');
     textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), claudeGuide));
+    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies
+.eidolon/backups/
+.eidolon/sessions/
+.eidolon/tasks/
+.eidolon/install.lock/
+.claude/.drift-count
+.claude/.session-state
+.claude/.dispatch-log.jsonl
+.claude/.hook-debug.jsonl
+.claude/waves/'));
   }
   for (const item of items) item.original = fingerprint(item.path);
   const plan = {version:1, root, items, workType, replace,
