@@ -25,7 +25,9 @@ export function normalizeEvent(raw, project) {
   }
   return j;
 }
-export function policyRoot(j) { return resolve(j.eidolon_root || j.cwd || process.cwd()); }
+// The one canonical spelling of the root (normalizeEvent already stores it; an event built without it gets the same
+// treatment), so the root and every target compare equal under 8.3 aliases and symlinked temp directories.
+export function policyRoot(j) { return canonicalPath(resolve(j.eidolon_root || j.cwd || process.cwd())); }
 export function boundedRead(path, max = MAX_FILE_BYTES) {
   if (statSync(path).size > max) throw Error('File exceeds policy input limit');
   const bytes = readFileSync(path);

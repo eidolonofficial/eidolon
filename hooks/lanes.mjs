@@ -32,14 +32,21 @@ function laneOf(j) {
   return scope ? {type: j.agent_type, write: Array.isArray(scope.write) ? scope.write : []} : null;
 }
 
-// Scratch space a worker may write: the literal /tmp/ prefix and the OS temp directory (the $TMPDIR, $TEMP and $TMP
-// variables are never resolved, so the shell parser lets them through). A project that itself sits inside the OS temp
-// directory gets only the literal prefix, or its sibling directories would count as scratch.
+// Scratch space a worker may write: the OS temp directory, the literal /tmp/ prefix, and the $TMPDIR, $TEMP and $TMP
+// variable forms (never resolved, so the shell parser reports them as tempVariable facts). Every scratch root that
+// contains the project root is dropped, or the project's own siblings would count as scratch (on Linux the fixtures and
+// many real checkouts sit under /tmp); the variable forms go when the root sits inside either directory, since the
+// variable may name the directory that holds it.
 const lc = p => process.platform === 'win32' ? p.toLowerCase() : p;
+const holds = (dir, root) => (lc(canonicalPath(root)) + sep).startsWith(lc(canonicalPath(dir)) + sep);
+export function scratchPolicy(root, osTemp = tmpdir(), literal = '/tmp') {
+  const inOs = holds(osTemp, root), inLiteral = holds(literal, root);
+  return {osTemp: !inOs, literal: !inLiteral, variables: !inOs && !inLiteral};
+}
 function scratch(given, absolute, root) {
-  if (/^\/tmp\//.test(posix.normalize(String(given).replace(/\\/g, '/')))) return true;
-  const temp = lc(canonicalPath(tmpdir())) + sep, base = lc(canonicalPath(root)) + sep;
-  return !base.startsWith(temp) && lc(absolute).startsWith(temp);
+  const keep = scratchPolicy(root);
+  if (keep.literal && /^\/tmp\//.test(posix.normalize(String(given).replace(/\\/g, '/')))) return true;
+  return keep.osTemp && lc(absolute).startsWith(lc(canonicalPath(tmpdir())) + sep);
 }
 // A git command that rewrites the whole worktree or its index. No lane covers the whole tree.
 const TREE_REWRITE = /^(?:switch|merge|pull|rebase|am|cherry-pick|revert|read-tree|checkout-index)$/;
@@ -82,6 +89,7 @@ export const evalLane = tolerant(j => {
   const command = String(j.tool_input?.command || ''), cwd = j.cwd || root;
   for (const f of shellPathFacts(command, cwd, root, j.shell_language, true)) {
     // A link made in the lane must not point out of it: the lane would then write through it.
+    if (f.tempVariable) { if (scratchPolicy(root).variables || !['write', 'append', 'delete', 'link'].includes(f.op)) continue; return outsideRootVerdict; }
     const target = f.op === 'link' ? f.via ?? f.path : f.path;
     if (!target || !['write', 'append', 'delete', 'link'].includes(f.op)) continue;
     const rel = toRel(target);

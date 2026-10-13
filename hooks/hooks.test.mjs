@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, realpathSync} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -46,7 +46,7 @@ const asked = (r, label) => {
   assert.equal(out.hookSpecificOutput.permissionDecision, "ask");
   assert.match(out.hookSpecificOutput.permissionDecisionReason, new RegExp(label));
 };
-const tmp = () => mkdtempSync(join(tmpdir(), "eidolon-hooks-"));
+const tmp = () => realpathSync.native(mkdtempSync(join(tmpdir(), "eidolon-hooks-")));
 
 // ---------------------------------------------------------------- lib.mjs
 

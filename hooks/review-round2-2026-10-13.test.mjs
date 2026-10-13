@@ -5,17 +5,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync, linkSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync, linkSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {dirname, join} from 'node:path';
+import {dirname, isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {scratchPolicy} from './lanes.mjs';
 
 const HOOKS = dirname(fileURLToPath(import.meta.url));
 const WIN = process.platform === 'win32';
 const WORKER = {agent_id: 'w1', agent_type: 'builder'};
 
 function repo(t, {scopes = {builder: {read: ['**'], write: ['src/**']}}, wave = true} = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'eidolon-r2-'));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-r2-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   execFileSync('git', ['init', '-q'], {cwd: root});
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), {recursive: true}); writeFileSync(file, text); };
@@ -83,7 +84,7 @@ test('H20 a Write or Edit whose existing target has more than one hard link bloc
 
 test('H21 a home settings file spelled with an 8.3 short name is judged as the settings file', {skip: !WIN && 'Windows path semantics'}, t => {
   const {root} = repo(t);
-  const outside = mkdtempSync(join(tmpdir(), 'eidolon-home-'));
+  const outside = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-home-')));
   t.after(() => rmSync(outside, {recursive: true, force: true}));
   mkdirSync(join(outside, '.claude'));
   writeFileSync(join(outside, '.claude', 'settings.json'), '{}');
@@ -256,17 +257,40 @@ test('H33 a worker inline interpreter command is lane-checked on its trailing pa
   silent(sh(root, `node -e "require('fs').writeFileSync(process.argv[1],'x')" docs/y.md`), 'the controller has no lane');
 });
 
-test('H34 a worker may write under the OS temp directory, $TMPDIR, $TEMP, $TMP and the literal /tmp/ prefix', t => {
+// True when `path` is `dir` or sits under it, both in their real spelling.
+const canon = p => { try { return realpathSync.native(p); } catch { return resolve(p); } };
+const within = (dir, path) => { const r = relative(canon(dir), canon(path)); return r === '' || (r !== '..' && !r.startsWith('..' + sep) && !isAbsolute(r)); };
+
+test('H34 scratchPolicy drops every scratch root that contains the project root, and the variable forms with them', () => {
+  const base = canon(tmpdir()), os = join(base, 'fake-os-tmp'), lit = join(base, 'fake-literal-tmp');
+  const policy = root => scratchPolicy(root, os, lit);
+  assert.deepEqual(policy(join(base, 'proj')), {osTemp: true, literal: true, variables: true}, 'a project outside every scratch root keeps all three');
+  assert.deepEqual(policy(join(os, 'proj')), {osTemp: false, literal: true, variables: false}, 'inside the OS temp directory');
+  assert.deepEqual(policy(join(lit, 'proj')), {osTemp: true, literal: false, variables: false}, 'inside /tmp');
+  assert.deepEqual(policy(os), {osTemp: false, literal: true, variables: false}, 'the root is the temp directory itself');
+  assert.deepEqual(policy(join(base, 'fake-os-tmp-sibling')), {osTemp: true, literal: true, variables: true}, 'a sibling that shares a name prefix is not inside');
+});
+
+test('H34 a worker may write scratch under the OS temp directory, $TMPDIR, $TEMP, $TMP and the literal /tmp/ prefix, each unless the project root sits inside it', t => {
   const {root} = repo(t);
-  each(['npm test > /tmp/out.txt 2>&1', 'echo x > /tmp/a/b.txt', 'npm test > $TMPDIR/out.txt', 'echo x > ${TMPDIR}/out.txt', 'echo x > $TEMP/o', 'echo x > $TMP/o', 'd=$(mktemp -d)', 'npm test', "sed -i 's/a/b/' src/a.ts", "git add src && git commit -m 'feat: x'"],
-    c => silent(sh(root, c, WORKER), 'worker ' + c));
+  const literalOk = !within('/tmp', root), variablesOk = literalOk && !within(tmpdir(), root);
+  // The fixture lives under os.tmpdir(), which is /tmp on Linux: there neither the literal prefix nor the variables are scratch,
+  // or the "outside the root" paths of N7 and H15 (siblings under /tmp) would be exempt.
+  const verdict = (ok, r, c) => ok ? silent(r, 'worker ' + c) : blocked(r, 'WRITE LANE GUARD', 'worker ' + c);
+  each(['npm test > /tmp/out.txt 2>&1', 'echo x > /tmp/a/b.txt'], c => verdict(literalOk, sh(root, c, WORKER), c));
+  each(['npm test > $TMPDIR/out.txt', 'echo x > ${TMPDIR}/out.txt', 'echo x > $TEMP/o', 'echo x > $TMP/o'], c => verdict(variablesOk, sh(root, c, WORKER), c));
+  verdict(variablesOk, ps(root, 'Set-Content -Path $env:TEMP\\o.txt -Value x', WORKER), 'PowerShell $env:TEMP');
+  if (!literalOk) blocked(sh(root, 'npm test > /tmp/out.txt', WORKER), 'WRITE LANE GUARD', 'the fixture root sits inside /tmp, so /tmp is not scratch');
+  each(['d=$(mktemp -d)', 'npm test', "sed -i 's/a/b/' src/a.ts", "git add src && git commit -m 'feat: x'"], c => silent(sh(root, c, WORKER), 'worker ' + c));
   each(['echo x > /tmp/../etc/x', 'echo x > /var/x', 'echo x > ../y.md', 'echo x > docs/y.md'], c => blocked(sh(root, c, WORKER), 'WRITE LANE GUARD', 'worker ' + c));
-  silent(ps(root, 'Set-Content -Path $env:TEMP\\o.txt -Value x', WORKER), 'PowerShell $env:TEMP');
+  each(['npm test > /tmp/out.txt 2>&1', 'npm test > $TMPDIR/out.txt', 'echo x > ../y.md'], c => silent(sh(root, c), 'the controller has no lane: ' + c));
   // The OS temp directory itself: point it somewhere that does not contain the project root.
-  const temp = mkdtempSync(join(tmpdir(), 'eidolon-r2-os-'));
+  const temp = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-r2-os-')));
   t.after(() => rmSync(temp, {recursive: true, force: true}));
   const env = {...process.env, TEMP: temp, TMP: temp, TMPDIR: temp};
   const inTemp = join(temp, 'out.txt'), notTemp = join(root, '..', 'out.txt');
+  const hereVariablesOk = literalOk && !within(temp, root);
   silent(run(root, 'guard-bash.mjs', {tool_name: 'Bash', tool_input: {command: `echo x > "${inTemp}"`}, ...WORKER}, undefined, env), 'a write under os.tmpdir()');
   blocked(run(root, 'guard-bash.mjs', {tool_name: 'Bash', tool_input: {command: `echo x > "${notTemp}"`}, ...WORKER}, undefined, env), 'WRITE LANE GUARD', 'a write beside the project root');
+  verdict(hereVariablesOk, run(root, 'guard-bash.mjs', {tool_name: 'Bash', tool_input: {command: 'echo x > $TMPDIR/o'}, ...WORKER}, undefined, env), '$TMPDIR with the OS temp directory elsewhere');
 });

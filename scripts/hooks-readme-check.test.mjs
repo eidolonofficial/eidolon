@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import {cpSync, existsSync, mkdtempSync, readFileSync, rmSync, realpathSync} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,7 @@ const dropLine = (text, needle) => text.split("\n").filter((l) => !l.includes(ne
 const wiringOnly = { skip: !existsSync(join(root, ".claude", "settings.json")) && "no .claude/settings.json in this copy" };
 
 test("without .claude/settings.json (a bundle or an installed copy) the wiring part is skipped and the README still passes", (t) => {
-  const copy = mkdtempSync(join(tmpdir(), "readme-check-"));
+  const copy = realpathSync.native(mkdtempSync(join(tmpdir(), "readme-check-")));
   t.after(() => rmSync(copy, { recursive: true, force: true }));
   cpSync(join(root, "hooks"), join(copy, "hooks"), { recursive: true });
   assert.deepEqual(checkReadme(copy, readme), []);

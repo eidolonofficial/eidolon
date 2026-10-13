@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync, realpathSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
@@ -23,7 +23,7 @@ const WORKER = {agent_id: 'w1', agent_type: 'builder'};
 const DONE = 'Change src/a.ts.\nDone-check: node --test exits 0.';
 
 function repo(t, {scopes = SCOPES, wave = true} = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'eidolon-pipe-'));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-pipe-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   execFileSync('git', ['init', '-q'], {cwd: root});
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), {recursive: true}); writeFileSync(file, text); };
@@ -292,7 +292,7 @@ test('N7 the orient hooks do not claim an enforced gate', t => {
 
 test('N7 a Write outside the project root (a plan file, a scratchpad) gets no verdict', t => {
   const {root} = repo(t);
-  const outside = mkdtempSync(join(tmpdir(), 'eidolon-outside-'));
+  const outside = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-outside-')));
   t.after(() => rmSync(outside, {recursive: true, force: true}));
   const plan = join(outside, 'plan.md');
   silent(wr(root, plan), 'controller');

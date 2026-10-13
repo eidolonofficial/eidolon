@@ -583,7 +583,9 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
     const push = (value, op, {link, opaque, hard, nodest, parents} = {}) => {
       if (opaque) {facts.push({kind: 'opaque', op: null, verb, mutation: true, value: '', cwd: dir, opaque: step.opaque, reason: opaque}); return;}
       const v = cleanOperand(verb === 'dd' ? value.replace(/^(?:of|if)=/, '') : value);
-      if (!v || NULL_DEVICE.test(v) || TEMP_VARIABLE.test(String(value))) return;
+      if (!v || NULL_DEVICE.test(v)) return;
+      // With `all`, the lane check still sees a write to a temp variable: whether it is scratch depends on where the project sits.
+      if (TEMP_VARIABLE.test(String(value))) {if (all && op) facts.push({kind: 'path', op, verb, mutation: true, value, cwd: dir, opaque: step.opaque, tempVariable: true}); return;}
       if (op === 'extract') {
         // A destination that is the root or holds a protected location is asked about; so is an extraction with no destination.
         if (nodest || (protectedKind(v, dir, rootAbs, 'delete') && !protectedKind(v, dir, rootAbs))) facts.push({kind: 'opaque', op: null, verb, mutation: true, value, cwd: dir, opaque: step.opaque, reason: 'extraction can overwrite any path under its destination'});

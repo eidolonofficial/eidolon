@@ -1,12 +1,12 @@
 // Regression intent from the independent 2026-09-09 review. Shell payloads are data only.
 import test from 'node:test';import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,existsSync,rmSync,symlinkSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,existsSync,rmSync,symlinkSync, realpathSync} from 'node:fs';
 import {dirname,join,resolve} from 'node:path';import {tmpdir} from 'node:os';import {fileURLToPath} from 'node:url';import {spawnSync} from 'node:child_process';
 import {install,planInstall,applyPlan} from '../scripts/install.mjs';
 import {evalAppendOnlyRecord} from './append-only-record-guard.mjs';
 import {actorPath} from './operation.mjs';import {commitDrift,evalDrift} from './drift-guard.mjs';
 const ROOT=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-function fixture(t){const root=mkdtempSync(join(tmpdir(),'eidolon-review-fix-'));t.after(()=>rmSync(root,{recursive:true,force:true}));return root;}
+function fixture(t){const root=realpathSync.native(mkdtempSync(join(tmpdir(),'eidolon-review-fix-')));t.after(()=>rmSync(root,{recursive:true,force:true}));return root;}
 function put(root,path,text){const file=join(root,path);mkdirSync(dirname(file),{recursive:true});writeFileSync(file,text);return file;}
 function hook(root,script,event,runtime=join(ROOT,'hooks')){return spawnSync(process.execPath,[join(runtime,script),'--project',root],{cwd:root,encoding:'utf8',input:JSON.stringify({cwd:root,...event}),timeout:10000});}
 const write=(path,content)=>({tool_name:'Write',tool_input:{file_path:path,content}});

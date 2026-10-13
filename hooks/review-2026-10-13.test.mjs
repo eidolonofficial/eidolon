@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, existsSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, existsSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -16,7 +16,7 @@ const WIN = process.platform === 'win32';
 const WORKER = {agent_id: 'w1', agent_type: 'builder'};
 
 function repo(t, {scopes = {builder: {read: ['**'], write: ['src/**']}}, wave = true} = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'eidolon-rev-'));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-rev-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   execFileSync('git', ['init', '-q'], {cwd: root});
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), {recursive: true}); writeFileSync(file, text); };
@@ -261,7 +261,7 @@ test('H15 a worker cannot create, link or write outside its lane or the project 
 
 test('H16 a Write or Edit of any .claude/settings(.local).json runs settings-integrity, wherever it is', t => {
   const {root} = repo(t);
-  const outside = mkdtempSync(join(tmpdir(), 'eidolon-outside-'));
+  const outside = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-outside-')));
   t.after(() => rmSync(outside, {recursive: true, force: true}));
   mkdirSync(join(outside, '.claude'));
   const handler = {hooks: {PreToolUse: [{matcher: 'Bash', hooks: [{type: 'command', command: 'node', args: ['guard.mjs']}]}]}};

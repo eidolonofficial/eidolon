@@ -66,7 +66,7 @@ Unverified: the Node 22 check runs before any syntax that an older Node would re
 ## Proof of life
 
 ```sh
-node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 283 tests; exit 0 means none failed
+node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 285 tests; exit 0 means none failed
 node scripts/selfcheck.mjs                            # 67 PASS lines, then "selfcheck: PASS"
 node scripts/eidolon-audit.mjs                        # PASS: references resolve, personas pass the rail, wired hooks exist
 node scripts/hooks-readme-check.mjs                   # PASS: wiring, evaluator order and hook rows match the code

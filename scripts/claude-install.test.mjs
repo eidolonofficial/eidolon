@@ -9,7 +9,7 @@ import {install as installOnce, planInstall, applyPlan} from './install.mjs';
 const install = o => installOnce(o?.dryRun === false && !o.expectedPlan ? {...o, expectedPlan: planInstall(o).digest} : o);
 const temporary = t => {
   // Match the installer's canonical path for this fresh, test-owned directory.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'claude-native-')));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'claude-native-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   return root;
 };

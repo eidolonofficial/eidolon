@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, linkSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, linkSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -12,7 +12,7 @@ const HOOKS = dirname(fileURLToPath(import.meta.url));
 const WORKER = {agent_id: 'w1', agent_type: 'builder'};
 
 function repo(t, {scopes = {builder: {read: ['**'], write: ['src/**']}}} = {}) {
-  const root = mkdtempSync(join(tmpdir(), 'eidolon-r4-'));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-r4-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   execFileSync('git', ['init', '-q'], {cwd: root});
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), {recursive: true}); writeFileSync(file, text); };
@@ -82,7 +82,7 @@ test('R2 a shell -c body or an eval body is parsed one level, so a protected par
 
 test('R3 find -exec writes reach the roots that hold a protected path; a settings file anywhere gets the settings treatment in the shell', t => {
   const {root} = repo(t);
-  const home = mkdtempSync(join(tmpdir(), 'eidolon-r4-home-'));
+  const home = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-r4-home-')));
   t.after(() => rmSync(home, {recursive: true, force: true}));
   mkdirSync(join(home, '.claude'));
   writeFileSync(join(home, '.claude', 'settings.json'), '{}');

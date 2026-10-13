@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -13,7 +13,7 @@ const HOOKS = dirname(fileURLToPath(import.meta.url));
 const DONE = 'Change src/a.ts.\nDone-check: node --test exits 0.';
 
 function repo(t) {
-  const root = mkdtempSync(join(tmpdir(), 'eidolon-r3-'));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-r3-')));
   t.after(() => rmSync(root, {recursive: true, force: true}));
   execFileSync('git', ['init', '-q'], {cwd: root});
   const put = (path, text) => { const file = join(root, path); mkdirSync(dirname(file), {recursive: true}); writeFileSync(file, text); };

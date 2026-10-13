@@ -3,14 +3,12 @@ import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,rmSync,openSy
 import {dirname,relative} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {runHook,emitVerdict} from './lib.mjs';
-import {actorIdentity,actorPath,policyRoot,boundedRead,sha256,escapesRoot} from './operation.mjs';
-import {confinedPath} from './confined-path.mjs';
+import {actorIdentity,actorPath,policyRoot,boundedRead,sha256,escapesRoot,fileTarget} from './operation.mjs';
 import {manifestAt} from './policy-manifest.mjs';
 const WALL=10,WARN=6;
 const SCAFFOLD=/(^|[\\/])(hooks[\\/]|\.claude[\\/]|scripts[\\/]|\.github[\\/]|Dockerfile|Makefile|\.gitignore$|[^\\/]*\.(ya?ml|toml|ini|cfg)$|[^\\/]*\.config\.[jt]s$)/i;
 export function mutationPaths(j) {
-  const root=policyRoot(j),cwd=j.cwd||root,ti=j.tool_input||{};
-  if(['Write','Edit'].includes(j.tool_name))return escapesRoot(j)?[]:[confinedPath(root,cwd,ti.file_path??ti.path)];
+  if(['Write','Edit'].includes(j.tool_name))return escapesRoot(j)?[]:[fileTarget(j)];
   return [];
 }
 function state(j) {

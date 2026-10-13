@@ -11,7 +11,7 @@ import { install as installOnce, planInstall, applyPlan } from './install.mjs';
 const install = o => installOnce(o?.dryRun === false && !o.expectedPlan ? { ...o, expectedPlan: planInstall(o).digest } : o);
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(source, 'scripts/install.mjs');
-function tmp(t) { const p = realpathSync(mkdtempSync(join(tmpdir(), 'eidolon-install-'))); t.after(() => rmSync(p, { recursive: true, force: true })); return p; }
+function tmp(t) { const p = realpathSync.native(mkdtempSync(join(tmpdir(), 'eidolon-install-'))); t.after(() => rmSync(p, { recursive: true, force: true })); return p; }
 function put(root, path, content) { const p = join(root, path); mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, content); }
 const settings = root => JSON.parse(readFileSync(join(root, '.claude/settings.json')));
 test('dry-run makes no filesystem changes', t => {
