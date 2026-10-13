@@ -67,3 +67,10 @@ test('M3 the stop hook reads an Evidence line through markdown emphasis or a lis
   assert.match(stop('Done.', true).stdout, /additionalContext/, 'already sent back once, so it may stop');
   assert.deepEqual(readLog(root).filter(l => l.kind === 'outcome').map(l => l.evidence), [true, true, true, false, false]);
 });
+
+test('M4 a read-only command that names .git and sends stderr to /dev/null stays silent (seen in a live dry run at 1d99a0a)', t => {
+  const {root} = repo(t);
+  const sh = command => run(root, 'guard-bash.mjs', {tool_name: 'Bash', tool_input: {command}});
+  for (const command of ['find .claude .eidolon -type f -newer .git/HEAD 2>/dev/null', 'cat .git/HEAD 2>/dev/null', 'git log --oneline -3 -- hooks/ 2>/dev/null', 'test -f .claude/settings.json 2>/dev/null && echo yes'])
+    silent(sh(command), command);
+});
