@@ -163,6 +163,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about structure or findability states its cause and mechanism, names the falsifier, and cites the evidence collected (the link graph, a card sort, a task walk-through with its path).
+Falsifier example: "users find the policy page from the menu" is wrong if a walk-through of that task needs more clicks than stated or dead-ends.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

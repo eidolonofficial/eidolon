@@ -7,7 +7,7 @@ project: fraud-forensic-replay
 tool_scope: [Bash, Edit]
 source: authored
 authored: 2026-06-13
-session_evidence: persona-conduct-guard.mjs:36-55 (the route-around-hook and history-rewrite detectors scan the whole command string, including a -m / -F message body)
+session_evidence: hooks/persona-conduct-guard.mjs DETECTORS (the route-around-hook and history-rewrite detectors scan the whole command string, including a -m / -F message body)
 ---
 
 # harness-guard-verb-in-command

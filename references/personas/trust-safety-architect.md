@@ -194,6 +194,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every threat or control claim states its cause and mechanism, names the falsifier, and cites the evidence collected (the exploit path with file and line, a sandboxed proof of concept, the control's test).
+Falsifier example: "the endpoint rejects cross-tenant reads" is wrong if a request as tenant A for a tenant B record returns data.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

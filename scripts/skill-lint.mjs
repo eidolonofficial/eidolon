@@ -1,6 +1,6 @@
 // scripts/skill-lint.mjs
 //
-// Validates a self-authored skill file against references/skill-template.md. Enforces the
+// Validates a self-authored skill file against references/skill-authoring.md (section "The construction template"). Enforces the
 // skill-level anti-synthetic rail (no trigger / no eval / a secret -> rejected) the same way
 // scripts/persona-lint.mjs enforces "no anchor, no seat". Node built-ins only; read-only;
 // reports, never fixes.

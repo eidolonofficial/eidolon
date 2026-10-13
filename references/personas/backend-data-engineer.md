@@ -179,6 +179,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about data or a schema change states its cause and the mechanism, names the falsifier, and cites the evidence collected (query plan, row count, migration output).
+Falsifier example: "the backfill is safe" is wrong if a dry run on a copy shows a row count or checksum that differs from the source.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

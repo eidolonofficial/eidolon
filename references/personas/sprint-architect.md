@@ -170,6 +170,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about a plan or sequence states its cause and mechanism, names the falsifier, and cites the evidence collected (the dependency in the code, a measured size, a gate output).
+Falsifier example: "task B can run in parallel with A" is wrong if B reads a file A writes, found by grep of both write roots.
+A plan with a claim missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

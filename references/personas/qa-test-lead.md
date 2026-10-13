@@ -168,6 +168,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about test strength states its cause and mechanism, names the falsifier, and cites the evidence collected (the test name, its red run, its green run).
+Falsifier example: "this test guards the refund rule" is wrong if a mutant that breaks the rule leaves the test green.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

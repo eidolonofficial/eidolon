@@ -179,6 +179,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about UI behavior states its cause and mechanism, names the falsifier, and cites the evidence collected (component and line, a rendered state, a test run, a console message).
+Falsifier example: "the layout holds at narrow width" is wrong if the page rendered at that width shows overflow or a clipped control.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

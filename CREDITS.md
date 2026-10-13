@@ -11,11 +11,6 @@ Eidolon stands on open-source work by other people. Every project it builds on, 
 - **agent-engineer**, by Addy Osmani. Apache-2.0. https://github.com/addyosmani/agent-engineer
   A practical AI-agents engineering course; reference material.
 
-## Methodology
-
-- **ASI-Evolve**, by GAIR-NLP. Apache-2.0. https://github.com/GAIR-NLP/ASI-Evolve
-  The learn -> design -> experiment -> analyze cognition loop (arXiv 2603.29640). Its cognition-base and analyzer shape is ported into the delivery wave in references/loop-suite.md; no upstream code is vendored.
-
 ## Design patterns (reference)
 
 - **learning-jsdp**, by Addy Osmani. MIT. https://github.com/addyosmani/learning-jsdp

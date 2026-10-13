@@ -14,7 +14,7 @@
 // pre-computed god-nodes + hyperedges + build-commit. Read-only -- it never runs
 // `graphify update`; staleness is surfaced and the refresh is one named command, so
 // the hook stays fast and never races the post-commit sync. Additive, never blocks,
-// never crashes a session start (sibling of session-restore / process-doctrine).
+// never crashes a session start (sibling of session-restore / the conductor standard
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";

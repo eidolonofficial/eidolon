@@ -198,7 +198,7 @@ register, mandate, anchors (the rail, satisfied with consent), specific
 anti-behaviors, voice. Assemble against references/persona-template.md, lint
 with scripts/persona-lint.mjs (a FAIL re-prompts the anchors question, never
 seats), then ratify: [Seat it] [Edit] [Explain]. The full contract is
-references/primary-persona.md. Seating itself happens at Stage 10, so the
+references/persona-template.md (section "The primary persona"). Seating itself happens at Stage 10, so the
 guard enforces from the first message of the next session.
 
 #### Stage 3 - CLAUDE.md
@@ -243,7 +243,7 @@ skill emits a repeating artifact.
 
 For a skill Eidolon authors for ITSELF from a recurring, PROVEN gap (not generated
 once for the target, not discovered externally), use the gated authoring flow: build
-it against `references/skill-template.md`, lint it with `scripts/skill-lint.mjs` (the
+it against `references/skill-authoring.md (section "The construction template")`, lint it with `scripts/skill-lint.mjs` (the
 rail: no trigger, no eval, no skill), independent-test-gate its evals, then consent +
 install. Doctrine: `references/skill-authoring.md`; maker:
 `references/personas/skill-author.md`; worked example: `references/example-skill/SKILL.md`.
@@ -553,7 +553,7 @@ explain_mode:    references/explain-mode.md - plain-language teaching, comprehen
 personas:        references/persona-template.md - the ten-part construction template, the
                  two anti-behavior layers, the anti-synthetic rail. references/personas/*.md
                  are the built personas (slice 1 ships the full-stack engineer).
-primary_persona: references/primary-persona.md - Stage 2.5: the user's own house agent,
+primary_persona: references/persona-template.md (section "The primary persona") - Stage 2.5: the user's own house agent,
                  interviewed into existence from recon + five ratified questions, assembled
                  against the template, linted by the same rail (a FAIL re-prompts, never
                  seats), and seated at Stage 10 (.claude/active-persona.json) so the conduct
@@ -572,7 +572,7 @@ architect_synthesis: references/architect-synthesis.md - ingests every swarm's f
 ship_upload_swarm: references/review-swarms.md - the deploy-readiness interview (reuses
                  Interview Mode) and the SHIP stage; the seeded missing-env-var / staged-secret
                  fire drill; no deploy on a red gate; the user is the final eyes.
-expert_hiring:   references/expert-hiring.md - when recon finds a need the base roster does not
+expert_hiring:   references/find-skills-reach.md (section "Hiring an expert persona") - when recon finds a need the base roster does not
                  cover, generate a grounded expert against the template, gated at PLAN; the
                  anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire.
 find_skills:     references/find-skills-reach.md - pull an installable skill for a named
@@ -582,7 +582,7 @@ find_skills:     references/find-skills-reach.md - pull an installable skill for
                  AskUserQuestion gate and the install (a subagent cannot pause the human).
 skill_authoring: references/skill-authoring.md - Eidolon authors a skill for ITSELF from a
                  recurring PROVEN gap (the skill analog of expert-hiring): build against
-                 references/skill-template.md, lint with scripts/skill-lint.mjs (the rail:
+                 references/skill-authoring.md (section "The construction template"), lint with scripts/skill-lint.mjs (the rail:
                  no trigger, no eval, no skill), independent test-gate the evals, human
                  consent + install, then govern the library. Distilled-from-success only;
                  one-shot speculation is worse than nothing (EvolveTool-Bench).

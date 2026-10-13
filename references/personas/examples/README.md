@@ -1,7 +1,7 @@
 # Example hired experts
 
 These are NOT base-roster members. They demonstrate per-persona generation
-(references/expert-hiring.md): an expert generated at runtime to fit a hypothetical
+(references/find-skills-reach.md (section "Hiring an expert persona")): an expert generated at runtime to fit a hypothetical
 codebase need, drafted to the same depth as a hand-built persona by the
 construction template, anchored to real named standards, and passing the
 anti-synthetic rail (scripts/persona-lint.mjs).

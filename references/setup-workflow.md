@@ -34,6 +34,10 @@ Repo: <name> · <N> files
 
 Skip and count sensitive files (`.env`, keys, secrets) - never print their names.
 
+When recon leaves a gap only the person can fill, ask through references/interview.md (the shared
+question bank and brain dump). For anything the setup must leave running on its own, read
+references/autopilot-guide.md.
+
 #### Stage 2 - Plan
 
 Synthesize the tailored 10-stage plan for THIS repo. Mark each artifact
@@ -56,8 +60,10 @@ register, mandate, anchors (the rail, satisfied with consent), specific
 anti-behaviors, voice. Assemble against references/persona-template.md, lint
 with scripts/persona-lint.mjs (a FAIL re-prompts the anchors question, never
 seats), then ratify: [Seat it] [Edit] [Explain]. The full contract is the
-primary-persona section of references/persona-template.md. Seating itself happens at Stage 10, so the
-guard enforces from the first message of the next session.
+`## The primary persona` section of references/persona-template.md. Ask through references/interview.md
+(the shared question bank and brain dump); for anything that must run on its own, see
+references/autopilot-guide.md. Seating itself happens at Stage 10, so the guard enforces from the
+first message of the next session.
 
 #### Stage 3 - CLAUDE.md
 
@@ -103,6 +109,14 @@ For each capability the repo needs, generate
 `.claude/commands/<name>.md`. Add `references/*-template.md` only when the
 skill emits a repeating artifact.
 
+```yaml
+# why: a skill that triggers on everything loads on nothing useful; a map lets Claude pick without guessing
+skill_map:     the generated CLAUDE.md gets a short task-to-skill table (the skill map), one row
+               per generated skill: the task in the person's words, the skill that handles it
+descriptions:  keep each skill description narrow: one capability, the trigger phrases, and what
+               it does not cover
+```
+
 For a skill Eidolon authors for ITSELF from a recurring, PROVEN gap (not generated
 once for the target, not discovered externally), use the gated authoring flow: build
 it against the construction template in `references/skill-authoring.md`, lint it with `scripts/skill-lint.mjs` (the
@@ -129,11 +143,34 @@ install  -> on the explicit yes, the controller installs (marketplace add +
 
 #### Stage 5 - Subagents
 
-Generate `.claude/agents/<name>.md` - scoped, each with its own context window
-and trigger. Default set: a `verifier` (runs the second-signal funnel), a
-`reviewer` (security/quality pass), and the standing `skill-scout` (copy
-references/agents/skill-scout.md into `.claude/agents/`, so later gaps reuse
-the same discover/decide/install path). Add stack-specific agents as detected.
+Generate `.claude/agents/<persona>.md` for each roster persona the repo needs. Each agent file:
+
+```yaml
+# why: an agent file is a persona with a least-privilege tool list and a model tier, so a worker
+#      can do the job and nothing else
+frontmatter:
+  name:         the persona id
+  description:  when to delegate to it (the trigger, not the biography)
+  tools:        least privilege. Reviewers get Read, Grep, Glob, Bash. Builders add Edit, Write.
+                Nobody gets Agent.
+  model:        from the tier table in references/conductor-standard.md section 4
+  effort:       from the same table
+  maxTurns:     a bounded turn count for the role
+body:           the persona's register, mandate, anchors, anti-behaviors, `## Reasoning` and
+                `## Brief contract` (references/persona-template.md)
+lint:           node scripts/persona-lint.mjs --agent .claude/agents/<persona>.md   # each file, must PASS
+```
+
+Also write `.claude/agent-scopes.json`, which the write guards enforce per worker:
+
+```json
+{ "<agent-name>": { "read": ["<root>"], "write": ["<root>"] } }
+```
+
+Reviewers get an empty `write` list. Keep the standing `skill-scout` (copy
+references/agents/skill-scout.md into `.claude/agents/`, so later gaps reuse the same
+discover/decide/install path) and the `verifier` (runs the second-signal funnel). Add
+stack-specific agents as detected.
 
 #### Stage 6 - Hooks (governance gates, BOTH layers)
 
@@ -186,6 +223,17 @@ entry, and (when in scope) the `Agent|Task` dispatch-gate entry. Verdict tiers c
 with the copied lib.mjs: advisory injects `additionalContext`; ask emits
 `permissionDecision "ask"` (the consent tier); hard block exits `2`. The copied
 hooks/README.md table is the per-guard trigger/enforcement reference.
+
+```yaml
+# why: the installer wires the whole set in one pass so no guard is left unwired; the generator never rewrites it
+hook_groups:   six: PreToolUse Bash|PowerShell, PreToolUse Write|Edit, PreToolUse Agent|Task,
+               PostToolUse Write|Edit, SubagentStart, SubagentStop
+deny_floor:    the Layer A deny list above, with PowerShell mirrors of each Bash rule
+settings:      env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1"
+               effortLevel: "xhigh"
+               maxEffortLevel: "max"
+canon_copy:    the generator copies the canonical hook sources verbatim (the fidelity rule above)
+```
 
 ```
 Checkpoint: compare the concrete action with authorization already granted; ask only for a new material scope or consent boundary.

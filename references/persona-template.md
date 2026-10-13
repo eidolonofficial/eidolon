@@ -76,7 +76,7 @@ crossed.
 ## The persona file format
 
 A persona is one file under `references/personas/<name>.md`, with the ten parts
-as labeled sections. The two anti-behavior layers are explicit: the shared floor
+as labeled sections, plus a required `## Reasoning` section (below). The two anti-behavior layers are explicit: the shared floor
 is included verbatim (so the guard can match it identically across all personas),
 and the persona-specific layer is a named list. A machine-readable block at the
 top carries the fields the conduct guard reads.
@@ -101,7 +101,7 @@ loadout from the registries, gates the hire at the plan checkpoint for
 higher-risk work, and records it in the coverage manifest (who, against which
 standard) and the decision log (which signal produced it). The generation rail is
 the anti-synthetic rule above, enforced by scripts/persona-lint.mjs. The full
-hire flow is references/expert-hiring.md; worked example hires live under
+hire flow is references/find-skills-reach.md (section "Hiring an expert persona"); worked example hires live under
 references/personas/examples/.
 
 ## The engineering disposition (every persona also carries this)
@@ -145,9 +145,160 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every persona file carries a `## Reasoning` section, and the conductor is bound by it too.
+
+```yaml
+# why: a claim without its cause, its falsifier and its evidence cannot be checked or reproduced
+contract:  every claim the persona makes states its cause and mechanism, names the
+           falsifier that would show it wrong, and cites the evidence actually
+           collected (file and line, command and output, or observed state)
+missing:   a report missing any link of that chain is incomplete and says which link
+bound:     the conductor, hired experts and generated agent files carry the same section
+shape:     two to four lines, stated once, with one falsifier example for the role; a
+           QA lead's falsifier is a surviving mutant, a trust-safety architect's is a
+           cross-tenant read that succeeds
+```
+
+Example of the chain for a QA lead:
+
+```yaml
+claim:      the refund-cap test guards the cap
+cause:      the test sends an over-cap refund and asserts the 422, so removing the cap check fails it
+falsifier:  a mutant that deletes the cap check leaves the test green
+evidence:   mutation run, 1 mutant on payments/refund.py:88, test_refund_cap red; output pasted
+```
+
+## Brief contract
+
+```yaml
+# why: a worker is only as good as the brief it starts from; the contract fixes what goes in and what comes back
+receives:
+  goal:         the outcome, one sentence
+  persona:      the seated persona id and its anchors
+  scope:        files or write root
+  exclusions:   what the worker must not touch
+  done_check:   the command or observation that proves the goal
+  budget:       turns or tokens it may spend
+  model_effort: tier and effort for this leg (model tiers: conductor-standard.md section 4)
+  prior:        a bounded retrieval, 3 to 5 hits at most
+returns:
+  summary:       1 to 2K tokens, result first
+  evidence:      file and line, command and output, or observed state
+  state_changed: paths written or removed
+  not_done:      what it did not do and why
+  central_claim: cause, falsifier, evidence for the one claim the report rests on
+```
+
+The model tiers are owned by references/conductor-standard.md section 4; a brief cites
+them and never restates them.
+
+## The primary persona
+
+The house persona: the user's own day-to-day agent for this codebase, interviewed at
+Stage 2.5, ratified by the user, and seated at Stage 10. It is the recursion of the
+review roster: built from this template, linted by scripts/persona-lint.mjs, and
+enforced by hooks/persona-conduct-guard.mjs, so the user does not get an ungrounded
+"vibes" agent. The rail forbids it the same way it forbids a finding with no
+detection branch.
+
+### When it runs
+
+Stage 2.5, between plan approval (CHECKPOINT 1) and CLAUDE.md (Stage 3), so the
+persona exists before the files that reference it. Setup's Interview Mode
+discipline applies: one question at a time, reflect back what was heard, never
+fill in a vague answer alone. The shared question bank is references/interview.md.
+
+### The interview (one AskUserQuestion round, proposed from recon)
+
+Recon (Stage 1) already detected the stack, so Eidolon proposes and the user
+ratifies. Adapt the anchor and anti-behavior options to what recon actually
+found; the shapes below are the contract, not a script to read verbatim.
+
+```
+Q1 (single-select) - register (reuse Setup's familiarity calibration):
+  "How familiar are you with this codebase's stack?"
+  [ New to it ] [ Some familiarity ] [ Comfortable, I work in it ] [ Expert ]
+
+Q2 (single-select) - mandate:
+  "What is your agent mainly on the hook for here?"
+  [ Ship features safely ] [ Harden + review existing code ]
+  [ Migrate / refactor ] [ Explore + prototype ]
+
+Q3 (multi-select) - anchors (THIS is the rail, satisfied with consent):
+  "I detected <stack from recon>. Which standards should your agent hold the
+   code to?"
+  [ <stack-matched standard 1> ] [ <stack-matched standard 2> ]
+  [ <stack-matched standard 3> ] [ All of these ] [ Let me name another ]
+  # e.g. a Python data pipeline + FastAPI proposes: PEP 8 + type checking,
+  # ACID + expand-contract migrations, OWASP ASVS at the API boundary
+
+Q4 (multi-select) - specific anti-behaviors (the blast-radius guardrail):
+  "What should your agent never do on this codebase?"
+  [ Run a migration with no rollback ] [ Commit a secret ]
+  [ Touch prod config ] [ Ship a stub as done ] [ Let me add one ]
+
+Q5 (single-select) - voice:
+  "How should it talk to you?"
+  [ Terse + technical ] [ Plain + explains as it goes ] [ Warm + collaborative ]
+```
+
+### Assemble, lint, ratify, seat
+
+```
+assemble -> references/personas/<project>-primary.md, from the ten-part template:
+            mandate from Q2; anchors from Q3; the shared destructive floor
+            VERBATIM (so the guard matches it identically) plus the specific
+            layer from Q4; voice from Q5; register from Q1 shapes the
+            swarm_and_voice section; an evidence contract is REQUIRED (the
+            rail is anchor AND evidence contract); a Reasoning section is REQUIRED
+lint     -> node scripts/persona-lint.mjs references/personas/<project>-primary.md
+            # must PASS before anything else happens
+ratify   -> AskUserQuestion: "Here is the persona your agent will embody:
+            <plain-language summary>."  [ Seat it ] [ Edit ] [ Explain ]
+            # Explain routes through Explain Mode at the Q1 register
+seat     -> write .claude/active-persona.json (persona id, title, anchors, both
+            anti-behavior layers), so the conduct guard enforces from message 1
+surface  -> the SessionStart orientation set re-surfaces the seat EVERY pass: seat-surface
+            puts the persona (identity + anchors + enforced lines) in context from message 1;
+            codebase-memory-orient (or graphify-orient, its automatic fallback) +
+            mempalace-orient surface the code graph and prose memory.
+            Seat ONCE (Stage 10); surface + enforce + orient EVERY session. A seated-but-
+            invisible, un-oriented session (seat written, never read, graph + memory
+            never opened) is the exact gap this set closes.
+```
+
+### The rail, satisfied with consent (the load-bearing rule)
+
+Q3 is where grounding lives. If the user picks "Let me name another" and offers
+something that is not a real framework or standard, persona-lint fails and
+Eidolon does NOT seat an ungrounded persona: it returns to Q3 and proposes
+grounded options from the detected stack. The user's own house agent cannot
+escape the grounding standard. That is the same rule applied to the user, which
+is what "built by the same Eidolon framework" actually means.
+
+```yaml
+no_anchor_no_seat:  anchors: [] never reaches .claude/active-persona.json; the
+                    interview re-prompts instead of seating
+floor_verbatim:     the shared destructive floor is included word-for-word from
+                    this file, never paraphrased
+consent_to_ground:  the anchors are RATIFIED by the user, not imposed; recon
+                    proposes, the human picks
+```
+
+### Fire drill
+
+Feed the assembler an answer set with no anchors selected. persona-lint must
+reject it ("no framework anchor") and the interview must re-prompt for anchors
+rather than seat. An ungrounded primary persona reaching
+.claude/active-persona.json is the exact failure the rail exists to prevent;
+the seat-time gate (persona-conduct-guard, "no anchor, no seat") is the last
+line if the first two miss.
+
 ## Where this is grounded
 
 The ten parts, the two anti-behavior layers, the anti-synthetic rail, hiring, and
-the oversight layer come from design spec section 19. The conduct guard that
+the oversight layer come from design spec section 19. The primary persona's interview discipline is Setup's Interview Mode. The conduct guard that
 enforces the anti-behaviors is section 11. The retooled loadout draws on the
 swarm skill loadout in section 16.

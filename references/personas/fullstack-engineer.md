@@ -141,6 +141,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about a feature across layers states its cause and mechanism, names the falsifier, and cites the evidence collected (file and line, a request and response, a test run).
+Falsifier example: "the form saves" is wrong if a real request through the running stack leaves the stored row unchanged on read-back.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

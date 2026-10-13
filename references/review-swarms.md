@@ -7,6 +7,29 @@ that deploys (SHIP). The security swarm keeps its own doc
 every swarm's findings (references/architect-synthesis.md). Each section below
 preserves that swarm's roster, contract, hardening pattern, and fire drill.
 
+## The lens verdict (security, trust and safety, code review, ship and upload)
+
+```yaml
+# why: a lens that reports prose can be read as clean; a score, a pass or fail, and evidence cannot
+lenses:     [security (references/security-swarm.md), trust_safety, code_review, ship_upload]
+verdict:
+  score:    0 to 1, the share of the lens's coverage manifest checked with evidence
+  result:   pass | fail
+  evidence: file:line, command output, or the failing element, per finding and per clean claim
+rule:       a lens fails on any blocker in its "What blocks closeout" list, whatever its score;
+            the score measures coverage, never a pass threshold
+fire_drills:
+  security:     a planted vulnerability caught at the right file:line (security-swarm.md)
+  trust_safety: a seeded PII-in-logs line and an unlabeled input caught
+  code_review:  a planted behavior change trips a suite failure
+  ship_upload:  a seeded missing env var or staged secret blocks the ship gate
+```
+
+- Run the lens's fire drill before its real pass; a miss halts that lens.
+- Return the verdict as the first block of the lens report, ahead of the findings.
+- Treat a lens with no fire drill, no manifest, or no evidence as fail, not as clean.
+- Route every verdict and finding to the architect disposition (references/architect-synthesis.md).
+
 ## Engineering swarm
 
 The swarm that builds, so BUILD is a disciplined crew instead of a generic stage.
@@ -44,7 +67,7 @@ fire_drill:          a seeded failing test must actually fail before implementat
                      planted test passes against an empty implementation, the test does not
                      guard behavior and test-first is not proven; the run halts.
 closeout_gate:       no task closes without its acceptance test green AND confirmed red-first;
-                     a stub, a TODO, or a NotImplementedError blocks closeout (a hook enforces it)
+                     a stub, a TODO, or a NotImplementedError blocks closeout (the conductor checks it by state)
 ```
 
 ### The seeded-failing-test fire drill (how test-first is proven)
@@ -89,8 +112,8 @@ A task that hits any of these is reopened, not counted. The persona-conduct guar
 ### Where it sits in the pipeline
 
 BUILD dispatches this swarm. Each task runs test-first against the spec; the
-swarm hands its per-task red-then-green evidence forward to REVIEW (the security
-swarm in v1, more swarms in later v2 steps) and then to the cold-context VERIFY.
+swarm hands its per-task red-then-green evidence forward to REVIEW (the security,
+trust-and-safety, and code-review swarms) and then to the cold-context VERIFY.
 The engineering swarm never reviews its own work as the final signal; that is what
 the cold verifier and the review swarms are for.
 
@@ -246,7 +269,7 @@ coverage_manifest:   the categories run, what each found, what was confirmed cle
 fire_drill:          a seeded PII-in-logs line and an unlabeled input must be caught
                      before the real pass; a miss halts the run
 closeout_gate:       the trust-and-safety manifest is required; a high-severity harm
-                     or PII finding blocks (a hook enforces it)
+                     or PII finding blocks (the conductor checks it by state)
 ```
 
 ### Evidence contract (per category)

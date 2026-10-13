@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync, realpathSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync, realpathSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {install, planInstall, applyPlan} from './install.mjs';
@@ -55,4 +56,38 @@ test('a human edit after Claude preview invalidates the plan without overwriting
   assert.throws(() => applyPlan(plan, {dryRun: false}), /changed/);
   assert.equal(readFileSync(path, 'utf8'), 'Human revision after preview\n');
   assert.equal(existsSync(join(root, '.claude/skills/eidolon')), false);
+});
+test('I4 dry run returns exact text for merged files and a unified diff for settings', t => {
+  const root = temporary(t);
+  writeFileSync(join(root, 'CLAUDE.md'), 'My rules.\n');
+  const result = install({project: root});
+  assert.equal(result.dryRun, true);
+  const by = name => result.previews.find(p => p.path === join(root, name));
+  const plan = planInstall({project: root});
+  for (const name of ['CLAUDE.md', '.gitignore', '.eidolon/policy-manifest.json', '.claude/eidolon-manifest.yaml']) {
+    assert.equal(by(name).text, plan.items.find(i => i.path === join(root, name)).text, name);
+  }
+  assert.match(by('CLAUDE.md').text, /^My rules\.\n[\s\S]*## Eidolon for Claude Code[\s\S]*Claude is the engineer\./);
+  const diff = by('.claude/settings.json').diff;
+  assert.match(diff, /^--- \/dev\/null$/m); assert.match(diff, /^\+\+\+ b\/\.claude\/settings\.json$/m);
+  assert.match(diff, /^@@ -0,0 \+1,\d+ @@$/m); assert.match(diff, /^\+ +"command": "node",$/m);
+  assert.equal(by('.claude/settings.json').text, undefined);
+  assert.deepEqual(readdirSync(root), ['CLAUDE.md']);
+});
+test('I4 the settings diff shows removed and kept lines against an existing file', t => {
+  const root = temporary(t);
+  mkdirSync(join(root, '.claude'));
+  writeFileSync(join(root, '.claude/settings.json'), '{\n  "custom": 1\n}\n');
+  const diff = install({project: root}).previews.find(p => p.path === join(root, '.claude/settings.json')).diff;
+  assert.match(diff, /^--- a\/\.claude\/settings\.json$/m); assert.match(diff, /^ \{$/m);
+  assert.match(diff, /^-  "custom": 1$/m); assert.match(diff, /^\+  "custom": 1,$/m);
+});
+test('I4 the CLI preview prints the text under each path', t => {
+  const root = temporary(t);
+  const out = spawnSync(process.execPath, [join(import.meta.dirname, 'install.mjs'), '--project', root], {encoding: 'utf8'});
+  assert.equal(out.status, 0, out.stderr);
+  const claude = out.stdout.indexOf(join(root, 'CLAUDE.md'));
+  assert.ok(claude >= 0 && out.stdout.indexOf('## Eidolon for Claude Code', claude) > claude);
+  assert.match(out.stdout, /^ +\| \+\+\+ b\/\.claude\/settings\.json$/m);
+  assert.deepEqual(readdirSync(root), []);
 });

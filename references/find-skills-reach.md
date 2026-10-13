@@ -77,12 +77,11 @@ install:
   claude_plugin: use the current Claude Code plugin/skill installation flow when
                  that is the candidate's supported distribution
   claude_skill:  copy/install into .claude/skills/<name>/ when project-scoped
-  codex_skill:   copy/install into .agents/skills/<name>/ when project-scoped
   scope:         project by default for codebase-specific skills so the behavior
                  travels with the repository; user/global scope requires a reason
   activation:    do not assume a restart. Verify that the current host discovers
-                 the installed skill. Restart only when the actual host/version or
-                 integration specifically requires it.
+                 the installed skill; skills change without a restart
+                 (references/current-platform-contract.md).
 verify:   frontmatter parses; the skill is discoverable; run a narrow smoke/eval
           before any finding from it is trusted (the two-signal rule applies too)
 record:   credit the target repo's CREDITS.md with the license named, and add a
@@ -117,9 +116,35 @@ So the loadout is assembled per task and per expert. It can pull in the right to
 for an unusual need without becoming a junk drawer: every entry serves a named
 need, was consented to, and was verified.
 
+## Hiring an expert persona
+
+The base roster is the standing team. When recon finds a gap no roster persona anchors, Eidolon
+hires an expert: it generates a persona at runtime to the construction template
+(references/persona-template.md), at the same depth as a hand-built one.
+
+```yaml
+# why: a persona carries authority, so a hire needs a real gap, a grounded anchor, and a human yes
+trigger:   a named gap: a domain, framework, data sensitivity, or regulatory surface no roster
+           persona anchors (a PCI-DSS payments surface, a PHI clinical surface, an adversarial-ML
+           surface); never a hire to look thorough
+rail:      scripts/persona-lint.mjs validates the generated persona before it is seated: persona,
+           title, swarm, at least one anchor, an evidence contract, and the two anti-behavior
+           layers. No anchor and no evidence contract, no seat; a hire that fails is rejected,
+           not patched in
+gate:      the hire is gated at the plan checkpoint at EVERY tier; the user approves or declines
+record:    the hire goes in the coverage manifest (who, against which standard) and the decision
+           log (which detection signal produced it)
+retool:    the expert's skill loadout comes from the installed registry first; reach beyond it
+           with find-skills only for a named gap (the sections above)
+```
+
+- Hire the moment recon names a gap; the rail filters, the conductor does not pre-self-censor.
+- Bound the hire from its first action: the shared destructive floor plus domain anti-behaviors, enforced by hooks/persona-conduct-guard.mjs.
+- The two worked examples under `references/personas/examples/` show what a generated expert looks like.
+
 ## Where this is grounded
 
-The find-skills reach and its rails are design spec section 16 ("Reaching beyond
-the installed set"); the per-expert retooling it feeds is the hire's step 3
-(`references/expert-hiring.md`). The current host freshness rules
-are `references/current-platform-contract.md`.
+The find-skills reach and its rails are design spec section 16 ("Reaching beyond the installed
+set"); hiring, the anti-synthetic rail, and drift-catching are design spec section 19. The
+rail is enforced by `scripts/persona-lint.mjs`. The current host freshness rules are
+`references/current-platform-contract.md`.

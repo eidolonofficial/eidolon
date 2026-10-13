@@ -212,6 +212,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about patient data or clinical logic states its cause and mechanism, names the falsifier, and cites the evidence collected (hazard-log entry, test output, a synthetic-record trace).
+Falsifier example: "no PHI reaches the log" is wrong if a synthetic patient record sent through the path appears in the log output.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

@@ -2,7 +2,7 @@
 // Dry-run unless --yes; replacing an existing skill also requires --replace.
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync,
   realpathSync, renameSync, rmSync, writeFileSync, openSync, closeSync, fsyncSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
@@ -11,7 +11,8 @@ import {MANIFEST, stable, handlerKeys} from '../hooks/policy-manifest.mjs';
 import {SHELL_TOOLS, DISPATCH_TOOLS} from '../hooks/operation.mjs';
 
 const SOURCE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SKIP = new Set(['.git', '.github', '.agents', '.claude', '.codex', '.eidolon', '.venv', '__pycache__', 'node_modules', '.ci-evidence']);
+const SKIP = new Set(['.git', '.github', '.claude', '.eidolon', '.venv', '__pycache__', 'node_modules', '.ci-evidence']);
+const PROJECT_DIR = '${CLAUDE_PROJECT_DIR}';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, null, 2) + '\n';
 export function inventory(root, filtered = false) {
@@ -38,8 +39,64 @@ const planSeals = new WeakMap();
 function bundle(source) {
   const files = inventory(source, true);
   if (!files.has('SKILL.md')) throw Error('Bundle has no SKILL.md');
-  if (files.has('references/claude-workflow.md')) files.set('SKILL.md', files.get('references/claude-workflow.md'));
   return files;
+}
+// Verify every bundled file against a vendor lock: {sources:{name:commit}, files:{'name/rel/path':sha256}}.
+function verifyLock(lockPath, sources) {
+  let lock;
+  try { lock = JSON.parse(readFileSync(resolve(lockPath), 'utf8').replace(/^\uFEFF/, '')); }
+  catch (e) { throw Error('Cannot read lock file ' + lockPath + ': ' + e.message); }
+  if (!lock || typeof lock.files !== 'object' || !lock.files || typeof lock.sources !== 'object' || !lock.sources) throw Error('Invalid lock file ' + lockPath + ': expected sources and files objects');
+  for (const { name, source } of sources) {
+    if (!Object.hasOwn(lock.sources, name)) throw Error('Lock file does not cover source ' + name);
+    const actual = inventory(resolve(source), true);
+    for (const [rel, file] of actual) {
+      const key = name + '/' + rel;
+      if (!Object.hasOwn(lock.files, key)) throw Error('Source file is not in the lock: ' + key);
+      if (hash(file.bytes) !== lock.files[key]) throw Error('Source file does not match the lock: ' + key);
+    }
+    for (const key of Object.keys(lock.files)) if (key.startsWith(name + '/') && !actual.has(key.slice(name.length + 1))) throw Error('Locked source file is missing: ' + key);
+  }
+}
+// Minimal unified diff (LCS, 3 lines of context); inputs are small configuration files.
+function unifiedDiff(before, after, name) {
+  const split = s => { if (!s) return []; const l = s.split('\n'); if (l.at(-1) === '') l.pop(); return l; };
+  const a = split(before), b = split(after), n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const ops = []; let i = 0, j = 0;
+  while (i < n || j < m) {
+    if (i < n && j < m && a[i] === b[j]) { ops.push([' ', a[i]]); i++; j++; }
+    else if (i < n && (j === m || dp[i + 1][j] >= dp[i][j + 1])) ops.push(['-', a[i++]]);
+    else ops.push(['+', b[j++]]);
+  }
+  const changes = ops.flatMap((o, p) => o[0] === ' ' ? [] : [p]);
+  if (!changes.length) return '';
+  const CONTEXT = 3, groups = []; let [start, end] = [changes[0], changes[0]];
+  for (const p of changes.slice(1)) { if (p - end <= 2 * CONTEXT + 1) end = p; else { groups.push([start, end]); start = end = p; } }
+  groups.push([start, end]);
+  const aBefore = [0], bBefore = [0];
+  for (const [kind] of ops) { aBefore.push(aBefore.at(-1) + (kind === '+' ? 0 : 1)); bBefore.push(bBefore.at(-1) + (kind === '-' ? 0 : 1)); }
+  const out = ['--- ' + (before ? 'a/' + name : '/dev/null'), '+++ b/' + name];
+  for (const [s, e] of groups) {
+    const lo = Math.max(0, s - CONTEXT), hi = Math.min(ops.length - 1, e + CONTEXT), slice = ops.slice(lo, hi + 1);
+    const aCount = slice.filter(o => o[0] !== '+').length, bCount = slice.filter(o => o[0] !== '-').length;
+    out.push('@@ -' + (aCount ? aBefore[lo] + 1 : aBefore[lo]) + ',' + aCount + ' +' + (bCount ? bBefore[lo] + 1 : bBefore[lo]) + ',' + bCount + ' @@');
+    for (const [kind, line] of slice) out.push(kind + line);
+  }
+  return out.join('\n') + '\n';
+}
+// Create a directory tree and report the topmost directory this call made, so a failed run can undo it.
+function mkdirTracked(dir, created) {
+  let top = null;
+  for (let d = resolve(dir); !existsSync(d); d = dirname(d)) top = d;
+  mkdirSync(dir, { recursive: true });
+  if (top) created.push(top);
+}
+function pruneEmpty(dir) {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) { const child = join(dir, name); if (lstatSync(child).isDirectory()) pruneEmpty(child); }
+  if (!readdirSync(dir).length) rmSync(dir, { recursive: true });
 }
 function readJson(path) {
   if (!existsSync(path)) return {};
@@ -47,14 +104,26 @@ function readJson(path) {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw Error('Configuration must be an object');
   return value;
 }
+// A handler is Eidolon-owned when any token of its command or args is one of our hook files.
+const OWNED_HOOKS = new Set(['guard-bash.mjs', 'guard-write.mjs', 'guard-dispatch.mjs', 'post-tool-entry.mjs', 'subagent-start.mjs', 'subagent-stop.mjs']);
+const isOwned = h => !!h && [h.command, ...(Array.isArray(h.args) ? h.args : [])].some(s =>
+  typeof s === 'string' && s.split(/\s+/).some(tok => OWNED_HOOKS.has(basename(tok.replace(/["']/g, '').replaceAll('\\', '/')))));
+// Owned handlers are dropped and the fresh groups take the place of the first dropped group; foreign groups never move.
 function mergeGroups(config, groups) {
   config.hooks ??= {};
   if (Array.isArray(config.hooks) || typeof config.hooks !== 'object') throw Error('Invalid existing hooks');
   for (const [event, additions] of Object.entries(groups)) {
     const prior = config.hooks[event] ?? [];
     if (!Array.isArray(prior)) throw Error('Invalid existing hook groups');
-    const keys = new Set(prior.map(x => JSON.stringify(x)));
-    config.hooks[event] = [...prior, ...additions.filter(x => !keys.has(JSON.stringify(x)))];
+    const kept = []; let at = -1;
+    for (const group of prior) {
+      if (!Array.isArray(group?.hooks) || !group.hooks.some(isOwned)) { kept.push(group); continue; }
+      if (at < 0) at = kept.length;
+      const foreign = group.hooks.filter(h => !isOwned(h));
+      if (foreign.length) kept.push({ ...group, hooks: foreign });
+    }
+    kept.splice(at < 0 ? kept.length : at, 0, ...additions);
+    config.hooks[event] = kept;
   }
   return config;
 }
@@ -64,10 +133,17 @@ function markedText(path, block) {
   return before + (before && !before.endsWith('\n') ? '\n' : '') + '\n' + block + '\n';
 }
 
-export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], project, home = homedir(), wireHooks = !!project, workType = 'standard', replace = false } = {}) {
+export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], project, home = homedir(), wireHooks = !!project, workType = 'standard', replace = false, lock } = {}) {
   if (Number(process.versions.node.split('.')[0]) < 22) throw Error('Node.js 22 or newer is required; nothing was installed');
   if (!['standard','infrastructure'].includes(workType)) throw Error('Invalid work type');
   const root = realpathSync(resolve(project || home));
+  if (project) {
+    // Hooks wired at the home directory would apply to every project on the machine.
+    const same = (a, b) => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+    let userHome = null; try { userHome = realpathSync(homedir()); } catch {}
+    if (userHome && same(root, userHome)) throw Error('Refusing to install into the home directory; choose a project directory (use --home to install user skills)');
+  }
+  if (lock) verifyLock(lock, sources);
   const items = [], configurations = [];
   const textItem = (path, text) => items.push({ path: confinedPath(root, root, path), text, merge: true });
   for (const src of sources) {
@@ -77,15 +153,15 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
   }
   if (wireHooks) {
     if (!project || !sources.some(s => s.name === 'eidolon')) throw Error('Project hook wiring requires an Eidolon bundle');
-    const runtime = join(root, '.claude/skills', 'eidolon', 'hooks');
     const path = join(root, '.claude', 'settings.json');
     const conf = readJson(path);
-    const group = (matcher, file) => ({ matcher, hooks: [{ type: 'command', command: process.execPath, args: [join(runtime, file), '--project', root], timeout: 20 }] });
+    const group = (matcher, file) => ({ matcher, hooks: [{ type: 'command', command: 'node', args: [PROJECT_DIR + '/.claude/skills/eidolon/hooks/' + file, '--project', PROJECT_DIR], timeout: 20 }] });
     const groups = {PreToolUse:[group(SHELL_TOOLS.join('|'),'guard-bash.mjs'),group('Write|Edit','guard-write.mjs'),group(DISPATCH_TOOLS.join('|'),'guard-dispatch.mjs')],PostToolUse:[group('Write|Edit','post-tool-entry.mjs')]};
     mergeGroups(conf, groups);
-    const floor = ['Bash(git push --force *)', 'Bash(git push * --force *)', 'Bash(git push -f *)', 'Bash(git push * -f *)', 'Bash(git config*core.hooksPath*)', 'Bash(git filter-branch *)', 'Bash(git filter-repo *)', 'Write(**/.claude/settings.local.json)', 'Edit(**/.claude/settings.local.json)'];
-    for (const tool of ['Write','Edit']) for (const target of ['**/.claude/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.eidolon/sessions/**','**/.claude/security-grader-public.pem']) floor.push(tool+'('+target+')');
-    for (const protectedPath of ['**/.claude/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.claude/security-grader-public.pem','**/.claude/eidolon-manifest.yaml']) for (const tool of ['Write','Edit']) floor.push(tool+'('+protectedPath+')');
+    conf.env = { ...conf.env, CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: '1' }; conf.effortLevel = 'xhigh'; conf.maxEffortLevel = 'max';
+    const gitRules = ['git push --force *', 'git push * --force *', 'git push -f *', 'git push * -f *', 'git config*core.hooksPath*', 'git filter-branch *', 'git filter-repo *'];
+    const floor = [...gitRules.flatMap(r => ['Bash(' + r + ')', 'PowerShell(' + r + ')']), 'Write(**/.claude/settings.local.json)', 'Edit(**/.claude/settings.local.json)'];
+    for (const tool of ['Write','Edit']) for (const target of ['**/.claude/skills/eidolon/**','**/.eidolon/policy-manifest.json','**/.eidolon/sessions/**','**/.claude/eidolon-manifest.yaml']) floor.push(tool+'('+target+')');
     conf.permissions ??= {}; conf.permissions.deny = [...new Set([...(conf.permissions.deny || []), ...floor])];
     textItem(path, json(conf));
     configurations.push({path:'.claude/settings.json',handlers:[...handlerKeys({hooks:groups})],deny:[...new Set(floor)]});
@@ -93,7 +169,7 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
   if (project && wireHooks) {
     const previous=readJson(join(root,MANIFEST));
     const keep=Array.isArray(previous.configurations)?previous.configurations.filter(c=>!configurations.some(n=>n.path===c.path)):[];
-    textItem(join(root,MANIFEST),json({version:1,owner:'Eidolon',workType,configurations:[...keep,...configurations],protectedPaths:['.claude/skills/eidolon',MANIFEST,'.claude/eidolon-manifest.yaml','.claude/security-grader-public.pem']}));
+    textItem(join(root,MANIFEST),json({version:1,owner:'Eidolon',workType,configurations:[...keep,...configurations],protectedPaths:['.claude/skills/eidolon',MANIFEST,'.claude/eidolon-manifest.yaml']}));
     const legacy=join(root,'.claude/eidolon-manifest.yaml');
     if (!existsSync(legacy)) textItem(legacy,'version: 1\npolicy_manifest: .eidolon/policy-manifest.json\n');
   }
@@ -148,24 +224,24 @@ function durableJson(path,value) {
     }
   } finally {if(existsSync(stage))rmSync(stage);}
 }
-export function applyPlan(plan, {dryRun=true,replace=false,beforeCommit}={}) {
+export function applyPlan(plan, {dryRun=true,replace=false,beforeCommit,afterRename}={}) {
   const {root,items}=plan;
   assertFresh(plan);
   for(const item of items) if(!item.merge&&existsSync(item.path)&&(!replace||!plan.replace)) throw Error('Skill already exists; review it and use --replace to back it up before replacement');
-  if(dryRun)return {dryRun:true,paths:items.map(i=>i.path),backups:null,planDigest:plan.digest};
-  const id=randomUUID(),prepared=[],changed=[];
+  if(dryRun)return {dryRun:true,paths:items.map(i=>i.path),backups:null,planDigest:plan.digest,previews:previewsOf(plan)};
+  const id=randomUUID(),prepared=[],changed=[],created=[];
   const backups=confinedPath(root,root,'.eidolon/backups/'+id), lock=confinedPath(root,root,'.eidolon/install.lock');
-  mkdirSync(dirname(lock),{recursive:true});
-  try {mkdirSync(lock);} catch {throw Error('Another installation or an interrupted transaction holds .eidolon/install.lock. Inspect its owner and journal before recovery; nothing was replaced.');}
+  mkdirTracked(dirname(lock),created);
+  try {mkdirSync(lock);} catch {for(const dir of created)pruneEmpty(dir);throw Error('Another installation or an interrupted transaction holds .eidolon/install.lock. Inspect its owner and journal before recovery; nothing was replaced.');}
   durableJson(join(lock,'owner.json'),{pid:process.pid,planDigest:plan.digest,backups});
-  let retainLock=false;
+  let retainLock=false,failed=false;
   const journal={version:1,planDigest:plan.digest,root,phase:'staging',changes:[]};
-  const persist=()=>{mkdirSync(backups,{recursive:true});durableJson(join(backups,'journal.json'),journal);};
+  const persist=()=>{mkdirTracked(backups,created);durableJson(join(backups,'journal.json'),journal);};
   try {
     assertFresh(plan);
     for(let i=0;i<items.length;i++) {
       const item=items[i],stage=item.path+'.eidolon-stage-'+id;
-      mkdirSync(dirname(stage),{recursive:true});
+      mkdirTracked(dirname(stage),created);
       const record={...item,stage,backup:join(backups,String(i)),phase:'staged'};prepared.push(record);
       if(item.files) {
         mkdirSync(stage);
@@ -187,15 +263,16 @@ export function applyPlan(plan, {dryRun=true,replace=false,beforeCommit}={}) {
       if(fingerprint(item.path)!==item.original)throw Error('Destination changed during installation');
       if(item.original===item.installed){rmSync(item.stage,{recursive:true,force:true});journal.changes[i].phase='unchanged';persist();continue;}
       changed.push(item);journal.changes[i].phase='before-backup';persist();
-      if(item.original!==null){renameSync(item.path,item.backup);item.phase='backed-up';}
+      if(item.original!==null){renameSync(item.path,item.backup);item.phase='backed-up';afterRename?.({index:i,path:item.path,step:'backup'});}
       journal.changes[i].phase='before-install';persist();
-      renameSync(item.stage,item.path);item.phase='installed';journal.changes[i].phase='installed';persist();
+      renameSync(item.stage,item.path);item.phase='installed';journal.changes[i].phase='installed';persist();afterRename?.({index:i,path:item.path,step:'install'});
     }
+    if(!changed.length){rmSync(backups,{recursive:true,force:true});return {dryRun:false,changed:0,paths:items.map(i=>i.path),backups:null,planDigest:plan.digest};}
     journal.phase='complete';persist();
     durableJson(join(backups,'receipt.json'),{createdAt:new Date().toISOString(),planDigest:plan.digest,changes:changed.map(x=>({path:x.path,backup:x.original===null?null:x.backup,installedSha256:x.installed}))});
     return {dryRun:false,changed:changed.length,paths:items.map(i=>i.path),backups,planDigest:plan.digest};
   } catch(error) {
-    const failures=[];
+    failed=true;const failures=[];
     for(const item of [...changed].reverse()) {
       try {
         const now=fingerprint(item.path);
@@ -215,22 +292,43 @@ export function applyPlan(plan, {dryRun=true,replace=false,beforeCommit}={}) {
   } finally {
     for(const item of prepared)if(existsSync(item.stage))rmSync(item.stage,{recursive:true,force:true});
     if(!retainLock)rmSync(lock,{recursive:true});
+    if(failed)for(const dir of created)pruneEmpty(dir);
   }
+}
+function previewsOf(plan) {
+  const out = [];
+  for (const item of plan.items) {
+    if (item.files) continue;
+    const current = existsSync(item.path) ? readFileSync(item.path, 'utf8') : null;
+    if (current === item.text) continue;
+    const rel = relative(plan.root, item.path).replaceAll(sep, '/');
+    out.push(rel === '.claude/settings.json' ? { path: item.path, diff: unifiedDiff(current, item.text, rel) } : { path: item.path, text: item.text });
+  }
+  return out;
 }
 export function install(options = {}) { const plan=planInstall(options); if(options.expectedPlan&&options.expectedPlan!==plan.digest)throw Error('Installation plan changed; review a new preview'); return applyPlan(plan, options); }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const args = process.argv.slice(2), allowed = new Set(['--project', '--home', '--yes', '--replace', '--help', '--work-type', '--expect-plan']);
+    const args = process.argv.slice(2), allowed = new Set(['--project', '--home', '--yes', '--replace', '--help', '--work-type', '--expect-plan', '--lock']);
     const options = { dryRun: true };
     for (let i = 0; i < args.length; i++) {
       const flag = args[i]; if (!allowed.has(flag)) throw Error('Unknown option');
-      if (flag === '--help') { console.log('node scripts/install.mjs [--project PATH | --home PATH] [--yes] [--replace]\nDefault: preview only. Home installs skills only; project installs also wire hooks.'); process.exit(0); }
+      if (flag === '--help') { console.log('node scripts/install.mjs [--project PATH | --home PATH] [--yes] [--replace] [--lock vendor-lock.json]\nDefault: preview only. Home installs skills only; project installs also wire hooks.'); process.exit(0); }
       if (flag === '--yes') options.dryRun = false;
       else if (flag === '--replace') options.replace = true;
       else { const value = args[++i]; if (!value || value.startsWith('--')) throw Error('Missing option value'); options[flag==='--work-type'?'workType':flag==='--expect-plan'?'expectedPlan':flag.slice(2)] = value; }
     }
     if (options.project && options.home) throw Error('Choose project or home, not both');
-    console.log(json(install(options)));
+    const result = install(options);
+    if (!result.dryRun) console.log(json(result));
+    else {
+      console.log('EIDOLON INSTALL PREVIEW (nothing written)\nplan: ' + result.planDigest + '\n');
+      for (const path of result.paths) {
+        console.log(path);
+        const preview = result.previews.find(p => p.path === path);
+        if (preview) console.log((preview.diff ?? preview.text).trimEnd().split('\n').map(l => '    | ' + l).join('\n'));
+      }
+    }
   } catch (e) { console.error('EIDOLON INSTALL: ' + e.message); process.exitCode = 1; }
 }

@@ -54,7 +54,7 @@ what makes a separate-session read possible.
 PLAN graduates this run to cross-session
   -> orchestrator runs verify-packet.mjs (assemble diff + spec + rubric + manifest)
   -> spawn a fresh session given ONLY the packet path, no conversation context
-     (a headless run, or a worktree-isolated agent)
+     (a headless `claude -p` run, or a worktree-isolated agent)
   -> the cold session re-derives PASS or red from the packet and writes the verdict
   -> orchestrator reads the verdict; red under three tries -> bounded FIX loop
 ```

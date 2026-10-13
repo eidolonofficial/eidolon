@@ -89,8 +89,8 @@ blue:
 
 ## The five anti-handwave gates
 
-The security pass cannot reach closeout unless all five hold. A hook enforces the
-last one, so the gate is a machine, not a promise.
+The security pass cannot reach closeout unless all five hold. The conductor judges the
+last one from the manifest and findings on disk, by state, never from the swarm's report.
 
 1. **Coverage manifest.** Emit every WSTG category and every ASVS chapter the pass
    ran, what each found, what it confirmed clean, and what it did not run and why.
@@ -104,9 +104,9 @@ last one, so the gate is a machine, not a promise.
 4. **Independent post-fix verify.** Every blue fix re-runs the red detection and the
    ASVS check on a signal independent of the one that made it. A cosmetic fix that
    renames the matched variable must still fail; a fix that does not pass is reopened.
-5. **Closeout hook.** The commit is blocked unless the manifest exists, the fire
-   drill passed, every finding carries evidence, and every fix passed post-fix
-   verify.
+5. **Closeout check.** The conductor does not close or commit unless the manifest
+   exists, the fire drill passed, every finding carries evidence, and every fix passed
+   post-fix verify; each is read from disk.
 
 ## How red and blue close a finding
 

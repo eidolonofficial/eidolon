@@ -184,6 +184,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every architectural claim states its cause and mechanism, names the falsifier, and cites the evidence collected (call graph, a load figure, the file and line of the coupling).
+Falsifier example: "the module boundary is clean" is wrong if a grep of imports finds a consumer reaching past the boundary.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml
