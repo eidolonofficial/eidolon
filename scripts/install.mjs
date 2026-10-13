@@ -156,7 +156,7 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
     const path = join(root, '.claude', 'settings.json');
     const conf = readJson(path);
     const group = (matcher, file) => ({ matcher, hooks: [{ type: 'command', command: 'node', args: [PROJECT_DIR + '/.claude/skills/eidolon/hooks/' + file, '--project', PROJECT_DIR], timeout: 20 }] });
-    const groups = {PreToolUse:[group(SHELL_TOOLS.join('|'),'guard-bash.mjs'),group('Write|Edit','guard-write.mjs'),group(DISPATCH_TOOLS.join('|'),'guard-dispatch.mjs')],PostToolUse:[group('Write|Edit','post-tool-entry.mjs')]};
+    const groups = {PreToolUse:[group(SHELL_TOOLS.join('|'),'guard-bash.mjs'),group('Write|Edit','guard-write.mjs'),group(DISPATCH_TOOLS.join('|'),'guard-dispatch.mjs')],PostToolUse:[group('Write|Edit','post-tool-entry.mjs')],SubagentStart:[group('','subagent-start.mjs')],SubagentStop:[group('','subagent-stop.mjs')]};
     mergeGroups(conf, groups);
     conf.env = { ...conf.env, CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: '1' }; conf.effortLevel = 'xhigh'; conf.maxEffortLevel = 'max';
     const gitRules = ['git push --force *', 'git push * --force *', 'git push -f *', 'git push * -f *', 'git config*core.hooksPath*', 'git filter-branch *', 'git filter-repo *'];
@@ -190,7 +190,6 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
       'Report executed evidence separately from inspection, native-client observations, and unresolved uncertainty.',
     ].join('\n');
     textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), claudeGuide));
-    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), '# Eidolon local state and rollback copies\n.eidolon/backups/\n.eidolon/sessions/\n.eidolon/tasks/\n.eidolon/install.lock/\n.claude/.drift-count\n.claude/.session-state\n.claude/.orient-gate.*.json'));
   }
   for (const item of items) item.original = fingerprint(item.path);
   const plan = {version:1, root, items, workType, replace,

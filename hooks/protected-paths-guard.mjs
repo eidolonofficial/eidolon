@@ -28,7 +28,7 @@ export const evalProtectedPaths = tolerant((j) => {
   // Facts follow cd segments and dot segments; the regexes below are the second net.
   const deletes = shellPathFacts(cmd, j.cwd || process.cwd(), policyRoot(j), j.shell_language).some((f) => f.op === "delete");
 
-  if (deletes || (DESTRUCTIVE.test(cmd) && (PROTECTED.some((re) => re.test(cmd)) || touchesHookSuite(cmd)))) {
+  if (deletes || (DESTRUCTIVE.test(cmd) && (PROTECTED.some((re) => re.test(cmd)) || touchesHookSuite(cmd, j)))) {
     return { kind: "block", label: "PROTECTED PATHS GUARD", why:
       "a destructive op on a protected path (.git, a record, a hook, settings.json, " +
       "or the persona template).\n" +

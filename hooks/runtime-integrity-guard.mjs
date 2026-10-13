@@ -1,6 +1,6 @@
 // The agent cannot modify its installed policy authority. Operator maintenance is separate.
 import {relative, basename} from 'node:path';
-import {policyRoot, proposedFile} from './operation.mjs';
+import {policyRoot, proposedFile, outsideRoot} from './operation.mjs';
 import {shellPathFacts, shellCommands, executable, ShellParseError} from './shell-operation.mjs';
 import {evalHookIntegrity} from './hook-integrity-guard.mjs';
 const MANAGED = /^(?:\.claude\/skills\/eidolon(?:\/|$)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.claude\/eidolon-manifest\.yaml)/i;
@@ -21,6 +21,7 @@ export function evalRuntimeIntegrity(j) {
   const root=policyRoot(j);
   try {
     if (j.tool_name==='Write'||j.tool_name==='Edit') {
+      if (outsideRoot(j)) return null;
       const {path}=proposedFile(j), rel=relative(root,path).replace(/\\/g,'/');
       if (MANAGED.test(rel)) return block('The installed runtime, actor state or policy trust root requires operator-controlled maintenance. Do not alter it from an ordinary agent tool call.');
       // The write suite does not list hook-integrity-guard, so the repo's own hooks directory is checked here.

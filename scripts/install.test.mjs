@@ -111,12 +111,13 @@ test('I2 a project that resolves to the home directory is refused before any wri
 test('I3 generated hooks are portable, carry no absolute runtime path, and set subagent depth and effort', t => {
   const root = tmp(t); install({ project: root, dryRun: false });
   const text = readFileSync(join(root, '.claude/settings.json'), 'utf8'), conf = JSON.parse(text);
-  const handlers = allHandlers(conf); assert.equal(handlers.length, 4);
+  const handlers = allHandlers(conf); assert.equal(handlers.length, 6);
   for (const h of handlers) {
     assert.equal(h.command, 'node');
     assert.deepEqual(h.args, [PROJECT + '/.claude/skills/eidolon/hooks/' + basename(h.args[0]), '--project', PROJECT]);
   }
-  assert.deepEqual(handlers.map(h => basename(h.args[0])), ['guard-bash.mjs', 'guard-write.mjs', 'guard-dispatch.mjs', 'post-tool-entry.mjs']);
+  assert.deepEqual(handlers.map(h => basename(h.args[0])), ['guard-bash.mjs', 'guard-write.mjs', 'guard-dispatch.mjs', 'post-tool-entry.mjs', 'subagent-start.mjs', 'subagent-stop.mjs']);
+  assert.deepEqual(Object.keys(conf.hooks), ['PreToolUse', 'PostToolUse', 'SubagentStart', 'SubagentStop']);
   assert.ok(!text.includes(JSON.stringify(process.execPath).slice(1, -1)) && !text.includes(userInfo().username) && !text.includes(JSON.stringify(root).slice(1, -1)));
   assert.deepEqual(conf.env, { CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: '1' });
   assert.equal(conf.effortLevel, 'xhigh'); assert.equal(conf.maxEffortLevel, 'max');
@@ -144,12 +145,12 @@ test('I5 reinstall replaces owned hook groups in place and leaves foreign entrie
   conf.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo after' }] });
   writeFileSync(path, JSON.stringify(conf, null, 2) + '\n');
   install({ project: root, dryRun: false, replace: true });
-  const next = settings(root), owned = ['guard-bash.mjs', 'guard-write.mjs', 'guard-dispatch.mjs', 'post-tool-entry.mjs'];
+  const next = settings(root), owned = ['guard-bash.mjs', 'guard-write.mjs', 'guard-dispatch.mjs', 'post-tool-entry.mjs', 'subagent-start.mjs', 'subagent-stop.mjs'];
   const mine = allHandlers(next).filter(h => owned.includes(basename(h.args?.[0] ?? '')));
-  assert.equal(mine.length, 4); assert.ok(mine.every(h => h.command === 'node'));
+  assert.equal(mine.length, 6); assert.ok(mine.every(h => h.command === 'node'));
   assert.deepEqual(next.hooks.PreToolUse.map(g => g.matcher), ['Bash', 'Bash|PowerShell', 'Write|Edit', 'Agent|Task', 'Bash']);
   assert.deepEqual(next.hooks.PreToolUse[0], foreign); assert.equal(next.hooks.PreToolUse[4].hooks[0].command, 'echo after');
-  assert.equal(next.hooks.PostToolUse.length, 1);
+  assert.equal(next.hooks.PostToolUse.length, 1); assert.equal(next.hooks.SubagentStart.length, 1); assert.equal(next.hooks.SubagentStop.length, 1);
 });
 test('I6 a failure between two renames restores prior targets, removes new ones, and journals the phase', t => {
   const root = tmp(t); put(root, 'CLAUDE.md', 'rules\n'); put(root, '.claude/settings.json', '{"custom":1}');

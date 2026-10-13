@@ -1,10 +1,12 @@
-// PreToolUse(Agent|Task): a sensitive dispatch asks the human; a routine one passes untouched.
-// Awareness is a soft layer, so this asks and never blocks (policy: references/security-policy.md).
+// PreToolUse(Agent|Task): a worker may not dispatch (block). A sensitive dispatch, a write-capable brief with no
+// done-check, and a missing wave plan ask the human; every dispatch is logged (hooks/dispatch-evaluators.mjs).
+// Awareness is a soft layer, so everything but recursion asks (policy: references/security-policy.md).
 // ponytail: keyword match on the dispatch text; upgrade path is a risk field on the brief.
 try {
   const {runSuite} = await import('./lib.mjs');
   const {isDispatch} = await import('./operation.mjs');
   const {evalManagedState} = await import('./policy-manifest.mjs');
+  const {evalWorkerRecursion, evalBriefGate, evalWavePlan, evalDispatchLog} = await import('./dispatch-evaluators.mjs');
   const SENSITIVE = new RegExp([
     'security', 'trust[ -]?safety', 'red[ -]?team', 'blue[ -]?team',
     'deploy', 'release', 'publish', 'rollout', 'production', '\bprod\b',
@@ -22,7 +24,7 @@ try {
     return {kind: 'ask', label: 'SENSITIVE DISPATCH',
       why: 'this dispatch looks destructive or sensitive. Confirm you intend to dispatch it now; see references/security-policy.md.'};
   };
-  runSuite([evalManagedState, evalSensitiveDispatch]);
+  runSuite([evalManagedState, evalSensitiveDispatch, evalWorkerRecursion, evalBriefGate, evalWavePlan, evalDispatchLog]);
 } catch {
   process.stderr.write('EIDOLON DISPATCH: required runtime unavailable; operation blocked. No payload was logged.\n');
   process.exitCode = 2;

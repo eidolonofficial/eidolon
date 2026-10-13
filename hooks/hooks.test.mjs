@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 import {commitDrift} from './drift-guard.mjs';
 import {actorPath} from './operation.mjs';
-import { GIT_COMMIT, commitMessageOf, withoutMessage, touchesHookSuite } from "./lib.mjs";
+import { GIT_COMMIT, commitMessageOf, withoutMessage, touchesHookSuite as touchesHookSuiteIn } from "./lib.mjs";
 
 const HOOKS = dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +74,7 @@ test("lib: withoutMessage strips the quoted message but keeps the flags", () => 
 });
 
 test("lib: touchesHookSuite means the governance suite, not application hooks dirs", () => {
+  const touchesHookSuite = (cmd) => touchesHookSuiteIn(cmd, { cwd: process.cwd() });
   assert.ok(touchesHookSuite("rm -rf hooks"), "the bare hooks dir is the suite");
   assert.ok(touchesHookSuite("mv hooks hooks-disabled"));
   assert.ok(touchesHookSuite("chmod -R 000 ./hooks/"));

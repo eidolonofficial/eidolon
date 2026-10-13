@@ -5,8 +5,8 @@
 // fan-in), layers, entry points, clusters, counts. graphify-orient is the AUTOMATIC
 // FALLBACK -- when this hook fires it writes a per-session sentinel that graphify-orient
 // reads to stay silent; graphify surfaces the graph only when this produced nothing
-// (binary missing, repo unindexed, bad JSON, or no config). Pairs with orient-gate (the
-// teeth) like the rest of the orient trio.
+// (binary missing, repo unindexed, bad JSON, or no config). Orientation is advisory:
+// no hook blocks on it.
 //
 // codebase-memory-mcp is a local C indexer (no LLM, no API, no token cost). The project
 // name + binary path live in .claude/codebase-memory.json (installer-written at Stage 7/8;
@@ -72,8 +72,8 @@ export function shortQN(qn) {
 }
 
 // Pure: parsed `get_architecture` JSON -> the injected directive body. Tolerates missing
-// arrays (an empty/partial arch still emits the ENFORCED ORIENT-GATE block). The mempalace
-// recall command in the gate block fills <WING> at install.
+// arrays (an empty/partial arch still emits the orientation note). The mempalace
+// recall command in the orientation note fills <WING> at install.
 export function formatArch(arch, { exe, project, wing } = {}) {
   const a = arch || {};
   const nodes = a.total_nodes ?? 0;
@@ -105,11 +105,10 @@ export function formatArch(arch, { exe, project, wing } = {}) {
       "`... query_graph` (Cypher), `... trace_path`, `... get_architecture`, or the codebase-memory-mcp MCP tools.",
   );
   parts.push(
-    "ORIENT-GATE (ENFORCED): before dispatching ANY agent or editing source code you MUST query the " +
-      "code graph -- run `" + exePath + " cli get_architecture '{\"project\":\"" + proj + "\"}'` (or any " +
-      "codebase-memory-mcp cli/MCP query; graphify-out/GRAPH_REPORT.md or `graphify query` is the FALLBACK) -- " +
-      'AND run a task-relevant `mempalace search "<your task>"' + wingNote + "` this session. " +
-      "A PreToolUse orient-gate BLOCKS those actions until both are done.",
+    "ORIENT NOTE: orientation is advisory; read the graph and the memory before editing source. Graph: `" + exePath +
+      " cli get_architecture '{\"project\":\"" + proj + "\"}'` (or any codebase-memory-mcp cli/MCP query; " +
+      "graphify-out/GRAPH_REPORT.md or `graphify query` is the fallback). Memory: " +
+      '`mempalace search "<your task>"' + wingNote + "`.",
   );
   return parts.join("\n\n");
 }

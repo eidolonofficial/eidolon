@@ -1,12 +1,12 @@
 // Evaluate the complete proposed JSON against the same manifest the installer creates.
 import {relative} from 'node:path';
 import {runHook,emitVerdict} from './lib.mjs';
-import {proposedFile,fileTarget} from './operation.mjs';
+import {proposedFile,fileTarget,outsideRoot} from './operation.mjs';
 import {manifestAt,handlerKeys,assertManagedWiring} from './policy-manifest.mjs';
 const SETTINGS=/(?:^|[\\/])\.claude[\\/]settings(?:\.local)?\.json$/i;
 function object(bytes){const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,''));if(!value||Array.isArray(value)||typeof value!=='object')throw Error('Settings must be an object');return value;}
 export function evalSettingsIntegrity(j){
-  if(!['Write','Edit'].includes(j.tool_name))return null;
+  if(!['Write','Edit'].includes(j.tool_name)||outsideRoot(j))return null;
   const block=why=>({kind:'block',label:'SETTINGS INTEGRITY GUARD',why});
   try{
     if(!SETTINGS.test(fileTarget(j)))return null;

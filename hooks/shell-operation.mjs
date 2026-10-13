@@ -139,7 +139,7 @@ export function protectedKind(value, cwd = process.cwd(), root = cwd) {
   const lexical = posix.normalize(String(value).replace(/\\/g, '/'));
   if (/(?:^|\/)hooks\/[^\s]*\.(?:mjs|cjs|ps1|sh|py)$/i.test(absolute.replace(/\\/g,'/'))) return 'hooks';
   const local = rel.startsWith('../') ? lexical : rel;
-  if (/^(?:\.git(?:\/|$)|\.claude\/(?:settings(?:\.local)?\.json|eidolon-manifest\.yaml|security-[^/]+)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.claude\/skills\/eidolon(?:\/|$))/i.test(local)) return 'authority';
+  if (/^(?:\.git(?:\/|$)|\.claude\/(?:settings(?:\.local)?\.json|eidolon-manifest\.yaml)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.claude\/skills\/eidolon(?:\/|$))/i.test(local)) return 'authority';
   if (/^(?:hooks(?:\/|$)|references\/(?:persona-template\.md|security-policy\.md))/i.test(local)) return 'hooks';
   if (/^(?:docs\/(?:fixes|insights|decisions)(?:\/|$)|DECISIONS?\.md$)/i.test(local)) return 'record';
   return null;
@@ -167,8 +167,9 @@ function operandRoles(verb, operands) {
   return roles;
 }
 // Path facts for one command line: {kind, op, verb, mutation, value, cwd, opaque}. cd segments
-// are followed, so an operand is classified by where it really points.
-export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language = 'bash') {
+// are followed, so an operand is classified by where it really points. With `all`, an operand that is
+// not a protected kind still yields a fact (kind 'path') carrying its resolved absolute `path`.
+export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language = 'bash', all = false) {
   const facts = []; let current = resolve(cwd);
   for (const segment of shellCommands(source, language)) {
     const w = segment.words.slice(executable(segment.words));
@@ -185,8 +186,9 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
     }
     const mutation = MUTATING.test(verb) || w.some(x => /[<>]/.test(x)), roles = operandRoles(verb, operands);
     const add = (value, op) => {
-      const kind = protectedKind(verb === 'dd' ? value.replace(/^(?:of|if)=/, '') : value, current, root);
-      if (kind) facts.push({kind, op, verb, mutation, value, cwd: current, opaque: segment.opaque});
+      const operand = verb === 'dd' ? value.replace(/^(?:of|if)=/, '') : value;
+      const kind = protectedKind(operand, current, root) ?? (all ? 'path' : null);
+      if (kind) facts.push({kind, op, verb, mutation, value, cwd: current, opaque: segment.opaque, ...(all && {path: resolvedOperand(operand, current)})});
     };
     for (const value of operands) add(value, roles.get(value) ?? null);
     for (const t of targets) add(t.value, t.op);

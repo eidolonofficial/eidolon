@@ -39,7 +39,9 @@ graphify-out/
 .claude/.drift-count
 .claude/.session-state
 .claude/.memory-synced-head
-.claude/.orient-gate.*.json
+.claude/.dispatch-log.jsonl
+.claude/.hook-debug.jsonl
+.claude/waves/
 
 # Transient cold-context verify packets
 verify-packet/

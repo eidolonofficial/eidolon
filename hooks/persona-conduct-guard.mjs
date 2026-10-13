@@ -28,6 +28,7 @@ import { join } from "node:path";
 import {confinedPath} from './confined-path.mjs';
 import {actorIdentity, actorPath, policyRoot, boundedRead} from "./operation.mjs";
 import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
+import { tolerant } from "./shell-operation.mjs";
 
 const CODE = /\.(mjs|cjs|js|jsx|ts|tsx|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift)$/i;
 
@@ -43,13 +44,13 @@ const DETECTORS = {
     if (/git\s+push\b/.test(ti.command || "") && /--force\b/.test(ti.command || "") && !/--force-with-lease\b/.test(ti.command || "")) return "git push --force";
     return null;
   },
-  "disable-or-route-around-hook": (name, ti) => {
+  "disable-or-route-around-hook": (name, ti, ctx) => {
     if (name !== "Bash") return null;
     const cmd = String(ti.command || "");
     const m = firstMatch(/core\.hooksPath\s*=|git\s+config\b[^|;&\n]*hooksPath/i, cmd);
     if (m) return m.text;
     // flags between the verb and the path must not hide the target (rm -rf hooks)
-    if (/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && touchesHookSuite(cmd)) {
+    if (/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && tolerant(e => touchesHookSuite(cmd, e))(ctx.event || {})) {
       const verb = firstMatch(/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i, cmd);
       return verb.text + " on the hook suite";
     }
@@ -136,7 +137,7 @@ export function evaluateSeat(seat, toolName, toolInput, ctx = {}) {
   for (const behavior of declared) {
     const detect = DETECTORS[behavior];
     if (!detect) continue; // not machine-detectable from one action; caught downstream
-    const hit = detect(toolName, toolInput);
+    const hit = detect(toolName, toolInput, ctx);
     if (!hit) continue;
     return { kind: "anti-behavior", behavior, hit };
   }
@@ -167,7 +168,7 @@ export function evalPersonaConduct(j) {
   // harness that omits the field never bricks normal work.
   const isSubagent = identity.worker;
 
-  const verdict = evaluateSeat(seat, name, ti, { isSubagent });
+  const verdict = evaluateSeat(seat, name, ti, { isSubagent, event: j });
   if (!verdict) return null;
 
   if (verdict.kind === 'invalid-state') return {kind:'block',label:'PERSONA CONDUCT GUARD',why:'Persona anti-behavior schema is invalid; operation blocked. No state was changed.'};

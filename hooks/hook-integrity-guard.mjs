@@ -1,12 +1,13 @@
 // hooks/hook-integrity-guard.mjs
 //
-// Eidolon hook suite - PreToolUse(Bash, Write, Edit). Blocks disabling, moving, chmod,
-// or overwriting any hook, or changing the hooks path (design spec sections 10, 11). A
-// wrong gate is fixed in the open, never routed around; the hooks are not optional.
+// Eidolon hook suite - PreToolUse(Bash, Write, Edit). Blocks disabling, moving, chmod
+// of any hook and changing the hooks path (design spec sections 10, 11). Overwriting a hook
+// asks the human when the controller does it and blocks a worker. A wrong gate is fixed in
+// the open, never routed around; the hooks are not optional.
 //
 // Covers the suite as a whole: removing the entire hooks directory disables every
-// gate at once, so `rm -rf hooks` is as blocked as `rm hooks/guard.mjs`. So is replacing
-// a hook: `cp x hooks/lib.mjs`, `> hooks/lib.mjs`, `sed -i`, or a Write/Edit whose path is
+// gate at once, so `rm -rf hooks` is as blocked as `rm hooks/guard.mjs`. Replacing
+// a hook is the ask/block case: `cp x hooks/lib.mjs`, `> hooks/lib.mjs`, `sed -i`, or a Write/Edit whose path is
 // under hooks/ or inside any directory named hooks that holds a wired guard. A hooks
 // directory nested in the source tree (src/hooks/) is application code and is not
 // this guard's business (shell-operation.mjs protectedKind draws that line).
@@ -18,7 +19,7 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { runHook, emitVerdict } from "./lib.mjs";
-import { fileTarget, policyRoot } from "./operation.mjs";
+import { actorIdentity, fileTarget, policyRoot } from "./operation.mjs";
 import { gitOperations, overridesHooksPath, shellPathFacts, tolerant } from "./shell-operation.mjs";
 
 // The proposed path is a hook file: under the project hooks/ (or .git/hooks/), or inside a
@@ -35,8 +36,10 @@ function writesHookFile(j) {
 // Pure verdict for one payload; first matching check wins.
 export const evalHookIntegrity = tolerant((j) => {
   const B = (why) => ({ kind: "block", label: "HOOK INTEGRITY GUARD", why });
+  // Editing a hook is the controller's call, made with the human watching; a worker never edits a gate.
+  const E = (why) => actorIdentity(j).worker ? B(why) : { kind: "ask", label: "HOOK INTEGRITY GUARD", why: "editing the governance hooks; confirm" };
   if (j.tool_name === "Write" || j.tool_name === "Edit")
-    return writesHookFile(j) ? B("a hook file cannot be rewritten by an agent tool call. Fix a wrong gate in the open through operator-reviewed maintenance, do not edit the gates.") : null;
+    return writesHookFile(j) ? E("a hook file cannot be rewritten by a worker. Return the change to the controller; do not edit the gates.") : null;
   if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
   const facts = shellPathFacts(cmd, j.cwd || process.cwd(), policyRoot(j), j.shell_language);
@@ -46,10 +49,10 @@ export const evalHookIntegrity = tolerant((j) => {
     return B("changing the hooks path disables the suite. The hooks are not optional.");
   if (/\bchmod\b/i.test(cmd) && suite)
     return B("chmod on a hook changes how it runs. Do not alter hook permissions.");
-  if (/\b(?:mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && suite)
+  if ((/\b(?:mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && suite) || facts.some((f) => f.kind === "hooks" && f.op === "delete"))
     return B("moving or deleting a hook (or the hooks directory) disables it. Fix a wrong gate in the open, do not remove it.");
   if (facts.some((f) => f.kind === "hooks" && f.op))
-    return B("this shell operation deletes, moves, overwrites, appends to or re-permissions a hook file. Fix a wrong gate in the open through operator-reviewed maintenance.");
+    return E("this shell operation overwrites, appends to or re-permissions a hook file. A worker cannot edit the gates; return the change to the controller.");
   return null;
 });
 

@@ -113,14 +113,21 @@ test('R6 plus-refspec force push, inline alias hiding commit, and --no-veri abbr
   silent(sh(root, "git -c alias.ci='commit -v' ci --allow-empty -m x"), 'harmless alias');
 });
 
-test('R7 overwriting a hook is blocked for shell forms and for Write/Edit', t => {
-  const root = repo(t);
-  for (const c of ['cp x hooks/lib.mjs', '> hooks/lib.mjs', 'echo x > hooks/lib.mjs', 'echo x >> hooks/lib.mjs', "sed -i 's/a/b/' hooks/lib.mjs", 'tee hooks/lib.mjs', 'cp x tools/hooks/extra.mjs'])
-    blocked(sh(root, c), 'HOOK INTEGRITY GUARD', c);
-  blocked(sh(root, 'Set-Content hooks/lib.mjs y', 'PowerShell'), 'HOOK INTEGRITY GUARD', 'PowerShell Set-Content');
-  for (const p of ['hooks/lib.mjs', 'hooks/new-guard.mjs', join(root, 'hooks', 'lib.mjs'), 'tools/hooks/extra.mjs'])
-    blocked(wr(root, p, 'x'), 'HOOK INTEGRITY GUARD', 'Write ' + p);
-  blocked(call(root, 'guard-write.mjs', {tool_name: 'Edit', tool_input: {file_path: 'hooks/lib.mjs', old_string: 'fixture', new_string: 'changed'}}), 'HOOK INTEGRITY GUARD', 'Edit hook');
+test('R7 overwriting a hook: the controller is asked, a worker is blocked, for shell forms and for Write/Edit', t => {
+  const root = repo(t), worker = {transcript_path: join(root, '.claude', 'subagents', 'agent-1.jsonl')};
+  const confirm = 'editing the governance hooks; confirm';
+  for (const c of ['cp x hooks/lib.mjs', '> hooks/lib.mjs', 'echo x > hooks/lib.mjs', 'echo x >> hooks/lib.mjs', "sed -i 's/a/b/' hooks/lib.mjs", 'tee hooks/lib.mjs', 'cp x tools/hooks/extra.mjs']) {
+    asked(sh(root, c), 'HOOK INTEGRITY GUARD: ' + confirm, c);
+    blocked(call(root, 'guard-bash.mjs', {tool_name: 'Bash', tool_input: {command: c}, ...worker}), 'HOOK INTEGRITY GUARD', 'worker ' + c);
+  }
+  asked(sh(root, 'Set-Content hooks/lib.mjs y', 'PowerShell'), confirm, 'PowerShell Set-Content');
+  for (const p of ['hooks/lib.mjs', 'hooks/new-guard.mjs', join(root, 'hooks', 'lib.mjs'), 'tools/hooks/extra.mjs']) {
+    asked(wr(root, p, 'x'), confirm, 'Write ' + p);
+    blocked(call(root, 'guard-write.mjs', {tool_name: 'Write', tool_input: {file_path: p, content: 'x'}, ...worker}), 'HOOK INTEGRITY GUARD', 'worker Write ' + p);
+  }
+  const edit = {tool_name: 'Edit', tool_input: {file_path: 'hooks/lib.mjs', old_string: 'fixture', new_string: 'changed'}};
+  asked(call(root, 'guard-write.mjs', edit), confirm, 'Edit hook');
+  blocked(call(root, 'guard-write.mjs', {...edit, ...worker}), 'HOOK INTEGRITY GUARD', 'worker Edit hook');
   silent(wr(root, 'src/hooks/useAuth.ts', 'export const a = 1;\n'), 'application hooks dir');
   silent(sh(root, 'cp hooks/lib.mjs /tmp/lib-copy.mjs'), 'reading a hook');
 });

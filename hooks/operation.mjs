@@ -85,3 +85,8 @@ export function fileTarget(j) {
   const root=policyRoot(j), given=j.tool_input?.file_path ?? j.tool_input?.path;
   return confinedPath(j.eidolon_path_root||root,j.eidolon_path_cwd||j.cwd||root,given);
 }
+// A Write or Edit aimed outside the project root (a plan file, a scratchpad) is not this suite's business.
+// Symlinks and malformed paths inside the root still fail in confinedPath, and keep blocking.
+export function outsideRoot(j) {
+  try { fileTarget(j); return false; } catch (e) { return e.message === 'Path escapes project'; }
+}
