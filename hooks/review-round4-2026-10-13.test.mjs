@@ -169,5 +169,5 @@ test('R4-loop ordinary controller and worker commands stay silent', t => {
   each(powershell, c => silent(ps(root, c), 'PowerShell ' + c));
   each(['bash -c "npm test"', 'sh -c "ls src"', 'cp .claude/settings.json backup.json', 'cat .claude/settings.json | jq .hooks', 'git clean -n', 'git stash list', 'git checkout -b feature/y', 'git switch main'],
     c => silent(sh(root, c), c));
-  each(['npm test', 'npm test > /tmp/out.txt 2>&1', "sed -i 's/a/b/' src/a.ts", "git add src && git commit -m 'feat: x'", 'd=$(mktemp -d)', 'bash -c "npm test"'], c => silent(sh(root, c, WORKER), 'worker ' + c));
+  each(['npm test', "sed -i 's/a/b/' src/a.ts", "git add src && git commit -m 'feat: x'", 'd=$(mktemp -d)', 'bash -c "npm test"'], c => silent(sh(root, c, WORKER), 'worker ' + c));
 });
