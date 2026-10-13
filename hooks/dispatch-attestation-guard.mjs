@@ -1,32 +1,21 @@
 // hooks/dispatch-attestation-guard.mjs
 //
-// Eidolon hook suite - PreToolUse(the dispatch tool, e.g. Task). The CONSENT-tier gate of
-// the security-awareness loop: when the controller dispatches DESTRUCTIVE or SENSITIVE work
-// and no VALID security attestation is in effect, the dispatch ASKS the human (it does not
-// hard-block). Awareness is a soft layer; the deterministic guardrails still do the real
-// work, so this gate asks, it never walls. The pattern is adapted from
-// slartz/agent-security-awareness-training (MIT, see CREDITS.md).
+// Eidolon hook suite - PreToolUse(the dispatch tool, e.g. Task). The consent-tier
+// gate on dispatching destructive or sensitive work: when the controller dispatches
+// work that carries a destructive or sensitive signal, the dispatch ASKS the human
+// (it does not hard-block), citing references/security-policy.md. The deterministic
+// guardrails still do the real work; this gate asks, it never walls. The keyword
+// detection is adapted from slartz/agent-security-awareness-training (MIT, see
+// CREDITS.md).
 //
-// Decision order (each step fails OPEN toward allow on a non-sensitive call, and toward ASK
-// on a sensitive one with no provable attestation, never toward a silent dispatch of danger):
-//   - not the dispatch tool                       -> allow (null)
-//   - dispatch, but not destructive/sensitive      -> allow (null)
-//   - destructive/sensitive, valid attestation     -> allow (null)
-//   - destructive/sensitive, no valid attestation  -> ask (the consent tier)
+// Decision order (fails OPEN toward allow on anything that is not a sensitive dispatch):
+//   - not the dispatch tool                    -> allow (null)
+//   - dispatch, but not destructive/sensitive  -> allow (null)
+//   - destructive/sensitive                    -> ask (the consent tier)
 //
-// Validity is the real cryptographic check: a signed attestation at .claude/security-
-// attestation.json, result pass, current, over the installed policy, verified against the
-// TRUSTED grader key at .claude/security-grader-public.pem. Missing files or a failed verify
-// mean "not proven", which on a sensitive dispatch is an ask. This stands alone on its own
-// matcher (the dispatch tool), never on guard-bash/guard-write (those match Bash/Write/Edit).
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+// This stands alone on its own matcher (the dispatch tool), never on
+// guard-bash/guard-write (those match Bash/Write/Edit).
 import { runHook, emitVerdict } from "./lib.mjs";
-import { verifyAttestation } from "../scripts/security-attestation.mjs";
-
-const POLICY_PATH = join("references", "security-policy.md");
-const ATTESTATION_PATH = join(".claude", "security-attestation.json");
-const GRADER_PUBKEY_PATH = join(".claude", "security-grader-public.pem");
 
 // The harness's subagent-dispatch tool. Exact "Task" (the Claude Code tool name) plus a
 // couple of generic spellings, so a renamed dispatch tool still gates. Anything else is not
@@ -56,42 +45,18 @@ export function isSensitiveDispatch(toolInput = {}) {
   return SENSITIVE.test(hay);
 }
 
-// Is a VALID attestation in effect under cwd? The real cryptographic check. Returns a short
-// reason on failure so the ask names why. Never throws (a read/parse error is "not proven").
-export function attestationStatus(cwd) {
-  const dir = String(cwd || process.cwd());
-  const attFile = join(dir, ATTESTATION_PATH);
-  const policyFile = join(dir, POLICY_PATH);
-  const pubFile = join(dir, GRADER_PUBKEY_PATH);
-  if (!existsSync(policyFile)) return { ok: false, why: "no policy installed at " + POLICY_PATH };
-  if (!existsSync(attFile)) return { ok: false, why: "no attestation at " + ATTESTATION_PATH };
-  if (!existsSync(pubFile)) return { ok: false, why: "no trusted grader key at " + GRADER_PUBKEY_PATH + " (cannot verify the attestation)" };
-  try {
-    const r = verifyAttestation({
-      receipt: JSON.parse(readFileSync(attFile, "utf8")),
-      policyText: readFileSync(policyFile, "utf8"),
-      publicKeyPem: readFileSync(pubFile, "utf8"),
-    });
-    return { ok: r.ok, why: r.ok ? "" : r.problems.join("; ") };
-  } catch (e) {
-    return { ok: false, why: "attestation unreadable: " + e.message };
-  }
-}
-
-// Pure-enough evaluator the suite/test calls. Returns a verdict | null.
+// Pure evaluator the suite/test calls. Returns a verdict | null.
 export function evalDispatchAttestation(j = {}) {
   if (!isDispatchTool(j.tool_name)) return null;
   if (!isSensitiveDispatch(j.tool_input || {})) return null;
-  const st = attestationStatus(j.cwd);
-  if (st.ok) return null;
   return {
     kind: "ask",
-    label: "SECURITY ATTESTATION GATE",
+    label: "SENSITIVE DISPATCH GATE",
     why:
-      "this dispatch looks destructive or sensitive and no valid security attestation is in effect (" +
-      st.why + "). Awareness is a soft layer, so this asks rather than blocks: confirm you intend " +
-      "to dispatch this work now, or complete the externally-graded attestation first " +
-      "(references/security-awareness.md). Disabling the gate or self-issuing an attestation is not the path.",
+      "this dispatch looks destructive or sensitive (deploy/prod, migration, PII/payments, " +
+      "credentials, or a destructive verb). Review it against references/security-policy.md " +
+      "and confirm you intend to dispatch this work now. This gate asks, it never blocks; " +
+      "the deterministic guards still do the real work.",
   };
 }
 

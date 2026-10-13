@@ -1,0 +1,71 @@
+# eidolon goals - human-curated. done = outcome observed, not merely gate green.
+north_star: >
+  Eidolon turns any repo into a verified Claude Code working environment and carries real
+  work through a human-gated, evidence-carrying pipeline - with nothing shipped that is
+  incomplete, redundant, unnecessary, or detracting from that goal.
+
+active_milestone: feature-triage-refactor
+
+milestones:
+  - id: feature-triage-refactor
+    title: "2026-07-09 feature triage: every feature complete or cut, suite green"
+    spec: docs/spec/2026-07-09-feature-triage-study.md
+    conditions:
+      - id: suite-green
+        signal: gate
+        check: "cd hooks && node --test *.test.mjs; cd ../scripts && node --test *.test.mjs - 0 failures"
+        status: MET 2026-07-09 (post-cut counts 118/118 + 14/14; pre-cut baseline was 133/133 +
+          40/40 - re-verified fresh by the adversarial close-out pass)
+      - id: self-verification-green
+        signal: gate
+        check: "node scripts/selfcheck.mjs -> PASS; node scripts/eidolon-audit.mjs -> PASS"
+        status: MET 2026-07-09
+      - id: study-shipped
+        signal: gate
+        check: "docs/spec/2026-07-09-feature-triage-study.md exists with adjudicated verdicts"
+        status: MET 2026-07-09
+      - id: cuts-executed
+        signal: gate
+        check: >
+          engine/, evolve-engine*, security-attestation*, security-awareness*,
+          security-surface.mjs, review-receipt*, advisor-guard*, conduct-guard.mjs,
+          process-doctrine.mjs, scaling.md absent from tree AND
+          grep of SKILL.md + hooks/README.md + references/ finds no dangling reference
+          AND eidolon-audit still PASS
+        status: MET 2026-07-09 (agent-A verbatim greps + controller fresh re-run: 118/118 + 14/14,
+          selfcheck PASS, audit PASS, engine/ absent, SKILL.md 632 lines with 0 evolve mentions)
+      - id: front-door-complete
+        signal: gate
+        check: >
+          README documents install steps, both modes, five consent gates (post-W2 count), five flags,
+          proof-of-life test command; no README claim contradicts SKILL.md
+        status: MET 2026-07-09 (README 81 lines: install section, five-gate section, proof-of-life
+          citing "118 tests, 0 failures" - verified against a controller-run suite; agent-B
+          claims-consistency pass + controller spot-probes)
+      - id: generation-fidelity
+        signal: gate
+        check: >
+          SKILL.md Stage 6 instructs emitting the runSuite dispatcher shape and copying
+          canonical guard sources verbatim, with conditional generation for
+          precondition-dependent guards
+        status: MET 2026-07-09 (SKILL.md Stage 6 rewritten by agent B: copy-verbatim rule,
+          runSuite dispatcher shape mandated, conditional emission, run-copied-tests-in-target;
+          motivated by the FFR paraphrase-drift field evidence)
+      - id: hearth-refreshed
+        signal: gate
+        check: >
+          a re-mirror script exists in eidolon-work/Hearth (pinned-SHA, payload-trimmed);
+          bundle snapshot regenerated from current canonical; installer fixes landed
+          (PATH refresh, python-stub detect, claude-CLI check, macos exec bit)
+        status: MET 2026-07-09 (tools/remirror.mjs written + run post-cuts: MIRROR pins d42576e
+          working tree, cut items + *.test.mjs absent from bundle, setup mirrored; welcome.ps1
+          0 parse errors; exec bit 100755 in index. NOTE: MIRROR SHA becomes exact once the
+          refactor is committed and remirror re-run. macos wizard PATH/claude-check parity is a
+          recorded follow-up.)
+      - id: setup-treated
+        signal: gate
+        check: "eidolon-setup verdicts from tasks/study-raw.md executed; its repo synced (sync DONE 2026-07-09)"
+        status: MET 2026-07-09 for the product tree (SKILL/README/references completed, budgets
+          199/200 + 58/60, suite 1/1 green; dogfood-layer verdicts deliberately out of scope).
+          OPEN ITEM FOR OWNER - github.com/eidolonofficial/eidolon-setup returns 'Repository not
+          found' even authenticated; local main is ahead-2 of an unreachable origin.

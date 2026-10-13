@@ -120,3 +120,55 @@ test("a subagent under any non-Expediter persona is judged by the ordinary rules
   const v = evaluateSeat(anchored, "Bash", { command: "rm -rf build" }, { isSubagent: true });
   assert.equal(v.kind, "anti-behavior", "the lock must not weaken existing enforcement for other personas");
 });
+
+// --- The controller lock extends to fable-conductor (2026-07-03): the long-horizon
+// --- conductor seat is CONTROLLER-ONLY exactly like the Expediter's.
+
+const conductorSeat = {
+  persona: "fable-conductor",
+  title: "The Fable Conductor - long-horizon cascade controller [CONTROLLER-ONLY]",
+  anchors: ["ADR 2026-07-03-fable-behavior-pack", "eidolon conductor-standard"],
+  anti_behaviors: { floor: ["irreversible-without-safety-net"], specific: ["verification-theater"] },
+};
+
+test("isExpediterSeat recognizes fable-conductor by id and any [CONTROLLER-ONLY] title, workers still excluded", () => {
+  assert.equal(isExpediterSeat({ persona: "fable-conductor" }), true);
+  assert.equal(isExpediterSeat({ persona: "x", title: "Some Controller [CONTROLLER-ONLY]" }), true);
+  assert.equal(isExpediterSeat({ persona: "fullstack-engineer", title: "Full-stack engineer" }), false);
+  assert.equal(isExpediterSeat({ persona: "x", title: "controller of forms" }), false, "the marker, not the word, is the tell");
+});
+
+test("hardened after the evasion panel: id spelling variants and marker drift still lock", () => {
+  // fable-conductor spelling tolerance mirrors the Expediter's
+  assert.equal(isExpediterSeat({ persona: "fable_conductor", title: "The Fable Conductor" }), true);
+  assert.equal(isExpediterSeat({ persona: "fable conductor", title: "" }), true);
+  assert.equal(isExpediterSeat({ persona: "the-fable-conductor", title: "" }), true);
+  // ffr-cascade: the recognition its persona contract promises (id, or cascade-controller title)
+  assert.equal(isExpediterSeat({ persona: "ffr-cascade", title: "The Cascade - swarm-cascade controller (fraud-forensic-replay)" }), true);
+  assert.equal(isExpediterSeat({ persona: "x", title: "The Cascade - cascade controller" }), true);
+  // marker tolerance: internal whitespace and unicode dashes do not unlock the seat
+  assert.equal(isExpediterSeat({ persona: "x", title: "Bespoke Controller [ CONTROLLER-ONLY ]" }), true);
+  assert.equal(isExpediterSeat({ persona: "x", title: "Bespoke Controller [CONTROLLER - ONLY]" }), true);
+  assert.equal(isExpediterSeat({ persona: "x", title: "Bespoke Controller [CONTROLLER‑ONLY]" }), true);
+  // and none of the tolerance leaks onto workers
+  assert.equal(isExpediterSeat({ persona: "conductor-of-tests", title: "Test conductor" }), false);
+});
+
+test("THE LOCK, extended: a subagent seated as fable-conductor is hard-stopped on ANY action", () => {
+  const v = evaluateSeat(conductorSeat, "Bash", { command: "ls" }, { isSubagent: true });
+  assert.ok(v, "a subagent must never act under the fable-conductor seat");
+  assert.equal(v.kind, "subagent-expediter");
+});
+
+test("the extended lock precedes the seat-repair carve-out, exactly like the Expediter's", () => {
+  const v = evaluateSeat(conductorSeat, "Write", { file_path: ".claude/active-persona.json", content: "{}" }, { isSubagent: true });
+  assert.ok(v, "seat repair must not be an escape hatch for the extended lock");
+  assert.equal(v.kind, "subagent-expediter");
+});
+
+test("the main session keeps full fable-conductor use, and its declared teeth still bite there", () => {
+  assert.equal(evaluateSeat(conductorSeat, "Bash", { command: "ls" }), null);
+  const v = evaluateSeat(conductorSeat, "Bash", { command: "git push --force origin main" });
+  assert.equal(v.kind, "anti-behavior");
+  assert.equal(v.behavior, "irreversible-without-safety-net");
+});

@@ -3,8 +3,9 @@
 The operating standard for the orchestrating session. The conductor is the single
 session that holds the baton across a whole delivery: it conducts, it does not cook.
 User-ordered 2026-06-12; field-proven on fraud-forensic-replay across the 2026-06-11/12
-swarm runs. Where it tightens scaling.md, expert-hiring.md, loop-suite.md, or
-process-doctrine.md, the named anti-pattern it replaces is called out at that line.
+swarm runs. Where it tightens the expert-hiring doctrine (find-skills-reach.md),
+loop-suite.md, or the folded process lessons (section 11), the named anti-pattern
+it replaces is called out at that line.
 
 ```yaml
 # why: the failure this standard exists to kill
@@ -64,7 +65,7 @@ parallel_spawn: all independent agents launch in ONE controller message; sequent
                 proven by the ffr-pipeline build-chain fan-out 2026-06-11)
 fan_out_size:   sized to coverage - the minimum that satisfies the swarm's coverage
                 manifest, never smaller
-# replaces SKILL.md:464 / scaling.md:15-16 "at small fan-out": breadth is not waste;
+# replaces the old "at small fan-out" default (SKILL.md tier table; the retired scaling doc): breadth is not waste;
 # token cost is not the constraint, correctness is - "small" anchored the default at the
 # minimum instead of at coverage sufficiency (see section 4)
 worktrees:      overlapping scopes get worktree isolation so two agents never write the
@@ -82,7 +83,8 @@ how_seated:     the conductor writes .claude/active-persona.json; the conduct gu
 subagents_never: a subagent never writes a seat file; the conductor seats, the agent embodies
                 (subagents-cannot-edit-hook-dir memory)
 no_anchor_no_seat: a seat that names no anchor does not get to act - teeth without an anchor
-                is rejected at the seat boundary (expert-hiring.md anti-synthetic rail)
+                is rejected at the seat boundary (the expert-hiring anti-synthetic rail,
+                find-skills-reach.md)
 primary_surface: the PRIMARY (house) persona is seated ONCE at Stage 10 and persists; the
                 SessionStart trio (seat-surface + graphify-orient + mempalace-orient)
                 SURFACES it + the code graph + prose memory EVERY pass, so a session starts
@@ -105,14 +107,15 @@ loop_wave:      a grind wave seats the working persona before any code-mutating 
 ```
 
 ```yaml
-# reflexive expert hiring - replaces expert-hiring.md:6,15-18 passive "when recon detects a need"
+# reflexive expert hiring - replaces the retired expert-hiring doc's passive "when recon
+# detects a need" framing (that doctrine now lives in find-skills-reach.md)
 trigger:        hire the moment recon names a gap no roster persona anchors - a domain,
                 framework, or regulatory surface; the trigger is reflexive, the rail is the filter
 rail_filters:   the anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire;
                 a named gap is hired, an unnamed one is rejected - the conductor does not
                 pre-self-censor a hire because the gap is "not certain enough"
 gate_always:    the hire is gated at the plan checkpoint at EVERY tier; the user approves or
-                declines (replaces expert-hiring.md:30 "for higher-risk work" - a hired expert
+                declines (replaces the hire flow's old "for higher-risk work" gate - a hired expert
                 carries persona authority and that authority always needs user approval)
 proven:         geospatial-viz-engineer hired 2026-06-11 (persona-lint PASS; detection signal:
                 globe-projection + camera choreography no base persona anchored)
@@ -121,33 +124,63 @@ proven:         geospatial-viz-engineer hired 2026-06-11 (persona-lint PASS; det
 
 ## 4. The model cascade
 
+Superseding note (2026-07-09): this section's tier names reflect the Opus-4.8-conductor era
+(user-set 2026-06-19/23). With Fable-class models available, the conductor tier is whatever
+the session's top model is, and `references/personas/fable-conductor.md` governs the seat
+when Fable conducts - the TIER x EFFORT logic below still holds; read the named versions as
+"top tier / strong worker tier / mechanical floor", not as pins.
+
 ```yaml
-# why: the deep tier is for judgment the cheap tier cannot give; spend it where it pays
-# user-ratified dispatch tiers (swarm-model-cascade memory); model passed per agent() call
-# user-set 2026-06-13 (Fable retired); supersedes the swarm-model-cascade Fable-tier note
-conductor_tier:  the conductor runs inline on Opus 4.8 (1M) as the hivemind - holds the full
-                context and hands each context-less leg exactly the context it needs; synthesis
-                and all delicate/canonical/infra edits stay here, never delegated
-fan_out_top:     opus 4.7 for premium dispatched work - deep single-lens reviews, hard
-                implementation in worktrees, architecture+scale research synthesis,
-                what-if-oracle framing, security/trust-safety lenses
-fan_out_work:    sonnet for the workhorse - build chains, single-dimension reviews,
-                research-swarm breadth legs, test-runners, render/mockup builders
-doc_edits_only:  haiku ONLY for small doc edits (CHANGELOG lines, comment fixes), never code,
-                review, or judgment
-escalation:      a broken opus-4.7 leg (its wave gate red after the bounded fix rounds, or it
-                cannot hold the scope) escalates THAT leg to an Opus 4.8 (1M) agent - the
-                headroom for hard cases; the failing leg only, never the whole wave; a 4.8
-                leg that still fails is a re-plan signal, not a re-spend
-not_ambient:     the tier is passed per agent() call, never assumed; an unstated model is a defect
-dispatch_enum:   the harness dispatch enum is sonnet/opus/haiku (no version granularity); 'opus'
-                IS the premium fan-out tier, 4.7-vs-4.8 is not per-call selectable; escalation
-                pulls the failed leg INLINE to the 4.8 conductor (or re-dispatches 'opus' in a
-                worktree), there being no higher dispatchable opus (user-resolved 2026-06-13)
+# why: the deep tier is for judgment the cheap tier cannot give; spend it where it pays.
+# user-set 2026-06-19 (COST re-base), REVISED 2026-06-23 (owner, off AWS Bedrock): raise the
+# floors - the fan-out default rises Sonnet->OPUS 4.6, the mechanical floor rises Haiku->Sonnet,
+# haiku is DROPPED, and fan-out goes WIDE (the <=3 stagger retired). The per-call control surface
+# is TIER x EFFORT, not version - the harness dispatch enum is sonnet/opus/haiku with no
+# 4.6/4.7/4.8 granularity. Grounding: Opus-lead + strong workers beat single-agent Opus; token
+# usage explains ~80% of performance variance (anthropic.com/engineering/built-multi-agent-
+# research-system) - off the Bedrock RPM ceiling, buy variance with the stronger tier and fan WIDE.
+conductor_tier:  the conductor runs inline on the top model (Opus 4.8, 1M) at high/xhigh effort
+                as the hivemind - holds the full context, hands each context-less leg exactly the
+                context it needs; synthesis + all delicate/canonical/infra/security edits and the
+                final adversarial adjudication stay here, never delegated. Opus 4.8 is ALWAYS
+                ULTRACODE - exhaustive, Workflow-on-every-substantive-task, orchestrate by default,
+                token cost not a constraint.
+fan_out_default: OPUS 4.6 is the default dispatched tier (NOT Sonnet - craft deserves Opus).
+                opus@medium for breadth + scoped legs (research-swarm breadth, single-file
+                explore/read, single-dimension reviews, render/mockup builders, structured
+                extraction); opus@high for real build chains, multi-step reviews, implementing a
+                well-specified module. 4.6 is the intended fan-out version (the enum exposes only
+                the 'opus' tier - see dispatch_enum).
+fan_out_mechanical: SONNET for mechanical, bounded, deterministic work - doc/CHANGELOG/comment
+                edits, log & grep sweeps, file-list scans, deterministic transforms, simple
+                fixtures, mechanical wiring. sonnet@low. (Replaces haiku, which is DROPPED from the
+                cascade - the mechanical floor rises. NEVER the judgment/review/reasoned-code legs.)
+fan_out_opus_xhigh: opus is now the DEFAULT fan-out (above); reserve opus@xhigh for the hardest
+                legs only - a deep single-lens review of a delicate surface, a correctness-critical
+                fix, adversarial verify/refute panels on a high-risk surface, what-if-oracle
+                framing. Sparingly (the fan-out default is already opus@high).
+effort_doctrine: effort scales tokens within a tier. mechanical (sonnet) = low; the opus fan-out
+                default = medium->high; only judgment/synthesis/verify earns high/xhigh.
+complexity_gate: coding parallelizes LESS than research, BUT off Bedrock fan WIDE when scopes split
+                disjointly (no <=3 cap) - simple = 1 agent; comparison = 2-4; complex / disjoint-
+                scoped = as wide as the work splits. Do not reflex-swarm a single scope.
+escalation:      an opus@high fan-out leg red after the bounded fix rounds escalates THAT leg to
+                opus@xhigh (the failing leg only, never the whole wave), then INLINE to the 4.8
+                conductor. still red after that = a re-plan signal, not a re-spend (3rd red =
+                re-Find, surface to the human).
+not_ambient:     tier AND effort are passed per agent() call, never assumed; an unstated model is
+                a defect.
+dispatch_enum:   the harness dispatch enum is sonnet/opus/haiku (no version granularity); the
+                per-call levers are TIER x EFFORT, not 4.6-vs-4.7-vs-4.8. 'opus' resolves to
+                whatever the session/provider maps it to; the intended fan-out version is Opus 4.6
+                (a session-model setting when version control exists), separate from this per-call cascade.
+fan_out_width:   off AWS Bedrock - the <=3 barriered-batch stagger is RETIRED; fan out WIDE (size to
+                the provider's real limit). Mutating fan-out agents run on isolated git worktrees
+                (isolation:'worktree') so they never clobber. See [[swarm-fan-out-stagger-on-bedrock]].
 ```
 
 ```yaml
-# the coverage budget - replaces scaling.md:23-35 "the cost ceiling" framing
+# the coverage budget - replaces the retired scaling doc's "the cost ceiling" framing
 # the audit named this cost-timidity: a ceiling framed only as a runaway-cost guard
 # incentivizes setting it LOW (to stay under) instead of coverage-sufficient
 budget_is_a_floor: the ceiling is a coverage floor stated as a budget - high enough to run
@@ -155,11 +188,11 @@ budget_is_a_floor: the ceiling is a coverage floor stated as a budget - high eno
                 correctness failure, not a cost saving
 on_approach:    when a run nears its ceiling, pause and state what coverage remains unverified;
                 the DEFAULT is to raise the ceiling to complete coverage
-                # replaces scaling.md:29-30 "raise the ceiling OR narrow scope" as co-equals
+                # replaces the retired scaling doc's "raise the ceiling OR narrow scope" as co-equals
 narrowing:      narrowing scope is a user-approved correctness trade-off, stated explicitly as
                 "this coverage will not run" - never a neutral cost choice
 no_silent_cap:  a bounded run says what it dropped; a silent truncation reads as "covered
-                everything" when it did not (scaling.md no_silent_cap, kept)
+                everything" when it did not (the retired scaling doc's no_silent_cap, kept)
 ```
 
 ## 5. Supervise by state
@@ -206,7 +239,7 @@ verify_by_exec: verification executes the thing and observes the result; reading
 ```
 
 ```yaml
-# the canonical proof - replaces the audit's process-staleness gap (no doctrine in process-doctrine.md)
+# the canonical proof - closes the audit's process-staleness gap (machinery in section 11)
 restart_banner: the staleness-banner drill was proven only by a REAL kill-and-restart watched
                 by a live browser tab with a screenshot - after two green commits (8af4669,
                 43400aa) and green unit tests had said NOTHING about the running world
@@ -264,18 +297,13 @@ how_asked:      surface findings and forks ONE at a time via AskUserQuestion, ea
 ask_first:      stop-and-confirm before commit/push, before changing canonical data, before
                 touching hook/guard infra, and before a long autonomous run
                 (ask-first-boundaries memory, all four lines user-set 2026-06-10)
-attestation_gate: before dispatching destructive or sensitive work (the security/trust-safety
+dispatch_gate:  before dispatching destructive or sensitive work (the security/trust-safety
                 swarm, a deploy, a migration, anything touching prod, PII, payments, or
-                credentials) with no valid signed security attestation in effect, the dispatch
-                ASKS the human (the consent tier, hooks/dispatch-attestation-guard.mjs). It rides
+                credentials), the dispatch ASKS the human (the consent tier,
+                hooks/dispatch-attestation-guard.mjs; references/security-policy.md). It rides
                 as a standalone PreToolUse hook on the dispatch-tool (Task) matcher, NOT on
                 guard-bash/guard-write (those match Bash/Write/Edit, never the dispatch tool). A
-                soft layer: it asks, it never blocks (references/security-awareness.md).
-evolve_gate:    before launching an evolve run, the preflight --confirmed true flip (evolve-brief)
-                ASKS the human (the consent tier, hooks/evolve-engine-guard.mjs): it unlocks the
-                vendored ASI-Evolve engine's mutate/evaluate loop on a real compute budget. One
-                confirm per run; the engine's reported best score is a CLAIM the conductor
-                re-verifies COLD (re-run the evaluator) before trusting (references/evolve-engine.md).
+                soft layer: it asks, it never blocks.
 ```
 
 ## 9. Resolve uncertainty by climbing the ladder
@@ -353,6 +381,63 @@ plugin_modes:    the ponytail plugin ships `/ponytail lite|full|ultra` + "stop p
                  the default); this section is the always-on floor beneath whatever mode is set
 ```
 
+## 11. Process discipline (the folded operating lessons)
+
+Folded from two retired process docs (the learned operating rules and the
+dev-process staleness doctrine): the parts those docs stated that sections 1-10
+do not already carry. The staleness
+doctrine's canonical proof, health stamp, and two-signal rule live in section 6;
+what remains here is the verification-calibration rule, the background-work rule,
+and the dev-process supervision machinery. The first two are dispositions - they
+live as advisory rows in the antibehavior catalog (process and quality group) and
+as a SessionStart surface, not as hard blocks on a tool call.
+
+```yaml
+# calibrate verification to the risk of the change (learned rule, advisory)
+heavy:    a cold-review subagent (and the three-layer protocol) is for RISKY changes:
+          real code with an attack surface, security-sensitive, or high blast radius
+light:    routine low-risk increments (docs, wiring, config, small mechanical edits)
+          lean on the fast deterministic checks (selfcheck, eidolon-audit, persona-lint,
+          encoding/dash scans, node --check, the test suite) - those ARE the verification
+cadence:  one review pass per logical unit, not per file edit; do not re-review what a
+          prior pass or the canary already verified
+boundary: project-specific mandatory-dispatch rules still win where they apply; this is
+          about not spending the heaviest tier on cheap, low-risk increments
+```
+
+```yaml
+# mind background work (learned rule, advisory)
+rule:     a launched background workflow or task is minded until confirmed done or
+          confirmed hung, never left running unmonitored
+how:      poll its status (block-wait a window, or a quick non-blocking check) and
+          check liveness between windows (transcript or output still growing = alive;
+          no growth over a window = hung)
+on_hang:  stop it and either resume from where it cached, or finish the work inline
+never:    end a turn assuming a completion notification will fire; the hang is exactly
+          the moment you disengage and no notification comes
+also:     do not block-wait idly when you can keep doing your own work and check the
+          task once at the dependency point
+```
+
+```yaml
+# dev-process supervision (the staleness machinery beyond section 6's proof)
+# proven_by: FIX-2026-06-11-stale-backend-process-survives-restart.md (FFR repo);
+# seated into the devops-release-engineer persona 2026-06-12
+boot_id:      every service exposes a health endpoint carrying a boot identifier minted
+              per process start, so a restart is directly observable; next hardening is
+              a git-sha code stamp at import, making "the running process is older than
+              the code" a one-read fact instead of process-table forensics
+client_guard: long-lived UIs poll the boot identifier and raise a banner with a reload
+              affordance on change; a dev-socket death listener catches orphaned bundles
+              (dev server died, tab kept serving stale assets) - staleness is SEEN at
+              the surface the operator watches, never inferred from broken behavior
+setup_rule:   Stage 1 recon records HOW each dev process runs (reload behavior, port,
+              supervisor presence); Stage 9 verification treats an unsupervised
+              non-reloading dev process as a FINDING to surface, not a fact of life;
+              the remedy is --reload or a supervisor so code-on-disk and code-in-process
+              cannot silently diverge for hours
+```
+
 ## The anti-patterns this standard replaces (index)
 
 ```yaml
@@ -375,4 +460,8 @@ guess_over_verify:      section 9 - a swarm proceeding on an unverified assumpti
                         of climbing the research-swarm / oracle / gate ladder
 volume_as_effort:       section 10 - a speculative abstraction, scaffolding "for later", or
                         boilerplate the ladder would skip, shipped and read as progress
+over_verification:      section 11 - the heaviest review tier spent on cheap low-risk increments
+unminded_background:    section 11 - a background task left running unmonitored past its hang
+stale_dev_process:      section 11 - an unsupervised non-reloading dev process treated as
+                        a fact of life instead of a finding
 ```
