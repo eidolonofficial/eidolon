@@ -4,7 +4,9 @@ import {mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync,
 import {spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {install, planInstall, applyPlan} from './install.mjs';
+import {install as installOnce, planInstall, applyPlan} from './install.mjs';
+// install() applies only a previewed plan (F27): bind the digest the way the Hearth wrapper does.
+const install = o => installOnce(o?.dryRun === false && !o.expectedPlan ? {...o, expectedPlan: planInstall(o).digest} : o);
 const temporary = t => {
   // Match the installer's canonical path for this fresh, test-owned directory.
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'claude-native-')));
@@ -92,7 +94,10 @@ test('I4 the CLI preview prints the text under each path', t => {
   assert.deepEqual(readdirSync(root), []);
 });
 const fixtureSource = t => {
-  const src = temporary(t); writeFileSync(join(src, 'SKILL.md'), '---\nname: eidolon\ndescription: fixture\n---\n'); return [{name: 'eidolon', source: src}];
+  const src = temporary(t); writeFileSync(join(src, 'SKILL.md'), '---\nname: eidolon\ndescription: fixture\n---\n');
+  mkdirSync(join(src, 'hooks'));
+  for (const h of ['guard-bash', 'guard-write', 'guard-dispatch', 'post-tool-entry', 'subagent-start', 'subagent-stop']) writeFileSync(join(src, 'hooks', h + '.mjs'), '// stub\n');
+  return [{name: 'eidolon', source: src}];
 };
 const BEGIN = '<!-- eidolon:begin -->', END = '<!-- eidolon:end -->';
 test('F4 non-UTF-8 bytes in CLAUDE.md or .gitignore refuse the install, naming the file, and stay untouched', t => {

@@ -18,7 +18,7 @@ test('R01 full proposed settings detect one-word and escaped-key disabling',t=>{
  assert.equal(hook(root,'guard-write.mjs',{tool_name:'Edit',tool_input:{file_path:'.claude/settings.json',old_string:'light',new_string:'dark'}}).status,0);
 });
 test('R02 fresh installed authority includes a manifest and protects handler semantics',t=>{
- const root=fixture(t);install({project:root,dryRun:false});const runtime=join(root,'.claude/skills/eidolon/hooks');
+ const root=fixture(t);install({project:root,dryRun:false,expectedPlan:planInstall({project:root}).digest});const runtime=join(root,'.claude/skills/eidolon/hooks');
  assert.ok(existsSync(join(root,'.eidolon/policy-manifest.json')));assert.ok(existsSync(join(root,'.claude/eidolon-manifest.yaml')));
  assert.equal(hook(root,'guard-write.mjs',write('.claude/settings.json','{}'),runtime).status,2);
  const good=JSON.parse(readFileSync(join(root,'.claude/settings.json'))),changed=structuredClone(good);changed.hooks.PreToolUse[0].matcher='NoSuchTool';
@@ -37,7 +37,7 @@ test('R05 canonical operands defeat directory traversal',t=>{
  assert.ok(existsSync(join(root,'hooks/guard-bash.mjs')),'commands were evaluated only');
 });
 test('R06 installed runtime cannot rewrite itself through a structured file tool',t=>{
- const root=fixture(t);install({project:root,dryRun:false});const runtime=join(root,'.claude/skills/eidolon/hooks');
+ const root=fixture(t);install({project:root,dryRun:false,expectedPlan:planInstall({project:root}).digest});const runtime=join(root,'.claude/skills/eidolon/hooks');
  assert.equal(hook(root,'guard-write.mjs',write('.claude/skills/eidolon/hooks/guard-bash.mjs','// proposed replacement only'),runtime).status,2);
  assert.equal(hook(root,'guard-write.mjs',write('.eidolon/policy-manifest.json','{}'),runtime).status,2);
 });
@@ -74,7 +74,7 @@ test('a worker cannot clear another role through the shared legacy seat path',t=
  assert.equal(out.status,2);assert.equal(readFileSync(join(r,'.claude/active-persona.json'),'utf8'),original);
 });
 test('a malformed owned-handler manifest cannot silently remove its required coverage',t=>{
- const r=fixture(t);install({project:r,dryRun:false});
+ const r=fixture(t);install({project:r,dryRun:false,expectedPlan:planInstall({project:r}).digest});
  const file=join(r,'.eidolon/policy-manifest.json'),manifest=JSON.parse(readFileSync(file));manifest.configurations[0].handlers=[];writeFileSync(file,JSON.stringify(manifest));
  const out=hook(r,'guard-write.mjs',write('src/a.js','export {};'),join(r,'.claude/skills/eidolon/hooks'));
  assert.equal(out.status,2);

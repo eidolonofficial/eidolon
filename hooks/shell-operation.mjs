@@ -146,6 +146,11 @@ export function inlineOperands(source, language) {
 }
 // Text that names a protected location, for the nets that judge a body or a verb the parser does not model.
 export const NAMES_PROTECTED = /docs[\/\\]+(?:fixes|insights|decisions)\b|(?:^|[^\w.-])DECISIONS?\.md\b|(?:^|[^\w.-])hooks[\/\\]|\.claude[\/\\]+settings|\.eidolon\b|\.git(?:[\/\\]|$|\s|['"])|policy-manifest/i;
+// Text that makes an inline body consent tier: it names a policy authority, hooks, .claude, or git beyond a read-only subcommand.
+export const AUTHORITY_TEXT = /\.claude[\/\\]+settings(?:\.local)?\.json|\.eidolon[\/\\]+policy-manifest\.json|(?:^|[^\w.-])hooks[\/\\]|['"]hooks['"]|\bhooks\b|(?<!\w)\.claude\b/i;
+export const GIT_WORD = /\bgit\b(?!\s+(?:status|log|diff|show|rev-parse|rev-list|describe|ls-files|ls-tree|cat-file|blame|shortlog|merge-base)\b)/i;
+// The body as the shell it is handed to reads it: a backslash before an ordinary character is dropped (g\it is git).
+export const unescaped = body => body.replace(/\\(?=\w)/g, '');
 
 const ASSIGNMENT = /^[A-Za-z_]\w*=/;
 const exeName = w => basename(String(w).replace(/\\/g, '/')).toLowerCase().replace(/\.exe$/, '');
@@ -210,6 +215,34 @@ function changeDirectory(current, pending, target) {
   if (pending) return {current, pending: posix.join(pending, t)};
   return {current: base ? resolve(current, base) : current, pending: rest};
 }
+// A shell -c body, an eval body and an iex body are code the shell runs next. One that names nothing protected, holds no variable
+// or substitution and nests no other body is parsed one level and its commands are judged like top-level ones (a protected parent
+// is then caught though no protected path is named). The others keep the consent-tier ask in runtime-integrity-guard; a nested
+// body or one that cannot be parsed becomes an unparsed step, which is an opaque fact.
+function bodyOf(w) {
+  const name = exeName(w[0] ?? '');
+  if (name === 'eval') return {text: w.slice(1).join(' '), language: 'bash'};
+  if (/^(?:iex|invoke-expression)$/.test(name)) return {text: w.slice(1).join(' '), language: 'powershell'};
+  if (name === 'cmd') {
+    const k = w.findIndex((x, i) => i > 0 && /^\/[ck]$/i.test(x));
+    return k > 0 && w[k + 1] !== undefined ? {text: w.slice(k + 1).join(' '), language: 'powershell'} : null; // cmd paths keep their backslashes
+  }
+  const sh = /^(?:bash|sh|zsh|dash|ksh)$/.test(name);
+  if (!sh && !/^(?:pwsh|powershell)$/.test(name)) return null;
+  const at = w.findIndex((x, k) => k > 0 && (sh ? /^-[a-zA-Z]*c[a-zA-Z]*$/ : /^-(?:c|com\w*)$/i).test(x));
+  return at > 0 && w[at + 1] !== undefined ? {text: w[at + 1], language: sh ? 'bash' : 'powershell'} : null;
+}
+function bodySteps(body, current, pending) {
+  const {text, language} = body;
+  if (!text || /[$`]/.test(text) || [text, unescaped(text)].some(b => NAMES_PROTECTED.test(b) || AUTHORITY_TEXT.test(b) || GIT_WORD.test(b))) return [];
+  try {
+    if (inlineBodies(text, language).length) throw new ShellParseError('A shell body nests another body');
+    return steps(text, current, language).map(s => ({...s, pending: s.pending || pending, inner: true}));
+  } catch (e) {
+    if (e instanceof ShellParseError) return [{w: [], prefix: [], current, pending, exported: [], unparsed: true}];
+    throw e;
+  }
+}
 // Walk the commands in order, following `cd`, `export` and simple `name=value` assignments, so every
 // later word is judged where it really points. Each step is one command to judge.
 function steps(source, cwd, language) {
@@ -222,6 +255,7 @@ function steps(source, cwd, language) {
     if (/^export$/i.test(w[0])) {for (const x of w.slice(1).filter(x => ASSIGNMENT.test(x))) {exported.push(x); remember(x);} continue;}
     if (CD.test(w[0]) && firstOperand(w)) {({current, pending} = changeDirectory(current, pending, firstOperand(w))); continue;}
     out.push({w, prefix, current, pending, exported: [...exported], piped: segment.piped, opaque: segment.opaque, xargs: prefix.some(x => exeName(x) === 'xargs'), xargsFile: prefix.some(x => /^(?:-a.*|--arg-file(?:=.*)?)$/.test(x))});
+    const body = bodyOf(w); if (body) out.push(...bodySteps(body, current, pending));
   }
   return out;
 }
@@ -318,17 +352,20 @@ const couldReach = (lit, dir, root) => {
   const abs = resolve(dir, lit);
   return LOCATIONS.some(([loc]) => lc(resolve(root, loc)).startsWith(lc(lit === '' || /\/$/.test(lit) ? withSep(abs) : abs)));
 };
-export function protectedKind(value, cwd = process.cwd(), root = cwd, op = null) {
+// `parents` asks for the containment test on a write too (the roots of a find -exec that writes).
+export function protectedKind(value, cwd = process.cwd(), root = cwd, op = null, parents = false) {
   const absolute = resolvedOperand(value, cwd); if (!absolute) return null;
   const rootAbs = canonicalPath(resolve(root));
   const rel = relative(rootAbs, absolute).replace(/\\/g, '/');
   const lexical = posix.normalize(cleanOperand(value).replace(/\\/g, '/'));
   if (/(?:^|\/)hooks\/[^\s]*\.(?:mjs|cjs|ps1|sh|py)$/i.test(absolute.replace(/\\/g,'/'))) return 'hooks';
+  // A Claude Code settings file is a policy authority wherever it lives, in this project or in a home directory.
+  if (/(?:^|\/)\.claude\/settings(?:\.local)?\.json$/i.test(absolute.replace(/\\/g, '/'))) return 'authority';
   const local = rel.startsWith('../') ? lexical : rel;
   if (/^(?:\.git(?:\/|$)|\.claude\/(?:settings(?:\.local)?\.json|eidolon-manifest\.yaml)|\.eidolon\/(?:policy-manifest\.json|sessions(?:\/|$))|\.claude\/skills\/eidolon(?:\/|$))/i.test(local)) return 'authority';
   if (/^(?:hooks(?:\/|$)|references\/(?:persona-template\.md|security-policy\.md))/i.test(local)) return 'hooks';
   if (/^(?:docs\/(?:fixes|insights|decisions)(?:\/|$)|DECISIONS?\.md$)/i.test(local)) return 'record';
-  return op === 'delete' ? containsProtected(absolute, rootAbs) : null;
+  return op === 'delete' || parents ? containsProtected(absolute, rootAbs) : null;
 }
 const MUTATING = /^(?:rm|mv|cp|chmod|rmdir|del|erase|truncate|shred|unlink|tee|sed|perl|remove-item|move-item|copy-item|set-content|add-content|out-file|clear-content|rename-item|ri|mi|sc|ac)$/;
 const DELETING = /^(?:rm|rmdir|rd|del|erase|unlink|shred|truncate|remove-item|ri)$/;
@@ -409,7 +446,14 @@ function pathEntries(verb, args) {
     if (to.length) {add(paths, 'delete'); add(to, 'write');}
     else {add(paths.slice(0, -1), 'delete'); add(paths.slice(-1), paths.length > 1 ? 'write' : 'delete');}
   }
-  else if (COPYING.test(verb)) {const to = [...dir, ...dest]; add(to.length ? to : paths.slice(-1), 'write');}
+  else if (COPYING.test(verb)) {
+    const to = [...dir, ...dest];
+    add(to.length ? to : paths.slice(-1), 'write');
+    // cp -l and cp --link make hard links to their sources, rsync --link-dest to the files of that directory: judged like ln.
+    const linkDest = verb === 'rsync' ? optionValue(args, [], ['--link-dest']) : undefined;
+    if (verb === 'cp' && args.some(a => a === '--link' || /^-[a-zA-Z]*l[a-zA-Z]*$/.test(a))) add(to.length ? paths : paths.slice(0, -1), 'link', {hard: true});
+    if (linkDest !== undefined) add([linkDest], 'link', {hard: true});
+  }
   else if (LINKING.test(verb)) {
     const to = dir.length ? dir : paths.slice(-1), from = dir.length ? paths : paths.slice(0, -1);
     // A symlink target is read relative to the link's directory; a hard link source is an ordinary path.
@@ -443,7 +487,12 @@ function pathEntries(verb, args) {
       const run = []; for (k++; k < args.length && args[k] !== ';' && args[k] !== '+'; k++) run.push(args[k]);
       const op = execOp(run);
       if (op === 'opaque') out.push({opaque: 'find -exec runs a verb the parser does not model'});
-      else if (op) {add(roots, op); if (op === 'attr') add(roots, 'write');} // a permission change on a record is a change to it too
+      else if (op) {
+        // A root that holds a protected path is written through when the command is handed the found file ({}) as its target.
+        const name = exeName(run[0] ?? ''), reaches = COPYING.test(name) || LINKING.test(name) ? (run.at(-1) ?? '').includes('{}') : run.some(a => a.includes('{}'));
+        add(roots, op, op === 'write' && reaches ? {parents: true} : {});
+        if (op === 'attr') add(roots, 'write', reaches ? {parents: true} : {}); // a permission change on a record is a change to it too
+      }
     }
   }
   else if (/^(?:tar|gtar|bsdtar)$/.test(verb)) {
@@ -487,6 +536,11 @@ function executionReason(verb, args, step, hereString) {
   if (/^(?:iex|invoke-expression)$/.test(verb)) return 'a string is executed as code';
   if (/^(?:awk|gawk|mawk|nawk)$/.test(verb) && args.some(a => /\bsystem\s*\(/.test(a))) return 'an awk program runs shell commands';
   if (/^(?:pwsh|powershell)$/.test(verb) && args.some(a => /^-e(?:c|n[a-z]*)?$/i.test(a))) return 'an encoded PowerShell command cannot be read';
+  // Start-Process hands its -ArgumentList to the program it starts; a shell started that way runs a command line nobody parsed.
+  if (/^(?:start-process|start|saps)$/.test(verb)) {
+    const at = args.findIndex(a => /^-filepath$/i.test(a)), program = at >= 0 ? args[at + 1] : args.find(a => !a.startsWith('-'));
+    if (/^(?:cmd|pwsh|powershell|bash|sh)$/.test(exeName(program ?? ''))) return 'Start-Process runs a shell with an argument list';
+  }
   // A pipe or a here-string (<<<) feeds the program to a shell or interpreter that has no script operand.
   const operands = args.filter(a => !REDIRECT.test(a));
   if ((step.piped || hereString) && STDIN_RUNNER.test(verb)
@@ -504,6 +558,7 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
   const facts = [], rootAbs = canonicalPath(resolve(root)); let previous = [];
   for (const step of steps(source, cwd, language)) {
     const {w, current, pending} = step;
+    if (step.unparsed) {facts.push({kind: 'opaque', op: null, verb: '', mutation: true, value: '', cwd: current, opaque: true, reason: 'an inline shell body the parser cannot read or that nests another body'}); continue;}
     let verb = '', args = [], entries, hereString = false; const targets = [];
     for (let k = 0; k < w.length; k++) {
       const m = REDIRECT.exec(w[k]); if (m && m[1] === '<<<') hereString = true;
@@ -525,7 +580,7 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
     }
     previous = args.filter(a => !a.startsWith('-'));
     const mutation = MUTATING.test(verb) || targets.some(t => t.op);
-    const push = (value, op, {link, opaque, hard, nodest} = {}) => {
+    const push = (value, op, {link, opaque, hard, nodest, parents} = {}) => {
       if (opaque) {facts.push({kind: 'opaque', op: null, verb, mutation: true, value: '', cwd: dir, opaque: step.opaque, reason: opaque}); return;}
       const v = cleanOperand(verb === 'dd' ? value.replace(/^(?:of|if)=/, '') : value);
       if (!v || NULL_DEVICE.test(v) || TEMP_VARIABLE.test(String(value))) return;
@@ -545,7 +600,7 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
         opaqueKind = !kind && couldReach(lit, dir, rootAbs);
         if (!kind && !opaqueKind) return;
         if (opaqueKind) {facts.push({kind: 'opaque', op: null, verb, mutation: true, value, cwd: dir, opaque: step.opaque, reason: 'a glob, brace or variable operand that could reach a protected path'}); return;}
-      } else kind = protectedKind(v, dir, rootAbs, op) ?? (all ? 'path' : null);
+      } else kind = protectedKind(v, dir, rootAbs, op, parents) ?? (all ? 'path' : null);
       if (kind) facts.push({kind, op, verb, mutation: mutation || op !== null, value, cwd: dir, opaque: step.opaque, ...(all && {path: resolvedOperand(v, dir)}), ...(via && {via}), ...(hard && {hard})});
     };
     const handled = new Set();

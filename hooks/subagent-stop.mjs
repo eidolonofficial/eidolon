@@ -6,11 +6,12 @@ import {runHook} from './lib.mjs';
 import {policyRoot} from './operation.mjs';
 import {appendLog} from './dispatch-evaluators.mjs';
 
-// Evidence is a backtick-quoted command, an "Evidence:" line with text, or a path that exists under the project root.
+// Evidence is a backtick-quoted command, an "Evidence:" line with text (markdown emphasis and list markers around the
+// label are ignored, so "**Evidence:** x" and "- Evidence: x" count), or a path that exists under the project root.
 // ponytail: it proves the report names something real, not that the done-check passed; upgrade path is re-running the named command.
-const NAMED = /`[^`\n]+`|^[ \t]*evidence[ \t]*:[ \t]*\S/im;
+const NAMED = /`[^`\n]+`|^[ \t]*(?:[-*>][ \t]+)?evidence[ \t]*:[ \t]*\S/im;
 const PATH = /[\w.-]+(?:[\/\\][\w.-]+)+/g;
-const hasEvidence = (message, root) => NAMED.test(message) || (message.match(PATH) ?? []).some(p => {
+const hasEvidence = (message, root) => NAMED.test(message.replace(/[*_]+/g, '')) || (message.match(PATH) ?? []).some(p => {
   const file = resolve(root, p.replace(/[.-]+$/, '').replace(/\\/g, '/')), rel = relative(root, file);
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel) && existsSync(file);
 });

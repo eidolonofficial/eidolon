@@ -52,3 +52,18 @@ test('M2 the dispatch log records the tier the dispatch resolved to', t => {
   silent(dispatch(root, {subagent_type: 'caveman:cavecrew-reviewer', prompt: 'review src'}), 'plugin tier');
   assert.deepEqual(readLog(root).map(l => l.model), ['opus', 'haiku', 'plugin-defined']);
 });
+
+test('M3 the stop hook reads an Evidence line through markdown emphasis or a list marker; a report with none is sent back once', t => {
+  const {root} = repo(t);
+  const stop = (message, active = false) => run(root, 'subagent-stop.mjs', {agent_id: 'w1', agent_type: 'builder', last_assistant_message: message, stop_hook_active: active});
+  for (const message of ['**Evidence:** the report lines above.', '- Evidence: node --test exits 0', 'Evidence: src/hello.txt landed.']) {
+    const r = stop(message);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /additionalContext/, message);
+    assert.doesNotMatch(r.stdout, /"decision":"block"/, message);
+  }
+  const back = stop('Done.');
+  assert.match(back.stdout, /"decision":"block"/, 'no evidence is sent back');
+  assert.match(stop('Done.', true).stdout, /additionalContext/, 'already sent back once, so it may stop');
+  assert.deepEqual(readLog(root).filter(l => l.kind === 'outcome').map(l => l.evidence), [true, true, true, false, false]);
+});

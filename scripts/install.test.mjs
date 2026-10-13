@@ -6,7 +6,9 @@ import { basename, dirname, join, parse, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir, userInfo } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { install, planInstall, applyPlan } from './install.mjs';
+import { install as installOnce, planInstall, applyPlan } from './install.mjs';
+// install() applies only a previewed plan (F27): bind the digest the way the Hearth wrapper does.
+const install = o => installOnce(o?.dryRun === false && !o.expectedPlan ? { ...o, expectedPlan: planInstall(o).digest } : o);
 const source = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const script = join(source, 'scripts/install.mjs');
 function tmp(t) { const p = realpathSync(mkdtempSync(join(tmpdir(), 'eidolon-install-'))); t.after(() => rmSync(p, { recursive: true, force: true })); return p; }
@@ -202,7 +204,8 @@ test('I9 a SKILL.md in the source is never swapped for a host variant, and no de
 
 // ---- F1 to F12: execution-review fixes. Every fixture lives under the OS temp directory with a fake HOME. ----
 const J = JSON.stringify, sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const skillSrc = (t, name = 'sample') => { const s = tmp(t); put(s, 'SKILL.md', '---\nname: ' + name + '\ndescription: fixture\n---\n'); return s; };
+// An eidolon fixture ships the six hook files the project install wires (F14).
+const skillSrc = (t, name = 'sample') => { const s = tmp(t); put(s, 'SKILL.md', '---\nname: ' + name + '\ndescription: fixture\n---\n'); if (name === 'eidolon') for (const h of ['guard-bash', 'guard-write', 'guard-dispatch', 'post-tool-entry', 'subagent-start', 'subagent-stop']) put(s, 'hooks/' + h + '.mjs', '// stub\n'); return s; };
 const git = (cwd, ...a) => { const r = spawnSync('git', ['-C', cwd, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
 function gitSource(t) {
   const src = tmp(t); git(src, 'init', '-q'); put(src, 'SKILL.md', '---\nname: sample\ndescription: fixture\n---\n'); put(src, '.gitignore', '.env\n');
@@ -296,10 +299,10 @@ function cliFixture(t) {
   const home = tmp(t), env = fakeEnv(t), run = (...a) => spawnSync(process.execPath, [join(base, 'scripts/install.mjs'), '--home', home, ...a], { encoding: 'utf8', env });
   return { home, run };
 }
-test('F12 --yes without --expect-plan is refused with the digest line; the previewed digest is accepted; --help documents it', t => {
+test('F12 --yes without --expect-plan is refused without a digest; the previewed digest is accepted; --help documents it', t => {
   const { home, run } = cliFixture(t);
   const refused = run('--yes'); assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /To apply exactly this plan: --yes --expect-plan [0-9a-f]{64}/); assert.ok(!existsSync(join(home, '.claude')));
+  assert.match(refused.stderr, /preview first/); assert.doesNotMatch(refused.stderr, /[0-9a-f]{64}/); assert.ok(!existsSync(join(home, '.claude')));
   const preview = run(); assert.equal(preview.status, 0, preview.stderr);
   const line = preview.stdout.match(/To apply exactly this plan: --yes --expect-plan ([0-9a-f]{64})/); assert.ok(line, preview.stdout);
   const applied = run('--yes', '--expect-plan', line[1]); assert.equal(applied.status, 0, applied.stderr);
