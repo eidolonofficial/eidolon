@@ -54,6 +54,16 @@ by a swarm's self-proof or the cold-context verifier, not a single hard block.
 |---|---|---|---|
 | Erasure of the append-only record | The fix, insight, and decision logs are append-only; no hook or skill auto-deletes a record; removal requires an explicit human decision. | every stage | append-only-record-guard + deletion-guard |
 
+## Workers and dispatch (the native persona pipeline)
+
+| Antibehavior | Defense | Owner | Enforced by |
+|---|---|---|---|
+| Lane breach by a worker | A worker writes only under the roots its agent has in `.claude/agent-scopes.json`; a reviewer has none. The controller is never gated. Active only when the worker input carries `agent_type` (unverified until a live run with `EIDOLON_HOOK_DEBUG=1`). | orchestrator | `evalLane` in hooks/lanes.mjs: block, on Write, Edit and the shell verbs the path parser knows |
+| Write-capable dispatch without a done-check | Every brief to a write-capable agent names the command or observation that proves the goal. | orchestrator | `evalBriefGate` in hooks/dispatch-evaluators.mjs: ask. The check is lexical; it sees that a done-check phrase exists, not that it is sound |
+| Swarm without a wave plan | A wave plan at `.claude/waves/<date>-<slug>.md` exists before the first write-capable dispatch of a session. | orchestrator | `evalWavePlan` in hooks/dispatch-evaluators.mjs: ask. It checks that a plan file newer than the session start exists, not its content |
+| A worker that dispatches | A worker returns the need to the controller and never spawns another agent. | orchestrator | `evalWorkerRecursion` in hooks/dispatch-evaluators.mjs: block |
+| A worker that stops without evidence | The final report names the command or file that proves the done-check, the paths changed and what was not done. | orchestrator | hooks/subagent-stop.mjs: sends the worker back once, then advisory. The evidence test is lexical |
+
 ## The shape of the rows
 
 ```yaml

@@ -1,642 +1,140 @@
 ---
 name: eidolon
 description: Sets up a project so Claude Code understands it from the first message, and runs a spec-driven build pipeline for real work on it. In setup mode Eidolon reads your repo, works out which languages and tools you use, and writes the files Claude needs to work well: a CLAUDE.md, helper skills and slash commands, sub-agents, safety hooks, MCP setup, and the memory wiring (a written memory store plus a code map). In build mode it carries a work item from a spec through plan, build, a security review swarm, a cold-context verify, and a committed close, with human gates along the way. Use this whenever someone wants to set up, configure, or get a repo ready for Claude Code, or to build, change, or fix something in it, even if they do not say the word eidolon.
-trigger: /eidolon
 ---
 
 # /eidolon
 
-Any repo → detected stack → a complete, verified Claude Code environment.
-Four phases, eleven stages (1 to 10 plus the 2.5 persona interview), three
-operator checkpoints, and five consent-gate moments (install, seat, deploy,
-irreversible, sensitive dispatch). Autonomous
-execution, consent-gated side effects: nothing is
-written before the plan is approved, and every generated command is verified
-against an independent second signal before it ships.
+Eidolon turns a repo into a verified Claude Code environment (setup), carries a work
+item through a human-gated pipeline in that environment (build), and guides anything
+that must run on its own (autopilot). Execution is autonomous and side effects are
+consent-gated: nothing is written before the plan is approved, and every generated
+command is checked against an independent second signal before it ships. This file
+routes; the procedures live in the references named below.
 
 ## Usage
 
 ```
 /eidolon                      # run on current directory
 /eidolon <path>               # run on a specific repo
-/eidolon <path> --dry-run     # stages 1-2 only: recon + plan, never writes
+/eidolon <path> --dry-run     # recon + plan only, never writes
 /eidolon <path> --no-capture  # skip Stage 7 (MemPalace/Graphify fan-out)
 /eidolon <path> --no-mcp      # skip Stage 8 (MCP wiring)
-```
-
-## INVARIANTS (apply to every stage)
-
-```yaml
-docs:
-  facts:  declarative config blocks (yaml/toml/json)   # never prose
-  rules:  one terse imperative line each               # never paragraphs
-  why:    header comment above the block               # the only place rationale lives
-  prose:  none                                          # no narrative, no essays
-output_shape:                                           # mirror existing skills exactly
-  skill:  SKILL.md(frontmatter: name+description+trigger; body: numbered no-skip steps)
-  refs:   references/*-template.md
-  hooks:  hooks/*.mjs + hooks/*.ps1 + hooks/README.md(table: hook|trigger|enforcement)
-manifest:
-  root:   .claude/eidolon-manifest.yaml
-  rule:   every generated artifact carries last_verified + a verify gate    # trust-tree.yaml model
-gating:
-  model:  plan all stages → approve → execute with checkpoints
-  gates:  after Stage 2, after Stage 6, after Stage 8
-  consent_gates:                                        # autonomous execution, consent-gated side effects
-    rule:   do ALL the work without asking; pause ONLY where an action is installing,
-            irreversible, deploying, or seating an identity
-    moments: install a skill (Stage 4) | seat the primary persona (Stage 2.5 ratify,
-             Stage 10 seat) | deploy (SHIP) | run an irreversible op (the ask tier) |
-             dispatch destructive/sensitive work (the ask tier, hooks/guard-dispatch.mjs;
-             references/security-policy.md)
-    shape:  one AskUserQuestion each, with a why/liability line; never a typed menu
-verification:                                           # the load-bearing discipline
-  funnel: REFERENCE trust-but-verify SKILL.md § "what verification MUST be"  # do not restate
-  rule:   no generated command ships unverified; tag every claim EXTRACTED|INFERRED|AMBIGUOUS
-  state:  verify a tool CHANGED STATE (files/rows/tokens>0), not that it reported success  # "returned N" != mutation
-  fanout: probe a swarm/fan-out with ONE item and verify the mutation before scaling       # subagents can run read-only or get cut off mid-task
-  triage: root-cause a failing tool BEFORE working around it (read its logs/transcripts)   # abandoning-without-diagnosis ships a broken feature
-graphify:
-  default: --update                                     # AST, EXTRACTED edges, cheap
-  deep:    --mode deep                                  # manual only - god nodes / edge digs
-pairing:                                                # ai-pairing-playbook is RUN-TIME, eidolon is BUILD-TIME
-  axis:   eidolon installs the room; ai-pairing-playbook is how you move in it - do not merge
-  emit:   eidolon ships the playbook's partner-notes artifact (Stage 3); it never inlines the 6 shifts
-  tells:  structural-izable drift-tells → hooks (Stage 6); judgment/comms tells → partner-notes doc
-  lanes:  name the playbook's lane (mechanical|judgment|closure) at each checkpoint
-orchestration:                                          # running subagents and swarms; the dispatcher sets the tone for the operation
-  persona: the Expediter - the controller's executive dispatcher; thinks like a restaurant
-           expediter, executes like a business prodigy. Allocates the operation's attention,
-           calls each work item by name, and lets nothing ship unverified.
-  lock:    the Expediter seat belongs to the MAIN SESSION only. A dispatched subagent that
-           seats or claims it is HARD STOPPED and the seat is automatically deactivated
-           (hooks/persona-conduct-guard.mjs, verdict subagent-expediter). Subagents seat
-           working personas from references/personas/; they never conduct the orchestra.
-  method:  DMAIC - Define the task and its done-criteria. Measure the baseline with a full
-           read-only inventory BEFORE any dispatch. Analyze real scope against noise.
-           Improve in small controlled waves. Control by verifying every wave by STATE
-           before the next one fires.
-  standard: references/conductor-standard.md - the field-proven operating standard (operator-
-           ordered 2026-06-12): the conductor lanes (conducts, supervises by state, runs gates
-           of record, merge surgery, hook infra - NEVER builds inline what a fenced swarm can),
-           the swarm-first dispatch law, personas on every dispatch with no exceptions, the
-           model cascade, the spec foundry (idle capacity works ahead read-only), and edge-only
-           human gates. Where an older clause here or in any reference permits inline building,
-           optional persona seating, or cost-timid fan-out, the standard SUPERSEDES it; its
-           anti-patterns index maps each replaced clause.
-  discipline:                                           # the five operating rules every wave answers to
-    done_is_the_outcome:  "done" means the outcome the work exists for is true and observed,
-                          never merely that a gate ran green; name the outcome signal before
-                          starting and verify that exact signal before saying done
-    measure_before_build: a read-only Measure wave precedes any build wave; inventory the
-                          real data, files, and running system, and bind the plan to what is
-    scope_every_claim:    scope every claim to what was actually run and read back; a gate is
-                          "green" only after the controller's OWN full-gate run, output read
-    verify_by_execution:  verify by EXECUTING the thing and observing - run the regex against
-                          the exact strings, fire the guard, render the view; reading is a
-                          hypothesis, never a verification
-    evidence_first:       when challenged, answer with evidence before explanation - the file
-                          and line, the command output, the failing element
-  waves:   small and controlled; verify each wave before the next; a failing wave HALTS the
-           line and is root-caused, never pushed past (kaizen, not bulldozing)
-  verify:  a subagent's "done" report is a claim to verify, not a result to repeat - confirm
-           the state change landed (files changed / git status / row counts / live signal)
-  supervise: watch the line by STATE, not by reports - TaskOutput may not track a background
-           agent; brief agents OFF known-dead and forbidden tools so they neither wander nor hang
-  authority: hook and loop infrastructure is the Expediter's alone, controller-direct, and
-           only ever BENEFICIAL - a guard may be made more accurate (fewer false catches,
-           never fewer true ones), proven by executing its logic before and after, disclosed
-           in a fix log; disabling enforcement or dodging a live catch is forbidden
-  loops:   long-running work runs as bounded single-iteration loops with budgets, leases, and
-           halt codes - the shape and its safety rules live in references/loop-suite.md
-  antipattern: HEADLONG ORCHESTRATION - fanning out before Define+Measure, bulk changes with
-           no baseline, no per-wave verify. Headlong changes to the staff sink the service.
+/eidolon loop|goal|routine    # guided autopilot: something that runs on its own
 ```
 
 ## Modes
 
-Eidolon runs in one of two modes. Pick by what was asked; state which at the top.
-
 ```yaml
-setup:  no work item, or "set up / configure this repo"  ->  run the ten stages below (install the room)
-build:  a work item to build, change, or fix             ->  run the Build pipeline (work in the room)
+# why: one entry point, three procedures; each procedure lives in exactly one file
+setup:     no work item, or "set up / configure this repo"  ->  references/setup-workflow.md
+build:     a work item to build, change, or fix             ->  references/build-pipeline.md
+autopilot: "keep doing this", loop, goal, routine           ->  references/autopilot-guide.md
 ```
 
-Setup installs the environment once. Build runs each time there is real work.
-Build's SPECIFY stage reuses Setup's recon and Interview Mode; it does not
-re-install. If both apply (a fresh repo plus a first work item), run setup, then
-build.
+Pick by what was asked and state the mode at the top. Setup installs the room once;
+build works in it each time; build's SPECIFY stage reuses setup's recon and
+references/interview.md and does not reinstall. A fresh repo plus a first work item
+runs setup, then build.
 
-## What You Must Do When Invoked
+## INVARIANTS (apply to every mode)
 
-If no path was given, use `.` (current directory). Do not ask for a path.
-Follow the phases in order. Do not skip stages. Honor the three checkpoints.
+```yaml
+# why: the rules that hold in all three modes; the owning reference adds the rest
+docs:
+  facts:  declarative config blocks (yaml/toml/json), never prose
+  rules:  one terse imperative line each
+  why:    a header comment above the block, the only place rationale lives
+verification:
+  funnel: REFERENCE trust-but-verify SKILL.md "what verification MUST be"; do not restate
+  rule:   no generated command ships unverified; tag every claim EXTRACTED|INFERRED|AMBIGUOUS
+  state:  verify that a tool CHANGED STATE (files, rows, tokens), not that it reported success
+  fanout: probe a swarm with ONE item and verify the mutation before scaling
+  triage: root-cause a failing tool BEFORE working around it
+consent_gates:
+  rule:    do ALL the work without asking; pause ONLY where an action installs, is irreversible,
+           deploys, or seats an identity
+  moments: install a skill | seat the primary persona | deploy | run an irreversible op (the ask tier)
+           | dispatch destructive or sensitive work (the ask tier, hooks/guard-dispatch.mjs,
+           references/security-policy.md)
+  shape:   one AskUserQuestion each, with a why/liability line; never a typed menu
+dispatch_gate:                  # hooks/guard-dispatch.mjs asks the human; a worker that dispatches is blocked
+  done_check: a write-capable dispatch names its done-check ("Done-check: <command> exits 0")
+  wave_plan:  a swarm has a wave plan at .claude/waves/<date>-<slug>.md before its first dispatch
+orchestration:
+  standard:  references/conductor-standard.md governs; it supersedes any older clause that permits
+             inline building, optional persona seating, or cost-timid fan-out
+  preflight: Define the outcome signal, Measure by a read-only inventory, then write the wave plan;
+             fan out only after (conductor-standard.md section 2)
+  personas:  every dispatch seats a named persona; the Expediter seat belongs to the main session
+             only (hooks/persona-conduct-guard.mjs)
+  reasoning: every claim states cause, mechanism, falsifier, evidence (references/persona-template.md,
+             section "Reasoning")
+  brief:     every dispatch carries the Brief contract (references/persona-template.md, section
+             "Brief contract")
+  cascade:   model and effort per role come from conductor-standard.md section 4, as aliases
+  discipline: done means the outcome is observed, never merely a green gate; measure before build;
+             scope every claim to what ran; verify by execution; answer a challenge with evidence first
+  waves:     small and controlled; a failing wave halts the line and is root-caused, never pushed past
+hooks_posture:
+  claim: the hooks are defense in depth, lexical checks on tool calls plus the permission deny floor
+  never: describe them as a sandbox or as hard enforcement; the known gaps are in hooks/README.md
+```
 
----
+## What you must do when invoked
 
-### PHASE A - Recon + Plan
+1. If no path was given, use `.`; do not ask for one.
+2. Pick the mode from the request and say which. Then read the owning reference in full
+   before acting; do not work from memory of it.
+3. Follow its stages in order and skip none. Honor its checkpoints: setup pauses after Stage 2
+   (plan), Stage 6 (structure) and Stage 8 (wiring); build stops at gates 1, 2 and 3.
+4. Dispatch through the conductor standard: a wave plan first, a persona and a done-check on
+   every brief, state read back after every wave.
+5. Run the gates before any closeout and quote their output: `node scripts/selfcheck.mjs`,
+   `node scripts/eidolon-audit.mjs`, `node scripts/hooks-readme-check.mjs`, and
+   `node scripts/persona-lint.mjs` on any persona or agent file written.
+6. Do not declare done while any AMBIGUOUS item or unverified finding stands.
 
-#### Stage 1 - Recon (read-only, no writes)
+## Read next
 
-Detect the repo's shape. Read silently; present a clean summary, not raw output.
-Resolve `EIDOLON_SKILL_ROOT` to this installed skill directory and `REPO_ROOT`
-to the target project before using the commands below. Follow
-`references/git-hooks-path.md` for all Git-native capture paths. The read-only
-inspector reads `git config --path --null --get core.hooksPath` FIRST, then asks
-Git for its effective hooks directory. Do not mistake a missing default directory
-for a missing hook, or a discovery error for an unset configuration.
+```yaml
+# why: every reference by path with the one thing it owns; open the one the task needs
+procedures:
+  references/setup-workflow.md: the ten setup stages, the Stage 5 agent and agent-scopes.json contract
+  references/build-pipeline.md: the spec-to-close pipeline, tiers, gates, the governance pointer table
+  references/autopilot-guide.md: loops, goals and routines, guided from a brain dump
+  references/interview.md: the question bank, the brain dump, the reflect-back format
+  references/engineering-principles.md: the principles behind workflows, loops, retrieval, DAGs, context
+orchestration:
+  references/conductor-standard.md: conductor lanes, swarm-first law, preflight, model cascade, gates
+  references/loop-suite.md: bounded autonomous iteration and the heartbeat
+  references/review-swarms.md: the engineering, code-review, trust-and-safety and ship swarms
+  references/persona-template.md: persona construction, the rail, Reasoning, Brief contract, primary persona
+  references/personas/: the built roster, one file per persona
+  references/architect-synthesis.md: one ordered disposition of every swarm finding
+  references/cross-session.md: verification from a self-contained packet in a separate session
+skills:
+  references/skill-authoring.md: how Eidolon authors a skill for itself from a proven gap
+  references/find-skills-reach.md: reaching beyond the installed set, hiring an expert persona
+  references/agents/skill-scout.md: the read-only scout agent for one named gap
+  references/example-skill/: a worked, lint-clean example skill
+safety:
+  references/security-policy.md: what an agent reads before sensitive work
+  references/security-swarm.md: red/blue method and the anti-handwave gates
+  references/antibehavior-catalog.md: each drift, its owner and its enforcing hook
+  hooks/README.md: the hook wiring, evaluators, tiers, lanes and known gaps
+host:
+  references/current-platform-contract.md: verified host behavior; wins over dated claims elsewhere
+  references/git-hooks-path.md: effective Git hook paths for recon, capture and verify
+  references/explain-mode.md: plain-language teaching at any stage on request
+  references/partner-notes-template.md: the working-with-Claude notes emitted at Stage 3
+```
+
+## Proof of life
 
 ```bash
-# stack + entry points + commands
-test -f package.json && cat package.json | python3 -c "import sys,json;d=json.load(sys.stdin);print('node',d.get('scripts',{}))" 2>/dev/null
-test -f pyproject.toml && grep -E '^\[tool|^name|^requires' pyproject.toml 2>/dev/null
-test -f go.mod && head -3 go.mod 2>/dev/null
-test -f Cargo.toml && grep -E '^name|^edition' Cargo.toml 2>/dev/null
-# existing claude-code state
-ls -la .claude/ 2>/dev/null; test -f CLAUDE.md && wc -l CLAUDE.md
-ls .claude/skills .claude/agents .claude/commands 2>/dev/null
-git rev-parse --is-inside-work-tree 2>/dev/null && git config --get remote.origin.url
-# config first, then effective-path inventory; never execute hooks during recon
-node "$EIDOLON_SKILL_ROOT/scripts/inspect-git-hooks.mjs" "$REPO_ROOT"
+node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # the suites; 0 fail
+node scripts/selfcheck.mjs                            # hooks parse, settings valid, no em or en dash
+node scripts/eidolon-audit.mjs                        # every reference named here resolves
+node scripts/hooks-readme-check.mjs                   # hooks/README.md matches the code
 ```
-
-Present:
-
-```
-Repo: <name> · <N> files
-  stack:     <languages + frameworks detected>
-  build:     <cmd or "none found">
-  test:      <cmd or "none found">
-  existing:  CLAUDE.md(<lines>) · skills(<n>) · agents(<n>) · hooks(<n>)
-  git:       <remote or "local only"> · hook path: <effective hooksPath>
-             core.hooksPath: <configured value or unset> - existing hooks: <list or none>
-             capture: <postCommit.status; discovery errors are AMBIGUOUS>
-```
-
-Skip and count sensitive files (`.env`, keys, secrets) - never print their names.
-
-#### Stage 2 - Plan
-
-Synthesize the tailored 10-stage plan for THIS repo. Mark each artifact
-`new` or `merge` (if it already exists). Present the plan.
-
-```
-🛑 CHECKPOINT 1 (judgment-lane) - approve plan before any write.
-   Use AskUserQuestion: [Approve] [Edit scope] [Dry-run only]
-```
-
----
-
-### PHASE B - Structure
-
-#### Stage 2.5 - Primary persona interview
-
-The house agent for this repo, built by the same machine that builds the
-swarms and held to the same anti-synthetic rail (no anchor, no seat). One
-AskUserQuestion round, proposed from Stage 1 recon and ratified by the user:
-register, mandate, anchors (the rail, satisfied with consent), specific
-anti-behaviors, voice. Assemble against references/persona-template.md, lint
-with scripts/persona-lint.mjs (a FAIL re-prompts the anchors question, never
-seats), then ratify: [Seat it] [Edit] [Explain]. The full contract is
-references/persona-template.md (section "The primary persona"). Seating itself happens at Stage 10, so the
-guard enforces from the first message of the next session.
-
-#### Stage 3 - CLAUDE.md
-
-Generate declarative core. Facts as config; rules as imperative lines; no prose.
-If CLAUDE.md exists, merge - never overwrite. Reference skills/graph, don't inline them.
-Reference the primary persona (references/personas/<project>-primary.md), never inline it.
-
-```markdown
-## Stack
-<lang/framework/version as a list>
-## Commands
-build: <cmd>
-test:  <cmd>
-lint:  <cmd>
-## Rules
-- Run test before declaring any task done.
-- Verify each claim against an independent second signal.
-- Never force-push. Never edit an append-only log to shrink it.
-## Memory
-- Prose memory: MemPalace (see Stage 7).
-- Structural graph: graphify-out/graph.json (see Stage 7).
-## Pairing
-- Partner notes (how to prompt on this project): docs/working-with-claude.md
-```
-
-Then emit the partner-notes doc itself - do NOT inline its content here:
-
-```bash
-# source of truth is the installed ai-pairing-playbook skill; adapt examples to detected stack
-test -f ~/.claude/skills/ai-pairing-playbook/references/PARTNER-NOTES-template.md \
-  && cp ~/.claude/skills/ai-pairing-playbook/references/PARTNER-NOTES-template.md docs/working-with-claude.md \
-  || echo "AMBIGUOUS: ai-pairing-playbook not installed - install it; eidolon references, never copies, the 6 shifts"
-```
-
-#### Stage 4 - Skills + slash commands
-
-For each capability the repo needs, generate
-`.claude/skills/<name>/SKILL.md` (frontmatter + numbered no-skip steps) and
-`.claude/commands/<name>.md`. Add `references/*-template.md` only when the
-skill emits a repeating artifact.
-
-For a skill Eidolon authors for ITSELF from a recurring, PROVEN gap (not generated
-once for the target, not discovered externally), use the gated authoring flow: build
-it against `references/skill-authoring.md (section "The construction template")`, lint it with `scripts/skill-lint.mjs` (the
-rail: no trigger, no eval, no skill), independent-test-gate its evals, then consent +
-install. Doctrine: `references/skill-authoring.md`; maker:
-`references/personas/skill-author.md`; worked example: `references/example-skill/SKILL.md`.
-
-When a named gap is NOT coverable by a generated skill (a niche language, a
-framework with its own idioms, a regulatory domain), reach beyond the installed
-set. Three actors, never collapsed into one (references/find-skills-reach.md):
-
-```
-discover -> dispatch skill-scout (references/agents/skill-scout.md) for the ONE
-            named gap; it returns ranked candidates as evidence, installs nothing
-decide   -> ONE AskUserQuestion per gap: candidate name + source + license +
-            verbatim frontmatter description, with a why/liability line.
-            [Install it] [Skip] [Show me the SKILL.md first] [Find other options]
-install  -> on the explicit yes, the controller installs (marketplace add +
-            plugin install, or copy the folder into .claude/skills/<name>/),
-            VERIFIES before trusting (frontmatter parses, smoke check), then
-            RECORDS (CREDITS.md with license, decision-log row). Verify that the
-            current host discovers the skill after install; do not require a restart unless
-            that host/version or integration actually needs one.
-```
-
-#### Stage 5 - Subagents
-
-Generate `.claude/agents/<name>.md` - scoped, each with its own context window
-and trigger. Default set: a `verifier` (runs the second-signal funnel), a
-`reviewer` (security/quality pass), and the standing `skill-scout` (copy
-references/agents/skill-scout.md into `.claude/agents/`, so later gaps reuse
-the same discover/decide/install path). Add stack-specific agents as detected.
-
-#### Stage 6 - Hooks (governance gates, BOTH layers)
-
-Emit two layers, because each does what the other cannot (hooks/README.md,
-"The two-layer floor"):
-
-Layer A - the permission deny floor, into the target's `.claude/settings.json`.
-Evaluated by Claude Code's own parser, so it survives `disableAllHooks`:
-
-```json
-"permissions": {
-  "deny": [
-    "Bash(git push --force *)",  "Bash(git push * --force *)",
-    "Bash(git push -f *)",       "Bash(git push * -f *)",
-    "Bash(git config*core.hooksPath*)",
-    "Bash(git filter-branch *)", "Bash(git filter-repo *)",
-    "Write(**/.claude/settings.local.json)",
-    "Edit(**/.claude/settings.local.json)"
-  ]
-}
-```
-
-Layer B - the hook suite: generate `hooks/*.mjs` (Node) + `hooks/*.ps1`
-(PowerShell) + `hooks/README.md` (table). Wire the consolidated dispatcher
-shape in `.claude/settings.json`: one `guard-bash` entry, one `guard-write`
-entry, and the `Agent|Task` entry for
-`guard-dispatch` (three entries; see hooks/README.md "Wiring"). Mirror the verdict tiers: advisory injects
-`additionalContext`; ask emits `permissionDecision "ask"` (the consent tier);
-hard block exits `2`.
-
-```
-events:    PreToolUse | PostToolUse | SessionStart | PreCompact
-default gates:
-  protected-paths-guard     PreToolUse(Bash)        exit 2 on rm/del of protected paths
-  append-only-record-guard  PreToolUse(Write/Edit)  exit 2 on emptying (or a >50% Write
-                                                    shrink of) an append-only log
-  commit-quality-guard      PreToolUse(Bash)        exit 2 on --no-verify / --force / DROP
-  settings-integrity-guard  PreToolUse(Write/Edit)  exit 2 on disableAllHooks:true or on
-                                                    dropping a manifest-wired hook entry
-  verification-guard        PreToolUse(Bash)        exit 2 on a commit claiming a visual or
-                                                    runtime result without naming evidence
-```
-
-```
-🛑 CHECKPOINT 2 - review CLAUDE.md / skills / agents / hooks before wiring memory.
-   Use AskUserQuestion: [Continue to wiring] [Revise structure]
-```
-
----
-
-### PHASE C - Wiring
-
-#### Stage 7 - Dual-capture fan-out (MemPalace prose + Graphify graph)
-
-One trigger → two sinks → two payloads. Not a mirror: prose memory and a
-structural graph are different views. Generate BOTH trigger paths.
-
-Verify the tools FIRST (do not assume invocations):
-
-```bash
-# Graphify - package is graphifyy (two y's), CLI is graphify
-python3 -c "import graphify" 2>/dev/null || echo "AMBIGUOUS: graphify not installed - pip install graphifyy --break-system-packages"
-# Windows PATH caveat: if 'graphify' unresolved, add %APPDATA%\Python\Python3xx\Scripts or use pipx
-# MemPalace - detect the real capture command; do NOT hardcode a guess
-command -v mempalace 2>/dev/null || claude plugin list 2>/dev/null | grep -i mempalace || echo "AMBIGUOUS: confirm MemPalace capture invocation before wiring"
-```
-
-The auto-miner is ONE portable script (`hooks/memory-sync.post-commit.sh`)
-wired on up to two legs. It is hardened against three failure modes that a naive
-"two paths fire the same captures" wiring walks straight into (each lesson
-field-proven; provenance in `docs/decisions/2026-06-11-hardened-automine.md`):
-
-```yaml
-foundation:   git-native (post-commit in Git's effective hooksPath directory)
-              is the FOUNDATION, not a co-equal of the Claude Code leg. A
-              PostToolUse(Bash) hook fires only when the commit ran through the
-              agent's tool call, and the harness is NOT guaranteed to invoke it
-              (probe-verified: a wired entry went uninvoked while the script ran
-              clean when driven directly). Human / script / subagent commits never
-              reach it. The git-native hook fires on EVERY commit from ANY source.
-dedup:        two legs firing sub-seconds apart can BOTH start a capture, and
-              concurrent captures corrupt the vector index (HNSW segment desync).
-              Two guards make a double-fire a no-op: (1) already-synced - sentinel
-              head == HEAD -> skip; (2) atomic lock - `mkdir` is atomic on every
-              POSIX fs and Windows git-bash, so exactly one racer proceeds; a stale
-              lock (>15 min) is removed and retried once.
-observability: never silence the cascade into /dev/null. Log the fire, the skip,
-              and each stage exit to .claude/.memory-sync.log - a silenced cascade
-              once hid a non-firing trigger for 13 commits; the silence cost the
-              time, not the bug.
-```
-
-```
-Leg 1 (FOUNDATION) - git-native: re-run scripts/inspect-git-hooks.mjs for the
-  target and compare hooksPath/postCommit.path with Stage 1 before proposing writes.
-  Install hooks/memory-sync.post-commit.sh only at that effective postCommit.path
-  (chmod +x where applicable), after approval. If a hook/dispatcher exists, inspect
-  and preserve its chain; merge only with approval, never overwrite it.
-  A configured but missing, disabled or inaccessible directory is NOT permission
-  to fall back to .git/hooks, reset core.hooksPath, or modify a shared directory.
-  Git-native capture fires on commits from any source when installed and enabled.
-Leg 2 (OPTIONAL) - Claude Code PostToolUse(Bash, git commit): run the SAME script
-  for in-agent immediacy. The dedup makes the overlap with leg 1 safe.
-```
-
-Fill `<CAPTURE_CMD>` + `<WING>` in the template with the repo's verified MemPalace
-invocation (the detection above); graphify auto-detects on PATH. The template
-ships the lock, the dedup, the logging, and the synced-head sentinel already
-wired - the installer fills only the two capture placeholders. When the repo is
-configured for codebase-memory-mcp (Stage 8), the template's reindex leg also
-refreshes that index on every commit (gated on `.claude/codebase-memory.json`); a
-repo without it is unaffected.
-
-The SessionStart ORIENT leg has a PRIMARY + FALLBACK pair for the structural graph:
-codebase-memory-orient (PRIMARY - sources god nodes + layers from the
-codebase-memory-mcp index, when installed) and graphify-orient (the automatic
-FALLBACK - surfaces graphify-out/GRAPH_REPORT.md only when the primary produced
-nothing this session, detected via a per-session sentinel).
-
-#### Stage 8 - MCP config
-
-Wire the structural-graph MCP server so agents query the graph instead of re-reading.
-codebase-memory-mcp ships a real MCP server (a local C binary; 158 languages, sub-ms
-Cypher/trace queries); graphify is CLI-only (`graphify query/path/explain`) with NO MCP
-entrypoint, so do NOT template a `graphify --mcp` line - it would create a broken server.
-
-```json
-// .claude/settings.json → mcpServers (or a project .mcp.json)
-{ "codebase-memory-mcp": { "command": "<abs path to codebase-memory-mcp[.exe]>", "args": [] } }
-```
-
-Install the binary (binary-only, NO agent-config side effects - e.g. the installer's
-`--skip-config`, or a package manager that does not run the bundled `install`), then index
-the repo and write the orient config that codebase-memory-orient + the reindex leg read:
-
-```bash
-codebase-memory-mcp cli index_repository '{"repo_path":"<repo>","persistence":true}'
-codebase-memory-mcp cli list_projects '{}'   # -> the exact project name it registered
-# then write .claude/codebase-memory.json: { "project": "<name>", "exe": "<abs path>" }
-# (machine-specific, gitignored; the CLI scopes by project name, and the agent-process
-#  PATH may not yet include the binary, so both are carried explicitly)
-```
-
-```
-🛑 CHECKPOINT 3 - review fan-out + MCP before commit-of-record.
-   Use AskUserQuestion: [Finalize] [Adjust wiring]
-```
-
----
-
-### PHASE D - Verify + Closeout
-
-#### Stage 9 - Verify (two-signal funnel on everything generated)
-
-For every generated command/path/claim: state it, name an independent signal,
-run the check, record the result. Tag EXTRACTED | INFERRED | AMBIGUOUS.
-
-```bash
-test -f .claude/settings.json && python3 -c "import json;json.load(open('.claude/settings.json'))" && echo "settings.json: valid JSON [EXTRACTED]"
-for h in hooks/*.mjs; do node --check "$h" && echo "$h: parses [EXTRACTED]"; done
-graphify --update --no-viz >/dev/null 2>&1 && echo "graphify runs [EXTRACTED]" || echo "graphify: [AMBIGUOUS] verify install/PATH"
-# Verify the current effective handler, not merely that this is a Git repository.
-node "$EIDOLON_SKILL_ROOT/scripts/inspect-git-hooks.mjs" "$REPO_ROOT" --check-post-commit
-# the primary persona must pass the rail before Stage 10 may seat it
-node scripts/persona-lint.mjs references/personas/*-primary.md && echo "primary persona: PASS [EXTRACTED]"
-# every Stage 4-installed skill: frontmatter parses + one-line smoke check before its findings are trusted
-for s in .claude/skills/*/SKILL.md; do head -1 "$s" | grep -q '^---$' && echo "$s: frontmatter [EXTRACTED]"; done
-```
-
-The inspector checks path, presence, readability and executability only; it does
-not prove capture fired. Compare its current path with Stage 7 and inspect any
-existing dispatcher for the memory-sync leg. For the independent execution signal,
-verify a recent commit's matching `.claude/.memory-sync.log` cascade and output
-mutation, or use an explicitly approved test commit in an isolated fixture.
-Never create a commit just to inventory hooks, invoke an unknown hook during
-recon, or call a direct script invocation proof that Git triggered it. Record
-missing or unavailable capture evidence as `AMBIGUOUS`, not healthy.
-
-Any `AMBIGUOUS` result blocks closeout until resolved or explicitly waived.
-
-#### Stage 10 - Manifest + seat the persona + self-auditing closeout
-
-Emit the artifact registry and the log scaffolding, then seat the ratified
-primary persona: write `.claude/active-persona.json` (persona id, title,
-anchors, both anti-behavior layers), so the conduct guard enforces it from
-message 1 of the next session. Seat only a persona that passed Stage 9's lint;
-the guard's own seat-time gate (no anchor, no seat) is the last line, not the
-plan.
-
-```yaml
-# .claude/eidolon-manifest.yaml
-version: "0.1.0"
-generated: <YYYY-MM-DD>
-artifacts:
-  - path: CLAUDE.md           kind: core      status: <new|merge>  last_verified: <date>
-  - path: .claude/skills/...  kind: skill     status: ...          last_verified: <date>
-  - path: hooks/...           kind: hook      status: ...          last_verified: <date>
-  - path: hooks/guard-dispatch.mjs  kind: hook  wired: PreToolUse(Agent|Task)  last_verified: <date>  # the consent gate; list it so settings-integrity-guard protects it
-  - path: "<effective-post-commit-path>"  kind: capture  last_verified: <date>  # Stage 9 postCommit.path, never a hardcoded default
-logs:
-  fixes:    docs/fixes/        # FIX-YYYY-MM-DD-<slug>.md, flat markdown
-  insights: docs/insights/     # INSIGHT-YYYY-MM-DD-<slug>.md, frontmatter + body
-```
-
-Print a final summary: artifacts written, anything left AMBIGUOUS, next action.
-Do not declare done while any AMBIGUOUS item is unresolved.
-
----
-
-## Build pipeline (spec-driven mode)
-
-The staged line from a work item to a committed change. Each arrow is a gate
-where a human can approve, edit, or stop. Only CLOSE commits; everything before
-it lives in the working tree, so the rollback for a bad run is the pre-run git
-state, stated before CLOSE runs.
-
-```
-  work item
-    ->  SPECIFY   (reuse Stage 1 recon + Setup Interview Mode)   ->  the spec
-        [gate 1: approve the spec before any tokens burn]
-    ->  PLAN      (components, order, risk tier, cost ceiling)   ->  the plan
-        [gate 2: approve the plan on standard or larger work]
-    ->  BUILD     (engineering swarm builds against the spec, one task at a time, test first)
-    ->  REVIEW    (by tier: security red/blue, trust-and-safety, code-review)  ->  findings
-    ->  SYNTHESIZE (solutions architect: one ordered disposition of every finding)
-    ->  VERIFY    (cold-context: rubric + independent second signal) ->  PASS | red
-        red and under three tries  ->  FIX (bounded); 3rd red  ->  re-plan, do not re-fix
-        [gate 3: visual or runtime check; the user is the final eyes]
-    ->  SHIP      (ship-and-upload: deploy-readiness interview, then deploy)   # when the change deploys
-    ->  CLOSE     (commit of record + decision-log entry + memory sync)
-```
-
-### The load-bearing rules
-
-```yaml
-# why: these four are the spine; everything else is detail layered on them
-cold_context:        VERIFY is spawned with only the diff, the spec, and the rubric.
-                     It cannot inherit BUILD's reasoning; it re-derives PASS or red itself.
-fix_loop:            bounded at three. A third red means the plan was wrong: re-plan,
-                     do not grind fixes. If the re-plan also fails, surface the open
-                     findings to the user. Never exhaust the loop and ship.
-only_close_commits:  nothing commits before CLOSE. State the pre-run git SHA as the
-                     rollback path before CLOSE runs.
-human_gates:         gate 1 (approve the spec) and gate 3 (visual/runtime) are required;
-                     gate 2 (approve the plan) is required on standard or larger work.
-surface_one:         findings are surfaced one at a time via AskUserQuestion, never a
-                     typed menu, each with a liability line (who is harmed if wrong).
-```
-
-### Tier and cost ceiling (picked at PLAN, shown to the user)
-
-```yaml
-# why: scale the pipeline to the change so the cure does not become its own drift
-trivial:    one file, no new surface              ->  BUILD, code-review tidy, VERIFY;
-                                                       no security, trust-and-safety, or architect
-standard:   a feature or surface change           ->  add security, trust-and-safety, and
-                                                       code-review swarms at small fan-out, plus the architect
-high_risk:  auth / payments / PII / public surface ->  full fan-out, full antibehavior pass,
-                                                       escalate to independent review where the trust tree says so
-# SHIP is a stage (see the pipeline diagram and step 9), not a risk tier: it runs whenever the change deploys
-ceiling:    each tier states a max subagent count and token budget at PLAN.
-            on approach, pause and ask: raise the ceiling or narrow scope. never spend without limit.
-```
-
-### Governance (referenced, not restated here)
-
-```yaml
-decision_tree:   docs/spec design § 8 - severity = base x blast radius; two signals or it is
-                 not a finding; HIGH/CRITICAL need root cause; bypass double-gated; a circuit
-                 breaker halts a run when most of four-plus findings are bypassed.
-uncertainty:     docs/spec design § 9 - subagents return literal evidence (file excerpt, tool
-                 output, URL + response), never "I checked"; the orchestrator inspects that
-                 evidence itself and names the second signal; hedged language is refused.
-security_swarm:  references/security-swarm.md - red/blue methodology, the coverage manifest,
-                 the seeded-defect fire drill, the five anti-handwave gates.
-explain_mode:    references/explain-mode.md - plain-language teaching, comprehension checks,
-                 the favorite-teacher disposition; available at every stage on request.
-personas:        references/persona-template.md - the ten-part construction template, the
-                 two anti-behavior layers, the anti-synthetic rail. references/personas/*.md
-                 are the built personas (slice 1 ships the full-stack engineer).
-primary_persona: references/persona-template.md (section "The primary persona") - Stage 2.5: the user's own house agent,
-                 interviewed into existence from recon + five ratified questions, assembled
-                 against the template, linted by the same rail (a FAIL re-prompts, never
-                 seats), and seated at Stage 10 (.claude/active-persona.json) so the conduct
-                 guard enforces from message 1.
-engineering_swarm: references/review-swarms.md - builds against the spec, TDD per task,
-                 with the seeded-failing-test fire drill and the no-stub closeout gate.
-conduct_guard:   hooks/persona-conduct-guard.mjs - checks a seated persona against its own
-                 declared anti-behaviors (.claude/active-persona.json) and enforces the rail at
-                 the seat boundary (teeth but no anchor does not get to act); halts and names the line.
-trust_safety_swarm: references/review-swarms.md - harm, abuse, privacy/PII, a11y, fairness
-                 (GDPR, CCPA, WCAG 2.2); the seeded-PII fire drill and the coverage manifest.
-code_review_swarm: references/review-swarms.md - behavior-preserving only; a behavior change
-                 is a finding for engineering; the suite-guards-behavior fire drill.
-architect_synthesis: references/architect-synthesis.md - ingests every swarm's findings plus the
-                 three logs in one pass; the disposition table; no finding silently dropped.
-ship_upload_swarm: references/review-swarms.md - the deploy-readiness interview (reuses
-                 Interview Mode) and the SHIP stage; the seeded missing-env-var / staged-secret
-                 fire drill; no deploy on a red gate; the user is the final eyes.
-expert_hiring:   references/find-skills-reach.md (section "Hiring an expert persona") - when recon finds a need the base roster does not
-                 cover, generate a grounded expert against the template, gated at PLAN; the
-                 anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire.
-find_skills:     references/find-skills-reach.md - pull an installable skill for a named
-                 capability gap; consent before install, verify before trust. The three-
-                 actor split is structural: skill-scout (references/agents/skill-scout.md)
-                 discovers read-only and returns evidence; the controller holds the
-                 AskUserQuestion gate and the install (a subagent cannot pause the human).
-skill_authoring: references/skill-authoring.md - Eidolon authors a skill for ITSELF from a
-                 recurring PROVEN gap (the skill analog of expert-hiring): build against
-                 references/skill-authoring.md (section "The construction template"), lint with scripts/skill-lint.mjs (the rail:
-                 no trigger, no eval, no skill), independent test-gate the evals, human
-                 consent + install, then govern the library. Distilled-from-success only;
-                 one-shot speculation is worse than nothing (EvolveTool-Bench).
-antibehavior_catalog: references/antibehavior-catalog.md - the unified deduplicated drift
-                 catalog (section 10); each row names its owning stage and enforcing hook.
-hook_suite:      hooks/README.md - the full governance hook suite (section 11): the
-                 verification, commit-quality, append-only, persona-conduct, hook-integrity,
-                 deletion, protected-paths, visual-evidence, drift, settings-integrity,
-                 and dispatch guards, plus the orient and session hooks; see the table for the full set.
-cross_session:   references/cross-session.md - the higher isolation tier: a separate session
-                 verifies from a self-contained packet (scripts/verify-packet.mjs), graduated
-                 per run on high-risk work.
-conductor_standard: references/conductor-standard.md - the 2026-06-12 uplift: conductor lanes,
-                 swarm-first dispatch law, personas-every-dispatch, the model cascade,
-                 supervise-by-state, done-is-the-outcome, the spec foundry, edge-only gates;
-                 closes with the anti-patterns index mapping every clause it replaces.
-heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing self-rearming
-                 heartbeat at the lease-window cadence: state pulse, zombie reap with
-                 state-injected respawns, one swarm-conducting wave per firing, parks only at
-                 human gates; 25-minute default leases; a stale queue is a defect to re-seed.
-```
-
-### What you must do in build mode
-
-1. Confirm the mode out loud and state the pre-run git SHA as the rollback path.
-2. SPECIFY: reuse recon (Stage 1) and Setup Interview Mode; write the six core
-   areas and `.claude/session.yaml`. Stop at gate 1 for approval.
-3. PLAN: name the tier and the cost ceiling; split into dependency-ordered tasks,
-   each with an acceptance check and a verify step. If recon found a need the base
-   roster does not cover, hire an expert here (generate it against the template,
-   gated at this checkpoint; the anti-synthetic rail rejects an ungrounded hire).
-   Stop at gate 2 on standard or larger work.
-4. BUILD: dispatch the engineering swarm and seat its persona (write the persona's
-   anchors and anti-behaviors to `.claude/active-persona.json`; the conduct guard enforces
-   the anti-behaviors and refuses to act for a seat that names no anchor: no anchor, no seat).
-   One task at a time, test first (the test red before the change, green after),
-   against the spec. No scope drift; new ideas go to the work queue, never the live diff.
-5. REVIEW: by tier, run the security swarm (red finds, blue hardens), the
-   trust-and-safety swarm, and the code-review swarm, in parallel. Each red finding
-   becomes a blue hardening task, closed only when its post-fix verify passes; a
-   code-review behavior change is a finding for engineering, not a silent edit.
-   Dispatching these sensitive swarms (and any destructive or deploy work) asks the human
-   (the consent tier, hooks/guard-dispatch.mjs; references/security-policy.md).
-6. SYNTHESIZE: the solutions architect ingests every swarm's findings plus the three
-   logs in one pass and produces one ordered disposition table; no finding is
-   dropped. The plan it commits to is gated before continuing.
-7. VERIFY: spawn the cold-context verifier with only the diff, spec, and rubric.
-   On a high-risk graduated run, assemble a verify packet (scripts/verify-packet.mjs)
-   and verify in a separate session (references/cross-session.md). Red under three
-   tries enters the bounded fix loop; a third red re-plans.
-8. Gate 3: hand the visual or runtime result to the user as the final eyes. A
-   screenshot proves the render happened, not that it is right.
-9. SHIP (when the change deploys): the ship-and-upload swarm runs a deploy-readiness
-   interview, then deploys only when every checklist item is green with its signal and
-   every upstream manifest is clean. The user approves the deploy as the final eyes.
-10. CLOSE: only now commit. Write the decision-log entry and run the memory sync.
-   Do not declare done while any finding is unverified or any AMBIGUOUS stands.

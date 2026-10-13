@@ -1,61 +1,75 @@
 # Eidolon
 
-**An agentic system that understands a repository, chooses the smallest useful toolset, preserves context, and keeps consequential actions behind explicit human consent.**
+Eidolon is a Claude Code skill. It sets up a repository for Claude Code, carries a work item from spec to committed change, and guides loops, goals and routines. It asks before any action that installs, deploys, seats an identity or cannot be undone, and it checks its own claims against a second signal.
 
-Eidolon is the intelligence at the center of the family. **Hearth** is the installer and threshold. **Setup** prepares a working session. Eidolon reads the codebase, forms a grounded plan, selects skills from evidence instead of keywords, coordinates specialist work when it helps, verifies claims before closure, and remembers what matters without pretending memory is certainty.
+## Install
 
-> **Same heart. More possibility.** The goal is not a more theatrical agent. It is a more capable one that remains legible to the person using it.
-
-## Quick start
-
-Requires Node.js 18+ and Git. Preview first; approve writes separately.
+Clone into the user skills directory:
 
 ```sh
-node scripts/install.mjs --project /path/to/project
-node scripts/install.mjs --project /path/to/project --yes
+git clone https://github.com/eidolonofficial/eidolon.git ~/.claude/skills/eidolon
 ```
 
-Existing skill replacement requires `--replace` and retains a backup. Copying the skill does **not** activate hooks automatically.
+Or install a tagged bundle through Hearth. Copying the skill does not wire any hooks; a project install does (see "The installer"). Then run `/eidolon` in Claude Code.
 
-Invoke `/eidolon` in Claude Code.
+## Requirements
 
-## What Eidolon actually does
+Node 22 or newer for the installer and the hooks. Git. Claude Code is the only supported host.
 
-| Stage | Purpose | Human boundary |
-| --- | --- | --- |
-| **Understand** | Reads repository structure, languages, tools, instructions, and current evidence. | No writes. |
-| **Select** | Chooses the smallest sufficient skill set from task + repo + risk signals. | New skills require explicit approval. |
-| **Plan** | Builds a concrete execution plan and identifies verification steps. | You approve before consequential changes. |
-| **Build** | Creates host instructions, skills, subagents, governance, memory wiring, and supporting configuration. | Irreversible or sensitive work remains gated. |
-| **Verify** | Checks generated commands and completion claims against independent evidence. | A failed check is not reported as success. |
-| **Remember** | Carries forward useful context as evidence-backed working memory. | Memory stays revisable, not authoritative. |
+## Modes
 
-## Consent is part of the architecture
+| Mode | When | Owning reference |
+|---|---|---|
+| setup | no work item, or "set up this repo" | `references/setup-workflow.md` |
+| build | a work item to build, change or fix | `references/build-pipeline.md` |
+| autopilot | `/eidolon loop`, `goal` or `routine` | `references/autopilot-guide.md` |
 
-Eidolon pauses at consequential edges: installing or replacing a skill, seating a persona, deployment, irreversible actions, and destructive or sensitive delegated work. A generated command must pass verification before it is treated as ready to execute.
+`SKILL.md` is a router: it picks the mode and points at the file that owns the procedure.
 
-The system is deliberately progressive: optional services can enrich the experience, but a missing optional service should not turn a routine task into a false success or a broken install.
+## Consent gates
 
-## The family
+Eidolon works without asking and pauses only at these moments: installing a skill, seating the primary persona, deploying, running an irreversible operation, and dispatching sensitive work. Each is one question with a line saying who is harmed if the answer is wrong. Nothing is written before the plan is approved.
 
-- **Eidolon** — understands, selects, coordinates, verifies, and remembers.
-- **Setup** — begins a session with the right context, boundaries, and skills.
-- **Hearth** — installs the system through a review-first graphical experience.
+## The native persona pipeline
 
-## Verification
+- Setup generates `.claude/agents/*.md` from the persona roster, each with least-privilege tools and a model and effort tier.
+- Each worker gets a write lane in `.claude/agent-scopes.json`; a lane breach is blocked.
+- A dispatch gate asks for a done-check on every write-capable brief and a wave plan in `.claude/waves/` before a swarm.
+- Every dispatch is appended to `.claude/.dispatch-log.jsonl`.
+- SubagentStart hands the worker its lane and brief contract; SubagentStop sends a worker that reports no evidence back once.
 
-The repository includes compatibility, routing, installer, policy, and regression tests. Run the repository suite before claiming a change is ready:
+## The installer
 
 ```sh
-node --test
+node scripts/install.mjs --project PATH [--yes] [--replace] [--lock FILE]
 ```
 
-Platform-specific workflows in `.github/workflows/` provide the cross-platform evidence used for release decisions.
+It previews by default and writes nothing until `--yes`. A project install writes `.claude/skills/eidolon/`, the hook wiring and deny floor in `.claude/settings.json`, `.eidolon/policy-manifest.json`, a stub `.claude/eidolon-manifest.yaml`, and marked blocks in `CLAUDE.md` and `.gitignore`. `--home PATH` installs the skill only. `--replace` is required to overwrite an existing skill and keeps a backup. `--lock FILE` checks every bundled file against a vendor lock and refuses a mismatch. It refuses to install into the home directory as a project. It does not generate agents or lanes; setup does.
+
+## Proof of life
+
+```sh
+node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 197 tests; exit 0 means none failed
+node scripts/selfcheck.mjs                            # 63 PASS lines, then "selfcheck: PASS"
+node scripts/eidolon-audit.mjs                        # PASS: references resolve, personas pass the rail, wired hooks exist
+node scripts/hooks-readme-check.mjs                   # PASS: wiring, evaluator order and hook rows match the code
+```
+
+## What the hooks are
+
+The hooks are defense in depth: lexical checks on tool calls plus the permission deny floor. They are not a sandbox, and the known gaps are listed in `hooks/README.md`.
+
+## Read next
+
+- `SKILL.md`: the router and the invariants.
+- `docs/spec/2026-06-08-eidolon-swarm-retrofit-design.md`: the design spec.
+- `references/conductor-standard.md`: how the orchestrating session works.
+- `CREDITS.md`: the work this builds on.
 
 ## Status
 
-Early, actively developed, and intentionally conservative about what it claims. Built by Jonah Butterbaugh, alongside Claude.
+Early. Built by Jonah Butterbaugh alongside Claude.
 
 ## License
 
-MIT. See [`CREDITS.md`](CREDITS.md) for retained acknowledgements and upstream work.
+MIT.
