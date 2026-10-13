@@ -33,7 +33,9 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs"
+              "${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
             ],
             "timeout": 10
           }
@@ -46,7 +48,9 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/guard-write.mjs"
+              "${CLAUDE_PROJECT_DIR}/hooks/guard-write.mjs",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
             ],
             "timeout": 10
           }
@@ -59,7 +63,9 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/guard-dispatch.mjs"
+              "${CLAUDE_PROJECT_DIR}/hooks/guard-dispatch.mjs",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
             ],
             "timeout": 10
           }
@@ -74,7 +80,9 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/post-tool-entry.mjs"
+              "${CLAUDE_PROJECT_DIR}/hooks/post-tool-entry.mjs",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
             ],
             "timeout": 10
           }
@@ -89,7 +97,9 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/subagent-start.mjs"
+              "${CLAUDE_PROJECT_DIR}/hooks/subagent-start.mjs",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
             ],
             "timeout": 10
           }
@@ -104,7 +114,9 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/hooks/subagent-stop.mjs"
+              "${CLAUDE_PROJECT_DIR}/hooks/subagent-stop.mjs",
+              "--project",
+              "${CLAUDE_PROJECT_DIR}"
             ],
             "timeout": 10
           }

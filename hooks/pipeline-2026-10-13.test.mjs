@@ -20,7 +20,7 @@ const SCOPES = {
   'code-reviewer': {read: ['**'], write: ['reports/**']},
 };
 const WORKER = {agent_id: 'w1', agent_type: 'builder'};
-const DONE = 'Change src/a.ts. Done-check: node --test exits 0.';
+const DONE = 'Change src/a.ts.\nDone-check: node --test exits 0.';
 
 function repo(t, {scopes = SCOPES, wave = true} = {}) {
   const root = mkdtempSync(join(tmpdir(), 'eidolon-pipe-'));
@@ -31,12 +31,13 @@ function repo(t, {scopes = SCOPES, wave = true} = {}) {
   put('src/a.ts', 'export {};\n');
   put('.claude/settings.json', '{}\n');
   if (scopes) put('.claude/agent-scopes.json', JSON.stringify(scopes));
-  if (wave) put('.claude/waves/2026-10-13-test.md', '# wave\n');
+  put('.claude/session.jsonl', '{}\n'); // the session start the wave plan is judged against; written before the plan
+  if (wave) put('.claude/waves/2026-10-13-test.md', '# wave plan\n\nSteps: build, verify, close the work item.\n');
   return {root, put};
 }
 const run = (root, script, event, env = {}) => spawnSync(process.execPath, [join(HOOKS, script), '--project', root], {
   cwd: root, encoding: 'utf8', timeout: 15000, env: {...process.env, ...env},
-  input: JSON.stringify({cwd: root, session_id: 's1', ...event}),
+  input: JSON.stringify({cwd: root, session_id: 's1', transcript_path: join(root, '.claude/session.jsonl'), ...event}),
 });
 const dispatch = (root, input, extra = {}) => run(root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: input, ...extra});
 const wr = (root, file_path, extra = {}, tool = 'Write') => run(root, 'guard-write.mjs', {tool_name: tool, tool_input: {file_path, content: 'x'}, ...extra});
@@ -66,13 +67,13 @@ test('N1b a write-capable dispatch with no done-check line asks; a done-check li
   asked(dispatch(root, {prompt: 'Refactor the parser please.'}), 'brief names no done-check', 'no subagent_type');
   asked(dispatch(root, {subagent_type: 'builder', prompt: 'Refactor the parser please.'}), 'brief names no done-check', 'scopes entry with a write list');
   asked(dispatch(root, {subagent_type: 'code-reviewer', prompt: 'Fix reports.'}), 'brief names no done-check', 'scopes entry wins over the reviewer name');
-  for (const line of ['Done-check: tests', 'done check - tests', 'Done when green', 'done-when green', 'Acceptance: green', 'node --test exits 0', 'suite must pass', 'verify by running it', 'Evidence: output'])
-    silent(dispatch(root, {subagent_type: 'general-purpose', prompt: 'Refactor the parser. ' + line}), line);
+  for (const line of ['Done-check: tests', 'done-check: tests', 'Acceptance: green'])
+    silent(dispatch(root, {subagent_type: 'general-purpose', prompt: 'Refactor the parser.\n' + line}), line);
 });
 
 test('N1c a read-only dispatch needs no done-check', t => {
   const {root} = repo(t);
-  for (const type of ['Explore', 'Plan', 'scout', 'cavecrew-investigator', 'doc-reviewer'])
+  for (const type of ['Explore', 'Plan', 'scout', 'cavecrew-investigator', 'cavecrew-reviewer'])
     silent(dispatch(root, {subagent_type: type, prompt: 'Look around.'}), type);
 });
 
@@ -222,7 +223,8 @@ test('N5 the repo settings wire every hook in the exec form, with the PowerShell
   const conf = JSON.parse(readFileSync(join(REPO, '.claude/settings.json'), 'utf8'));
   const wired = Object.entries(conf.hooks).flatMap(([event, groups]) => groups.flatMap(g => g.hooks.map(h => {
     assert.equal(h.type, 'command'); assert.equal(h.command, 'node');
-    assert.equal(h.args.length, 1); assert.match(h.args[0], /^\$\{CLAUDE_PROJECT_DIR\}\/hooks\/[a-z-]+\.mjs$/);
+    assert.match(h.args[0], /^\$\{CLAUDE_PROJECT_DIR\}\/hooks\/[a-z-]+\.mjs$/);
+    assert.deepEqual(h.args.slice(1), ['--project', '${CLAUDE_PROJECT_DIR}']);
     return `${event} ${g.matcher ?? ''} ${h.args[0].split('/').pop()}`;
   })));
   assert.deepEqual(wired.sort(), [
@@ -294,7 +296,7 @@ test('N7 a Write outside the project root (a plan file, a scratchpad) gets no ve
   t.after(() => rmSync(outside, {recursive: true, force: true}));
   const plan = join(outside, 'plan.md');
   silent(wr(root, plan), 'controller');
-  silent(wr(root, plan, WORKER), 'worker with a lane');
+  blocked(wr(root, plan, WORKER), 'WRITE LANE GUARD', 'a worker with a lane may not write outside the project root');
   silent(wr(root, join(outside, 'docs', 'decisions', 'x.md')), 'record-shaped path outside the root');
   blocked(wr(root, '.claude/skills/eidolon/x.md', {}), 'RUNTIME INTEGRITY GUARD', 'managed paths inside the root stay blocked');
 });

@@ -13,7 +13,7 @@ export function normalizeEvent(raw, project) {
   if (!raw || Array.isArray(raw) || typeof raw !== 'object') throw Error('Invalid event');
   if (raw.tool_input != null && (Array.isArray(raw.tool_input) || typeof raw.tool_input !== 'object')) throw Error('Invalid tool input');
   const cwdAlias=resolve(raw.cwd||process.cwd()),rootAlias=resolve(project||cwdAlias);
-  const cwd=realpathSync(cwdAlias),root=realpathSync(rootAlias);
+  const cwd=realpathSync.native(cwdAlias),root=realpathSync.native(rootAlias);
   if (cwd !== root) confinedPath(root, root, cwd);
   const j = {...raw, cwd, eidolon_root: root, eidolon_path_root:rootAlias, eidolon_path_cwd:cwdAlias};
   delete j.eidolon_changes;
@@ -38,7 +38,7 @@ export function proposedFile(j) {
   const given = ti.file_path ?? ti.path;
   if (typeof given !== 'string' || !given) throw Error('Missing file path');
   const root = policyRoot(j);
-  const path = confinedPath(j.eidolon_path_root||root, j.eidolon_path_cwd||j.cwd||root, given);
+  const path = escapesRoot(j) && SETTINGS_FILE.test(rawTarget(j)) ? rawTarget(j) : confinedPath(j.eidolon_path_root||root, j.eidolon_path_cwd||j.cwd||root, given);
   const present = existsSync(path);
   const before = present ? boundedRead(path) : Buffer.alloc(0);
   let after;
@@ -85,8 +85,20 @@ export function fileTarget(j) {
   const root=policyRoot(j), given=j.tool_input?.file_path ?? j.tool_input?.path;
   return confinedPath(j.eidolon_path_root||root,j.eidolon_path_cwd||j.cwd||root,given);
 }
-// A Write or Edit aimed outside the project root (a plan file, a scratchpad) is not this suite's business.
-// Symlinks and malformed paths inside the root still fail in confinedPath, and keep blocking.
-export function outsideRoot(j) {
+// The path a Write or Edit names, resolved against the event cwd with no confinement.
+const rawTarget = j => {
+  const given = j.tool_input?.file_path ?? j.tool_input?.path;
+  return typeof given === 'string' && given ? resolve(j.eidolon_path_cwd || j.cwd || policyRoot(j), given) : '';
+};
+// A Claude Code settings file is a policy authority wherever it lives, in this project or in a home directory.
+const SETTINGS_FILE = /[\\/]\.claude[\\/]settings(?:\.local)?\.json$/i;
+// True when the target leaves the project root. Symlinks and malformed paths inside the root still fail in
+// confinedPath, and keep blocking.
+export function escapesRoot(j) {
   try { fileTarget(j); return false; } catch (e) { return e.message === 'Path escapes project'; }
 }
+// A Write or Edit aimed outside the project root (a plan file, a scratchpad) is not this suite's business,
+// except a settings file, which settings-integrity still judges.
+export function outsideRoot(j) { return escapesRoot(j) && !SETTINGS_FILE.test(rawTarget(j)); }
+// The path settings-integrity judges: the confined target, or an outside settings file as named.
+export function settingsTarget(j) { return escapesRoot(j) ? rawTarget(j) : fileTarget(j); }

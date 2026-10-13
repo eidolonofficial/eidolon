@@ -91,3 +91,41 @@ test('I4 the CLI preview prints the text under each path', t => {
   assert.match(out.stdout, /^ +\| \+\+\+ b\/\.claude\/settings\.json$/m);
   assert.deepEqual(readdirSync(root), []);
 });
+const fixtureSource = t => {
+  const src = temporary(t); writeFileSync(join(src, 'SKILL.md'), '---\nname: eidolon\ndescription: fixture\n---\n'); return [{name: 'eidolon', source: src}];
+};
+const BEGIN = '<!-- eidolon:begin -->', END = '<!-- eidolon:end -->';
+test('F4 non-UTF-8 bytes in CLAUDE.md or .gitignore refuse the install, naming the file, and stay untouched', t => {
+  for (const name of ['CLAUDE.md', '.gitignore']) {
+    const root = temporary(t), sources = fixtureSource(t), bytes = Buffer.from([0x63, 0xE9, 0x0A]);
+    writeFileSync(join(root, name), bytes);
+    assert.throws(() => planInstall({project: root, sources}), e => e.message.includes(name) && /utf-?8/i.test(e.message));
+    assert.deepEqual(readFileSync(join(root, name)), bytes);
+  }
+});
+test('F5 an edited block is replaced in place, leaving exactly one delimited block', t => {
+  const root = temporary(t), sources = fixtureSource(t);
+  writeFileSync(join(root, 'CLAUDE.md'), 'Human rules.\n'); writeFileSync(join(root, '.gitignore'), 'dist/\n');
+  install({project: root, sources, dryRun: false});
+  for (const [name, begin, end, edit] of [['CLAUDE.md', BEGIN, END, 'Claude is the engineer.'], ['.gitignore', '# eidolon:begin', '# eidolon:end', '.eidolon/tasks/']]) {
+    const path = join(root, name), text = readFileSync(path, 'utf8');
+    assert.ok(text.includes(begin) && text.includes(end), name);
+    writeFileSync(path, text.replace(edit, 'EDITED ' + edit));
+    install({project: root, sources, dryRun: false, replace: true});
+    const next = readFileSync(path, 'utf8');
+    assert.equal(next, text, name); assert.equal(next.split(begin).length - 1, 1, name); assert.equal(next.split(end).length - 1, 1, name);
+  }
+  assert.match(readFileSync(join(root, 'CLAUDE.md'), 'utf8'), /^Human rules\./); assert.match(readFileSync(join(root, '.gitignore'), 'utf8'), /^dist\//);
+});
+test('F5 a legacy undelimited block is migrated once into a delimited one', t => {
+  const root = temporary(t), sources = fixtureSource(t);
+  install({project: root, sources, dryRun: false});
+  for (const [name, begin, end] of [['CLAUDE.md', BEGIN, END], ['.gitignore', '# eidolon:begin', '# eidolon:end']]) {
+    const path = join(root, name), text = readFileSync(path, 'utf8');
+    const inner = text.slice(text.indexOf(begin) + begin.length, text.indexOf(end)).replace(/^\n|\n$/g, '');
+    writeFileSync(path, 'Human.\n\n' + inner + '\n');
+    install({project: root, sources, dryRun: false, replace: true});
+    const next = readFileSync(path, 'utf8');
+    assert.equal(next.split(begin).length - 1, 1, name); assert.equal(next.split(inner).length - 1, 1, name); assert.ok(next.startsWith('Human.\n'), name);
+  }
+});

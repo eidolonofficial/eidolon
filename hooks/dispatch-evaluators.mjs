@@ -5,9 +5,10 @@ import {join} from 'node:path';
 import {actorIdentity, isDispatch, policyRoot, sha256} from './operation.mjs';
 import {scopeOf} from './lanes.mjs';
 
-const DONE_CHECK = /done[- ]check|done[- ]when|acceptance|exits 0|must pass|verify by|evidence:/i;
-const READ_ONLY_TYPE = /^(?:explore|plan)$|investigator|reviewer/i;
-const DAY = 24 * 60 * 60 * 1000;
+// A done-check is a line of its own that starts with the label and carries text; a keyword in prose is not one.
+const DONE_CHECK = /^[ \t]*(?:[-*>][ \t]+)?(?:done-check|acceptance)[ \t]*:[ \t]*\S/im;
+const READ_ONLY_TYPE = /^(?:Explore|Plan|(?:caveman:)?cavecrew-investigator|(?:caveman:)?cavecrew-reviewer)$/;
+const WAVE_MIN_CHARS = 20;
 
 export const logPath = root => join(root, '.claude', '.dispatch-log.jsonl');
 export function appendLog(root, entry) {
@@ -42,18 +43,25 @@ export function evalBriefGate(j) {
   return {kind: 'ask', label: 'DISPATCH GUARD', why: 'brief names no done-check. Add a line such as "Done-check: <command> exits 0".'};
 }
 
+// null when the session start cannot be read: the plan cannot then be matched to this session.
 function sessionStart(j) {
   try { const s = statSync(j.transcript_path); return s.birthtimeMs || s.ctimeMs; }
-  catch { return Date.now() - DAY; }
+  catch { return null; }
 }
 export function evalWavePlan(j) {
   if (!brief(j)) return null;
   const dir = join(policyRoot(j), '.claude', 'waves');
+  const start = sessionStart(j);
+  if (start === null) return {kind: 'ask', label: 'DISPATCH GUARD', why: 'no wave plan can be matched to this session (no readable transcript_path); write .claude/waves/<date>-<slug>.md'};
   let newest = 0;
   try {
-    for (const name of readdirSync(dir)) if (name.endsWith('.md')) newest = Math.max(newest, statSync(join(dir, name)).mtimeMs);
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith('.md')) continue;
+      const file = join(dir, name);
+      if (readFileSync(file, 'utf8').replace(/\s/g, '').length >= WAVE_MIN_CHARS) newest = Math.max(newest, statSync(file).mtimeMs);
+    }
   } catch { /* no waves directory */ }
-  if (newest >= sessionStart(j)) return null;
+  if (newest >= start) return null;
   return {kind: 'ask', label: 'DISPATCH GUARD', why: 'no wave plan for this session; write .claude/waves/<date>-<slug>.md'};
 }
 

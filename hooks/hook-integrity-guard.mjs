@@ -47,9 +47,9 @@ export const evalHookIntegrity = tolerant((j) => {
 
   if (/core\.hooksPath\s*=/.test(cmd) || /git\s+config\b[^|;&\n]*hooksPath/i.test(cmd) || gitOperations(cmd, j.cwd, j.shell_language).some(overridesHooksPath))
     return B("changing the hooks path disables the suite. The hooks are not optional.");
-  if (/\bchmod\b/i.test(cmd) && suite)
+  if ((/\bchmod\b/i.test(cmd) && suite) || facts.some((f) => f.op === "attr" && (f.kind === "hooks" || f.kind === "authority")))
     return B("chmod on a hook changes how it runs. Do not alter hook permissions.");
-  if ((/\b(?:mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && suite) || facts.some((f) => f.kind === "hooks" && f.op === "delete"))
+  if ((/\b(?:mv|rm|rmdir|del|Remove-Item|Move-Item|Rename-Item|mi|rni)\b/i.test(cmd) && suite) || facts.some((f) => f.kind === "hooks" && f.op === "delete"))
     return B("moving or deleting a hook (or the hooks directory) disables it. Fix a wrong gate in the open, do not remove it.");
   if (facts.some((f) => f.kind === "hooks" && f.op))
     return E("this shell operation overwrites, appends to or re-permissions a hook file. A worker cannot edit the gates; return the change to the controller.");

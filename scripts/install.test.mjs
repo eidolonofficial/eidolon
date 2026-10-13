@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { copyFileSync, existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { basename, dirname, join, parse, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir, userInfo } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { install, planInstall, applyPlan } from './install.mjs';
@@ -197,4 +198,111 @@ test('I9 a SKILL.md in the source is never swapped for a host variant, and no de
   assert.doesNotMatch(code, /codex|\.agents|security-grader|security-attestation|claude-workflow/i);
   const root = tmp(t); install({ project: root, dryRun: false });
   assert.doesNotMatch(readFileSync(join(root, '.eidolon/policy-manifest.json'), 'utf8') + readFileSync(join(root, '.claude/settings.json'), 'utf8'), /security-grader|security-attestation/);
+});
+
+// ---- F1 to F12: execution-review fixes. Every fixture lives under the OS temp directory with a fake HOME. ----
+const J = JSON.stringify, sha = bytes => createHash('sha256').update(bytes).digest('hex');
+const skillSrc = (t, name = 'sample') => { const s = tmp(t); put(s, 'SKILL.md', '---\nname: ' + name + '\ndescription: fixture\n---\n'); return s; };
+const git = (cwd, ...a) => { const r = spawnSync('git', ['-C', cwd, ...a], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
+function gitSource(t) {
+  const src = tmp(t); git(src, 'init', '-q'); put(src, 'SKILL.md', '---\nname: sample\ndescription: fixture\n---\n'); put(src, '.gitignore', '.env\n');
+  git(src, 'add', '-A'); git(src, '-c', 'user.name=t', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'init');
+  put(src, '.env', 'SECRET=1'); put(src, 'id.key', 'k'); put(src, 'graphify-out/x.json', '{}'); return src;
+}
+const fakeEnv = t => { const h = tmp(t); return { ...process.env, HOME: h, USERPROFILE: h, APPDATA: join(h, 'AppData') }; };
+const installUrl = pathToFileURL(join(source, 'scripts/install.mjs')).href;
+const child = (t, code) => spawnSync(process.execPath, ['--input-type=module', '-e', 'import {install,planInstall,applyPlan} from ' + J(installUrl) + ';\n' + code], { encoding: 'utf8', env: fakeEnv(t) });
+const old = new Date(Date.now() - 20 * 60 * 1000);
+
+test('F1 a git source installs tracked files only, never untracked or ignored ones', t => {
+  const src = gitSource(t), home = tmp(t);
+  install({ home, sources: [{ name: 'sample', source: src }], dryRun: false });
+  assert.deepEqual(readdirSync(join(home, '.claude/skills/sample')).sort(), ['.gitignore', 'SKILL.md']);
+});
+test('F2 a git source whose HEAD differs from the lock pin is refused naming both commits; a plain directory pin lands in the receipt', t => {
+  const src = gitSource(t), head = git(src, 'rev-parse', 'HEAD'), base = tmp(t), lock = join(base, 'lock.json');
+  const files = {}; for (const rel of ['SKILL.md', '.gitignore']) files['sample/' + rel] = sha(readFileSync(join(src, rel)));
+  const sources = [{ name: 'sample', source: src }];
+  writeFileSync(lock, J({ sources: { sample: head }, files }));
+  assert.doesNotThrow(() => planInstall({ home: base, sources, lock }));
+  writeFileSync(lock, J({ sources: { sample: 'deadbee0000' }, files }));
+  assert.throws(() => planInstall({ home: base, sources, lock }), e => e.message.includes('deadbee0000') && e.message.includes(head));
+  const plain = skillSrc(t), home = tmp(t), plock = join(base, 'plain.json');
+  writeFileSync(plock, J({ sources: { sample: 'abc1234' }, files: { 'sample/SKILL.md': sha(readFileSync(join(plain, 'SKILL.md'))) } }));
+  const result = install({ home, sources: [{ name: 'sample', source: plain }], lock: plock, dryRun: false });
+  assert.deepEqual(JSON.parse(readFileSync(join(result.backups, 'receipt.json'), 'utf8')).sources, [{ name: 'sample', commit: 'abc1234' }]);
+});
+test('F3 a foreign handler that merely shares an owned basename survives reinstall', t => {
+  const root = tmp(t), sources = [{ name: 'eidolon', source: skillSrc(t, 'eidolon') }];
+  const foreign = { matcher: 'Bash', hooks: [{ type: 'command', command: 'node', args: ['old/hooks/guard-bash.mjs'] }] };
+  put(root, '.claude/settings.json', J({ hooks: { PreToolUse: [foreign] } }));
+  install({ project: root, sources, dryRun: false });
+  install({ project: root, sources, dryRun: false, replace: true });
+  assert.deepEqual(settings(root).hooks.PreToolUse[0], foreign);
+});
+test('F6 a project that contains the home directory, or a filesystem root, is refused', t => {
+  const parent = tmp(t), home = join(parent, 'home'), sources = [{ name: 'eidolon', source: skillSrc(t, 'eidolon') }]; mkdirSync(home);
+  withHome(home, () => assert.throws(() => planInstall({ project: parent, sources }), /home directory/));
+  withHome(home, () => assert.throws(() => planInstall({ project: parse(parent).root, sources }), /filesystem root/));
+});
+test('F7 an existing disableAllHooks true is refused, naming the key', t => {
+  const root = tmp(t), sources = [{ name: 'eidolon', source: skillSrc(t, 'eidolon') }];
+  put(root, '.claude/settings.json', J({ disableAllHooks: true }));
+  assert.throws(() => planInstall({ project: root, sources }), /disableAllHooks/);
+});
+test('F8 a non-array permissions.deny and a non-object env are refused, naming the key', t => {
+  const root = tmp(t), sources = [{ name: 'eidolon', source: skillSrc(t, 'eidolon') }];
+  put(root, '.claude/settings.json', J({ permissions: { deny: 'Bash(rm)' } }));
+  assert.throws(() => planInstall({ project: root, sources }), /permissions\.deny/);
+  put(root, '.claude/settings.json', J({ env: 'FOO=1' }));
+  assert.throws(() => planInstall({ project: root, sources }), /\benv\b/);
+});
+test('F9 a crash after staging leaves no second skill under .claude/skills, and stale stage directories are swept', t => {
+  const home = tmp(t), src = skillSrc(t), run = code => child(t, 'const plan=planInstall({home:' + J(home) + ',sources:[{name:"sample",source:' + J(src) + '}]});' + code);
+  const crashed = run('applyPlan(plan,{dryRun:false,beforeCommit:()=>process.exit(7)});');
+  assert.equal(crashed.status, 7, crashed.stderr);
+  const skills = join(home, '.claude/skills'); assert.deepEqual((existsSync(skills) ? readdirSync(skills) : []).filter(n => n !== 'sample'), []);
+  rmSync(join(home, '.eidolon/install.lock'), { recursive: true, force: true });
+  put(home, '.eidolon/stage/stale-run/x', 'x'); put(home, '.eidolon/stage/fresh-run/y', 'y'); utimesSync(join(home, '.eidolon/stage/stale-run'), old, old);
+  const swept = run('applyPlan(plan,{dryRun:false});');
+  assert.equal(swept.status, 0, swept.stderr); assert.match(swept.stderr, /stale/i);
+  assert.ok(!existsSync(join(home, '.eidolon/stage/stale-run'))); assert.ok(existsSync(join(home, '.eidolon/stage/fresh-run')));
+  assert.ok(existsSync(join(skills, 'sample/SKILL.md')));
+});
+test('F10 a crash after the backup rename journals backed-up, and a stale lock is removed with a note', t => {
+  const home = tmp(t), src = skillSrc(t); put(home, '.claude/skills/sample/SKILL.md', 'local work');
+  const code = tail => 'const plan=planInstall({home:' + J(home) + ',sources:[{name:"sample",source:' + J(src) + '}],replace:true});' + tail;
+  const crashed = child(t, code('applyPlan(plan,{dryRun:false,replace:true,afterRename:({step})=>{if(step==="backup")process.exit(7)}});'));
+  assert.equal(crashed.status, 7, crashed.stderr);
+  assert.equal(journalOf(home).changes[0].phase, 'backed-up');
+  const blocked = child(t, code('applyPlan(plan,{dryRun:false,replace:true});'));
+  assert.notEqual(blocked.status, 0); assert.match(blocked.stderr, /install\.lock/);
+  utimesSync(join(home, '.eidolon/install.lock'), old, old);
+  const later = child(t, code('applyPlan(plan,{dryRun:false,replace:true});'));
+  assert.equal(later.status, 0, later.stderr); assert.match(later.stderr, /stale/i);
+  assert.equal(readFileSync(join(home, '.claude/skills/sample/SKILL.md'), 'utf8'), readFileSync(join(src, 'SKILL.md'), 'utf8'));
+});
+test('F11 replacing an existing skill previews added, changed and removed files', t => {
+  const home = tmp(t), src = skillSrc(t); put(src, 'keep.md', 'same'); put(src, 'edit.md', 'new'); put(src, 'fresh.md', 'added');
+  put(home, '.claude/skills/sample/SKILL.md', readFileSync(join(src, 'SKILL.md'))); put(home, '.claude/skills/sample/keep.md', 'same'); put(home, '.claude/skills/sample/edit.md', 'old'); put(home, '.claude/skills/sample/gone.md', 'bye');
+  const preview = install({ home, sources: [{ name: 'sample', source: src }], replace: true }).previews.find(p => p.path === join(home, '.claude/skills/sample'));
+  assert.deepEqual(preview.files, { added: ['fresh.md'], changed: ['edit.md'], removed: ['gone.md'] });
+});
+function cliFixture(t) {
+  const base = tmp(t); mkdirSync(join(base, 'scripts')); mkdirSync(join(base, 'hooks'));
+  copyFileSync(script, join(base, 'scripts/install.mjs'));
+  for (const f of ['confined-path.mjs', 'policy-manifest.mjs', 'operation.mjs']) copyFileSync(join(source, 'hooks', f), join(base, 'hooks', f));
+  put(base, 'SKILL.md', '---\nname: eidolon\ndescription: fixture\n---\n');
+  const home = tmp(t), env = fakeEnv(t), run = (...a) => spawnSync(process.execPath, [join(base, 'scripts/install.mjs'), '--home', home, ...a], { encoding: 'utf8', env });
+  return { home, run };
+}
+test('F12 --yes without --expect-plan is refused with the digest line; the previewed digest is accepted; --help documents it', t => {
+  const { home, run } = cliFixture(t);
+  const refused = run('--yes'); assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /To apply exactly this plan: --yes --expect-plan [0-9a-f]{64}/); assert.ok(!existsSync(join(home, '.claude')));
+  const preview = run(); assert.equal(preview.status, 0, preview.stderr);
+  const line = preview.stdout.match(/To apply exactly this plan: --yes --expect-plan ([0-9a-f]{64})/); assert.ok(line, preview.stdout);
+  const applied = run('--yes', '--expect-plan', line[1]); assert.equal(applied.status, 0, applied.stderr);
+  assert.ok(existsSync(join(home, '.claude/skills/eidolon/SKILL.md')));
+  assert.match(run('--help').stdout, /--expect-plan/);
 });
