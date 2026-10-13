@@ -62,13 +62,13 @@ Run by `hooks/guard-bash.mjs`, order from `bashEvaluators` in `suite-evaluators.
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | When `.eidolon/policy-manifest.json` exists, reads `.claude/settings.json` and refuses the call if `disableAllHooks` is true, a managed hook handler (event, matcher, command, args) or managed deny rule is missing, or the manifest or settings are unreadable or invalid. | block |
-| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a shell operation that changes an authority path (`.git`, the settings files, `.claude/eidolon-manifest.yaml`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/`, `.claude/skills/eidolon/`). Asks for a mutation the parser cannot place, an interpreter body, heredoc or substitution that names git or a protected path, and a command it cannot parse; a command it cannot parse whose raw text matches a block net blocks instead. See "What asks". Any other internal error blocks. | block, ask |
-| 3 | `evalLane` | lanes.mjs | A worker's redirect or write, append, delete or link outside its `write` roots in `.claude/agent-scopes.json`, a write outside the project root, or a path-shaped string literal in an interpreter inline body outside the lane. See "Write lanes". | block |
+| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a shell operation that changes an authority path (`.git`, the settings files, `.claude/eidolon-manifest.yaml`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/`, `.claude/skills/eidolon/`). Asks for a mutation the parser cannot place (including an extraction, `find -exec` of an unknown verb and `xargs -a` of a mutating verb), a string run as code (`iex`, an encoded PowerShell command, a pipe into a shell), an interpreter body, `eval`, heredoc or substitution that names git, a protected path, `hooks` or `.claude`, and a command it cannot parse; a command it cannot parse whose raw text matches a block net blocks instead. See "What asks". Any other internal error blocks. | block, ask |
+| 3 | `evalLane` | lanes.mjs | A worker's redirect or write, append, delete or link outside its `write` roots in `.claude/agent-scopes.json`, a write outside the project root, a path-shaped string literal or a trailing path-like argv operand of an interpreter inline body outside the lane, or a whole-tree git rewrite (`reset --hard`, `checkout <rev>`, `switch`, `merge`, `pull`, `rebase`, `am`, `cherry-pick`, `revert`, `stash`, `read-tree`, `checkout-index`). A worker may write scratch files under the OS temp directory (unless the project sits inside it), `$TMPDIR`, `$TEMP`, `$TMP` and the literal `/tmp/` prefix. See "Write lanes". | block |
 | 4 | `evalVerification` | verification-guard.mjs | A `git commit` whose message claims a visual or runtime result works ("looks good", "renders correctly", "works in the browser") and names no evidence (a screenshot, an image path, `evidence:`, `verified via`, `signal:`, `proof:`). | block |
-| 5 | `evalCommitQuality` | commit-quality-guard.mjs | Reads the parsed argv of each git invocation. Blocks `--no-verify` (and unambiguous prefixes, and `-n` on commit) on commit or push; a force push (`--force`, `--force-if-includes`, `-f`, a `+` refspec; `--force-with-lease` alone passes); a mirror push or `remote.*.mirror` or `remote.*.push` config; `include.path` config; a `core.hooksPath` override through `git -c`, `--config-env`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_PARAMETERS`, or a swapped `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`; `git config core.hooksPath`; an alias that runs commit or push with a hook-skipping or force flag; `filter-branch` and `filter-repo`. Some cases ask; see "What asks". | block, ask |
+| 5 | `evalCommitQuality` | commit-quality-guard.mjs | Reads the parsed argv of each git invocation. Blocks `--no-verify` (and unambiguous prefixes, and `-n` on commit) on commit or push; a force push (`--force`, `--force-if-includes`, `-f`, a `+` refspec; `--force-with-lease` alone passes); a mirror push or `remote.*.mirror` or `remote.*.push` config; `include.path` config; a `core.hooksPath` override through `git -c`, `--config-env`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_PARAMETERS`, or a swapped `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`; `git config core.hooksPath`; an alias that runs commit or push with a hook-skipping or force flag; `filter-branch` and `filter-repo`. Asks for a splat or an argument array in place of git arguments, and for a worktree overwrite (`reset --hard`, `--merge`, `--keep`, `checkout-index -f`, `read-tree -u` or `--reset`). The raw patterns read the command without its commit message. Some cases ask; see "What asks". | block, ask |
 | 6 | `evalPersonaConduct` | persona-conduct-guard.mjs | With a persona seated, an action that crosses one of its declared anti-behaviors. See "The seated persona". `irreversible-without-safety-net` asks; every other line blocks. No seat file is a no-op, except that a worker may never edit the seat file. | block, ask |
-| 7 | `evalHookIntegrity` | hook-integrity-guard.mjs | Blocks a `core.hooksPath` change, an attribute change (`chmod`, `icacls`, `Set-ItemProperty` and kin) on a hook or authority path, and `mv`, `rm`, `rmdir`, `del`, `Remove-Item`, `Move-Item` or `Rename-Item` of a hook, the hooks directory or an authority path. Any other shell write to a hook file (`cp`, `tee`, a redirect, `sed -i`, `ln`, `touch`) asks the controller and blocks a worker. The persona template and `references/security-policy.md` count as hook files here. | block, ask |
-| 8 | `evalDeletion` | deletion-guard.mjs | A shell command that deletes, overwrites or creates over an append-only record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`), or deletes or moves a parent directory that holds one. Appends (`>>`, `tee -a`, `Add-Content`) pass. | block |
+| 7 | `evalHookIntegrity` | hook-integrity-guard.mjs | Blocks a `core.hooksPath` change, an attribute change (`chmod`, `icacls`, `Set-ItemProperty` and kin) on a hook or authority path, and `mv`, `rm`, `rmdir`, `del`, `Remove-Item`, `Move-Item` or `Rename-Item` of a hook, the hooks directory or an authority path. Any other shell write to a hook file (`cp`, `tee`, a redirect, `sed -i`, `ln`, a hard link to a hook, `touch`) asks the controller and blocks a worker. The persona template and `references/security-policy.md` count as hook files here. | block, ask |
+| 8 | `evalDeletion` | deletion-guard.mjs | A shell command that deletes, overwrites or creates over an append-only record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`), or deletes or moves a parent directory that holds one, or makes a hard link to one (`ln`, `New-Item -ItemType HardLink`). Appends (`>>`, `tee -a`, `Add-Content`) pass. The raw delete pattern reads the command without its commit message. | block |
 | 9 | `evalProtectedPaths` | protected-paths-guard.mjs | A delete verb (`rm`, `rmdir`, `del`, `Remove-Item`, `truncate`, `shred`, `unlink`) aimed at `.git`, a record, a hook, `.claude/settings.json` or `references/persona-template.md`. Overlaps the record guards on purpose. | block |
 | 10 | `evalVisualEvidence` | visual-evidence-gate.mjs | A `git commit` that stages a visual file (png, jpg, jpeg, gif, webp, svg, mp4, mov, webm, pdf), including one staged in the same command or swept in by `-a`, `--all` or `-am`, with a message that names no evidence (screenshot, looked at it, viewed it, verified visually, `see <image>`, `evidence:`, user confirmed, approved or saw). | ask |
 
@@ -79,8 +79,8 @@ Run by `hooks/guard-write.mjs`, order from `writeEvaluators` in `suite-evaluator
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | Same check as in the Bash suite. | block |
-| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a write to `.claude/skills/eidolon/`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/` or `.claude/eidolon-manifest.yaml`. Then applies the hook-file check of `evalHookIntegrity` to the write: a Write or Edit under `hooks/`, `.git/hooks/` or any directory named `hooks` that holds a wired guard asks the controller and blocks a worker. | block, ask |
-| 3 | `evalLane` | lanes.mjs | A worker's Write or Edit outside its `write` roots, or outside the project root. | block |
+| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a write to `.claude/skills/eidolon/`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/` or `.claude/eidolon-manifest.yaml`, and a Write or Edit whose existing target has more than one hard link (it may be another name for a record, a hook or an authority file). Then applies the hook-file check of `evalHookIntegrity` to the write: a Write or Edit under `hooks/`, `.git/hooks/` or any directory named `hooks` that holds a wired guard asks the controller and blocks a worker. | block, ask |
+| 3 | `evalLane` | lanes.mjs | A worker's Write or Edit outside its `write` roots, or outside the project root (scratch under the OS temp directory or `/tmp/` excepted, as in the Bash row). | block |
 | 4 | `evalAppendOnlyRecord` | append-only-record-guard.mjs | A Write or Edit to a record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`) whose result is not the existing bytes plus an append. A record that does not exist yet may be created. A result that cannot be validated blocks. | block |
 | 5 | `evalPersonaConduct` | persona-conduct-guard.mjs | Same check as in the Bash suite. | block, ask |
 | 6 | `evalDrift` | drift-guard.mjs | Consecutive scaffold writes (`hooks/`, `.claude/`, `scripts/`, `.github/`, Dockerfile, Makefile, `.gitignore`, yaml, toml, ini, cfg, `*.config.js` and `*.config.ts`). Advises from a projected count of 6; blocks at 10 unless the policy manifest sets `workType` to `infrastructure` (then it only advises). Any other write resets the count. The count advances only after a successful write (PostToolUse). | advise, block |
@@ -95,7 +95,7 @@ Run by `hooks/guard-dispatch.mjs` on the `Agent` and `Task` tools, in the order 
 | 1 | `evalManagedState` | policy-manifest.mjs | Same check as in the Bash suite. | block |
 | 2 | `evalSensitiveDispatch` | guard-dispatch.mjs | The dispatch text (description, prompt, message, agent type, task) matches a sensitive keyword: security, trust safety, red or blue team, deploy, release, publish, rollout, production, prod, migrat, pii, personal data, payment, cardholder, pci, credential, secret, token, key or keys, `.env`, destructive, `rm -rf`, drop table or database, truncate, delete, wipe, destroy, irreversible, force push. | ask |
 | 3 | `evalWorkerRecursion` | dispatch-evaluators.mjs | A worker (an event with `agent_id`, or a transcript under a `subagents` directory) that dispatches. | block |
-| 4 | `evalBriefGate` | dispatch-evaluators.mjs | A write-capable dispatch whose prompt has no line starting with `Done-check:` or `Acceptance:` followed by text (a leading list marker is allowed; the same words in running prose do not count). Write-capable means an `agent-scopes.json` entry with a non-empty `write` list, or, with no entry, any agent type other than Explore, Plan, cavecrew-investigator or cavecrew-reviewer (a `caveman:` prefix is allowed; no agent type counts as write-capable). A payload with no prompt is not judged. | ask |
+| 4 | `evalBriefGate` | dispatch-evaluators.mjs | A write-capable dispatch whose prompt has no line starting with `Done-check:` or `Acceptance:` followed by text (a leading list marker is allowed; the same words in running prose do not count; a value of none, n/a, na, tbd, todo, skip or a dash is a placeholder and counts as missing). Write-capable means an `agent-scopes.json` entry with a non-empty `write` list, or, with no entry, any agent type other than Explore, Plan, cavecrew-investigator or cavecrew-reviewer (a `caveman:` prefix is allowed; no agent type counts as write-capable). A payload with no prompt is not judged. | ask |
 | 5 | `evalWavePlan` | dispatch-evaluators.mjs | A write-capable dispatch when no `.md` file in `.claude/waves/` with at least 20 non-blank characters is newer than the session start (the transcript's creation time). With no readable `transcript_path` the plan cannot be matched to the session, so it asks. | ask |
 | 6 | `evalDispatchLog` | dispatch-evaluators.mjs | Nothing is refused. Appends one line per dispatch to `.claude/.dispatch-log.jsonl`: time, session, agent type, model, effort, description, persona, write roots and a SHA-256 of the prompt. A dispatch blocked by an earlier evaluator is not logged. A log failure never fails the hook. | none |
 
@@ -112,17 +112,29 @@ unplaceable_operand:  a mutating op whose operand contains *, ?, [, { or an unex
                       mutation counts. A bare * delete at a directory that holds a protected path blocks instead.
 patch_targets:        git apply (unless --check, --stat, --numstat or --summary), and patch with no file operand or with -i or --input
 unmodeled_verb:       an unmodeled verb whose arguments name a protected path (docs/decisions, docs/fixes, docs/insights, DECISIONS.md,
-                      hooks/, .claude/settings*, .eidolon, .git, the policy manifest): curl -o, Invoke-WebRequest -OutFile, vim, tar,
-                      eval, Invoke-Expression, a PowerShell [Type]::Method call
+                      hooks/, .claude/settings*, .eidolon, .git, the policy manifest): curl -o, Invoke-WebRequest -OutFile, vim, split, csplit,
+                      a PowerShell [Type]::Method call, and any unmodeled verb with the word git among its arguments (parallel,
+                      watch, fakeroot: an opaque wrapper). A flag value counts too: --output=hooks/x, -sohooks/x, -C docs/decisions
 inert_verbs:          never ask: cat, ls, grep, git, node, python, bash, npm, Get-Content and the rest of the inert list in shell-operation.mjs
-opaque_body:          an interpreter inline body (sh, bash or zsh -c, node -e, python -c, pwsh -Command, cmd /c), a heredoc body fed
-                      to an interpreter, or a $(...) or backtick body that names git, a protected path or settings. Read-only git
+                      (sort, uniq and tree are not on it: they can write their output file)
+opaque_body:          an interpreter inline body (sh, bash or zsh -c, node -e, --eval=, -p, deno eval, python -c, pwsh -Command, cmd /c), an eval
+                      or Invoke-Expression body, a heredoc body fed to an interpreter, or a $(...) or backtick body that names git, a
+                      protected path, settings, the word hooks or the word .claude. Read-only git
                       subcommands are exempt: status, log, diff, show, rev-parse, rev-list, describe, ls-files, ls-tree, cat-file,
                       blame, shortlog, merge-base
+opaque_execution:     iex and Invoke-Expression; an awk program that calls system(; pwsh or powershell with -EncodedCommand, -enc or -ec;
+                      a pipe into a shell or interpreter that reads its program from standard input (| bash, | sh, | node, | python and kin
+                      with no script operand); xargs -a FILE (or --arg-file) followed by a mutating verb
+extraction:           tar -x or --extract, bsdtar -x, gtar, unzip (not -l, -t, -p), 7z x or e, cpio -i: asks unless a destination (-C, -d, -o<dir>)
+                      is given and is neither the project root nor an ancestor of a protected location. A destination that is itself
+                      protected is judged as a write to it. A worker needs a destination inside its lane
+find_exec:            find -exec, -execdir, -ok, -okdir of a verb outside the modeled and inert lists
 unparseable:          a command that cannot be parsed and whose raw text matches no block net
-commit_quality:       an unknown git global option ahead of the subcommand; git push --delete, -d, or origin :ref
+commit_quality:       an unknown git global option ahead of the subcommand; git push --delete, -d, or origin :ref; a splat or argument array
+                      in place of git arguments (git @a in PowerShell, git "$@", git ${arr[@]}, git $args); git reset --hard, --merge or
+                      --keep, git checkout-index -f, git read-tree -u or --reset (they discard uncommitted work)
 hook_integrity:       a controller writing a hook file (a worker is blocked)
-dispatch:             a write-capable brief with no Done-check: or Acceptance: line; no readable transcript_path; a wave plan under 20 non-blank characters
+dispatch:             a write-capable brief with no Done-check: or Acceptance: line, or one whose value is none, n/a, na, tbd, todo, skip or -; no readable transcript_path; a wave plan under 20 non-blank characters
 other_asks:           the evaluator tables above also list the sensitive dispatch, the visual evidence gate and the persona line
                       irreversible-without-safety-net
 ```
@@ -136,9 +148,13 @@ installed skill, `hooks/`, the persona template, the security policy and the thr
 
 ```yaml
 # why: each line is a shape that once slipped past a single-verb check and is now judged
-modeled_verbs:    ln (a link onto a protected path, or one pointing into it), find -delete or -exec rm, rsync including --delete,
+modeled_verbs:    ln (a link onto a protected path, or one pointing into it; a hard link to a record or authority path blocks, to a hook it asks
+                  the controller), find -delete or -exec/-execdir/-ok/-okdir of rm, mv, cp, chmod, chown, truncate, tee, dd, sed -i, ln,
+                  install, touch or a shell (the find roots take a delete or write), sort -o and --output, uniq with an output operand,
+                  tree -o, tar and unzip and 7z and cpio extraction (destination judged as a write), rsync including --delete,
                   New-Item -Force, touch, mkdir, install, Move-Item, Rename-Item, icacls, attrib, Set-ItemProperty, patch with a file operand
-git_pathspecs:    git checkout, restore, stash, clean (not -n), reset, rm and mv aimed at a protected path
+git_pathspecs:    git checkout, restore, stash, clean (not -n), reset, rm and mv aimed at a protected path; a magic pathspec (:/, :(top), :!x)
+                  counts as the whole tree
 parents:          deleting or moving a parent of a protected path (rm -rf docs, mv hooks hooks2, rm -rf .)
 bare_glob:        a bare * delete at a directory that holds a protected path
 redirects:        >, >>, >| and <> to a protected path
@@ -146,7 +162,15 @@ git_config:       a mirror push, a remote.*.mirror or remote.*.push setting, an 
 path_spellings:   NTFS alternate data streams (file::$DATA), 8.3 short names (DECISI~1), MSYS /c/ drive paths, symlinks
 raw_nets:         a line the tokenizer cannot parse is still matched against raw patterns (a hook-skipping commit, a core.hooksPath
                   override, a delete of .git, hooks, a record or settings) before it downgrades to an ask
-workers:          a worker's write outside the project root, in any tool
+workers:          a worker's write outside the project root, in any tool (scratch under the OS temp directory or /tmp/ excepted);
+                  a worker's whole-tree git rewrite (reset --hard, --merge, --keep, checkout <rev> with no pathspec, switch, merge, pull,
+                  rebase, am, cherry-pick, revert, stash other than list and show, read-tree, checkout-index); a trailing path-like
+                  argv operand of an inline interpreter body outside the lane
+hard_links:       a Write or Edit whose existing target has more than one hard link (RUNTIME INTEGRITY GUARD)
+command_words:    bash drops an unquoted backslash before an ordinary character in the command word, so g\it and r\m are git and rm;
+                  wrappers env -S, timeout -s -k, stdbuf, winpty, flock, ionice, unbuffer and chronic unwrap
+commit_messages:  the raw delete, record, hooks-path and chmod patterns read the command without its -m or --message text and the
+                  heredoc body of a git commit, so a message that says rm docs/decisions is not a delete
 settings:        a settings file anywhere, inside or outside the project, runs through settings-integrity
 ```
 
@@ -285,7 +309,11 @@ shell_bodies:      "bash -c" and "sh -c" bodies are asked about when they name g
 git_aliases:       aliases defined in .git/config are not visible to the Git parser
 subshells:         a subshell is judged as top-level commands, not as a unit
 powershell_env:    $env:GIT_CONFIG_PARAMETERS and $env:GIT_CONFIG_KEY_n set in PowerShell are not tracked
-encoded_commands:  -EncodedCommand bodies are not decoded
+encoded_commands:  -EncodedCommand bodies are not decoded; the command asks
+controller_whole_tree: git checkout <rev>, switch, merge, pull, rebase, am, cherry-pick, revert and a bare git stash stay allowed for the
+                   controller (ordinary workflow, and history keeps the prior tree); only the commands that discard uncommitted work ask
+archive_contents:  an archive extracted into a destination that is not protected can still hold entries that climb out of it (../x)
+scratch_in_tmp:    a project that sits inside the OS temp directory gets only the literal /tmp/ prefix as worker scratch space
 controller_outside_root: the controller's Write or Edit outside the project root is not judged, except a settings file
 agent_type:        agent_type on a worker's PreToolUse is unverified until a live run with EIDOLON_HOOK_DEBUG=1
 os_sandbox:        the hooks are not an operating-system sandbox
@@ -300,7 +328,7 @@ node --test "hooks/*.test.mjs"
 
 The test files are `hooks.test.mjs` (each guard run as Claude Code does, as a child process with the hook
 JSON on stdin, in throwaway directories), `reds-2026-10-13.test.mjs`, `pipeline-2026-10-13.test.mjs`,
-`review-2026-10-13.test.mjs`, `review-hardening.test.mjs`, `path-alias.test.mjs`, `guard-dispatch.test.mjs`,
+`review-2026-10-13.test.mjs`, `review-round2-2026-10-13.test.mjs`, `review-hardening.test.mjs`, `path-alias.test.mjs`, `guard-dispatch.test.mjs`,
 `codebase-memory-orient.test.mjs` and `persona-conduct-guard.test.mjs`. This repository's `.gitignore` lists the
 transient state: `.eidolon/sessions/`, `.claude/.dispatch-log.jsonl`, `.claude/.hook-debug.jsonl` and
 `.claude/waves/`, with the seat file, `.claude/.session-state` and `.claude/.memory-synced-head`.

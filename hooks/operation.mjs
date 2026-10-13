@@ -2,7 +2,7 @@
 import { existsSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { confinedPath } from './confined-path.mjs';
+import { confinedPath, canonicalPath } from './confined-path.mjs';
 export const SHELL_TOOLS = ['Bash', 'PowerShell'];
 export const DISPATCH_TOOLS = ['Agent', 'Task'];
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -85,10 +85,11 @@ export function fileTarget(j) {
   const root=policyRoot(j), given=j.tool_input?.file_path ?? j.tool_input?.path;
   return confinedPath(j.eidolon_path_root||root,j.eidolon_path_cwd||j.cwd||root,given);
 }
-// The path a Write or Edit names, resolved against the event cwd with no confinement.
+// The path a Write or Edit names, resolved against the event cwd with no confinement, in its real spelling (an 8.3 short
+// name such as SETTIN~1.JSO is the settings file it names).
 const rawTarget = j => {
   const given = j.tool_input?.file_path ?? j.tool_input?.path;
-  return typeof given === 'string' && given ? resolve(j.eidolon_path_cwd || j.cwd || policyRoot(j), given) : '';
+  return typeof given === 'string' && given ? canonicalPath(resolve(j.eidolon_path_cwd || j.cwd || policyRoot(j), given)) : '';
 };
 // A Claude Code settings file is a policy authority wherever it lives, in this project or in a home directory.
 const SETTINGS_FILE = /[\\/]\.claude[\\/]settings(?:\.local)?\.json$/i;

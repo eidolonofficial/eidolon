@@ -247,7 +247,7 @@ test('H15 a worker cannot create, link or write outside its lane or the project 
   const {root, put} = repo(t);
   const w = c => sh(root, c, WORKER);
   each(['touch docs/y.md', 'mkdir docs/new', 'cp -t docs src/a.ts', 'git checkout -- docs', 'python -c "open(\'docs/y.md\',\'w\')"', 'echo x > ../y.md', 'ln -s ../docs src/link',
-    'echo x > /tmp/outside.md', 'ln src/../docs/a.md src/hard'],
+    'echo x > /var/outside.md', 'ln src/../docs/a.md src/hard'],
   c => blocked(w(c), 'WRITE LANE GUARD', c));
   each(['Copy-Item -Destination docs/y.md -Path src/a.ts', 'New-Item docs/y.md -Value x', 'Set-Content -Path:docs/y.md -Value x', 'Set-Content -Path ../y.md -Value x'],
     c => blocked(ps(root, c, WORKER), 'WRITE LANE GUARD', 'PowerShell ' + c));

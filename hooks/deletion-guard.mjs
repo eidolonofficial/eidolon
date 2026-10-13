@@ -10,7 +10,7 @@
 // I/O contract lives in hooks/lib.mjs: fail open; block via stderr + exit 2.
 // Wire standalone or via hooks/guard-bash.mjs.
 
-import { runHook, emitVerdict } from "./lib.mjs";
+import { runHook, emitVerdict, withoutMessage } from "./lib.mjs";
 import { policyRoot } from "./operation.mjs";
 import { shellPathFacts, tolerant } from "./shell-operation.mjs";
 
@@ -23,9 +23,12 @@ export const evalDeletion = tolerant((j) => {
   if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
   const changed = shellPathFacts(cmd, j.cwd || process.cwd(), policyRoot(j), j.shell_language)
-    .some((f) => f.kind === "record" && (f.op === "delete" || f.op === "write"));
+    // A hard link to a record is a second name for it: a write through the link rewrites the record.
+    .some((f) => f.kind === "record" && (f.op === "delete" || f.op === "write" || (f.op === "link" && f.hard)));
+  // The raw net reads the command without its commit message: a message may say "rm" and name a record.
+  const bare = withoutMessage(cmd);
 
-  if (changed || (DELETE.test(cmd) && RECORD.test(cmd))) {
+  if (changed || (DELETE.test(bare) && RECORD.test(bare))) {
     return { kind: "block", label: "DELETION GUARD", why:
       "this deletes or overwrites an append-only record (a fix, insight, or decision log). " +
       "Appending (>>, tee -a, Add-Content) is allowed.\n" +

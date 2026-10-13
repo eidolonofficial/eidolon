@@ -66,11 +66,14 @@ export function shellCommands(source, language = 'bash') {
       active = true; opaque = true; i = close + 2; continue;
     }
     if (c === '"' || c === "'") {quote = c; active = true; continue;}
-    if (!ps && c === '<' && next === '<' && source[i + 2] !== '<') {
+    if (!ps && c === '<' && next === '<' && source[i + 2] !== '<' && source[i - 1] !== '<') {
       const m = /^(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|\\?([^\s;&|<>()'"]+))/.exec(source.slice(i + 2));
       if (m) {word(); heredocs.push({delim: m[2] ?? m[3] ?? m[4], strip: m[1] === '-', owner: commands.length}); opaque = true; i += 1 + m[0].length; continue;}
     }
     if (c === '\\' && !ps && /[\s'"\\;&|()]/.test(next || '')) {token += source[++i]; active = true; continue;}
+    // bash drops an unquoted backslash before an ordinary character, so g\it and r\m are git and rm. Only in the command word:
+    // an argument such as a cmd /c path keeps its backslashes.
+    if (c === '\\' && !ps && /\w/.test(next || '') && !token.includes(':') && executable([...words, token]) === words.length) {active = true; continue;}
     if (c === '`' && ps && next != null) {token += source[++i]; active = true; continue;}
     if (c === '|' && !ps && token.endsWith('>')) {token += c; continue;}
     if (!ps && c === '$' && next === "'") {const [text, close] = ansiC(source, i + 1); token += text; active = true; i = close; continue;}
@@ -119,12 +122,26 @@ export function substitutionBodies(source) {
 }
 // An interpreter's inline body (node -e, python -c, pwsh -Command, bash -c, cmd /c "...") is text no path fact sees.
 const INTERPRETER = /^(?:node|nodejs|bun|deno|python[\d.]*|py|perl|ruby|pwsh|powershell|bash|sh|zsh|dash|ksh|cmd)$/;
-const INLINE_FLAG = /^(?:-[a-zA-Z]*[ecp]|--eval|--print|-command|\/[ck])$/i;
+const INLINE_FLAG = /^(?:-[a-zA-Z]*[ecp]|--eval|--print|-command|\/[ck])(?:=|$)/i;
+// eval, iex and Invoke-Expression run their operands as code.
+const EVALS = /^(?:eval|iex|invoke-expression)$/;
 export function inlineBodies(source, language) {
   return shellCommands(source, language).flatMap(({words, heredoc}) => {
+    const w = words.slice(executable(words)), name = exeName(w[0] || '');
+    if (EVALS.test(name)) return [w.slice(1).join(' ')];
+    if (!INTERPRETER.test(name)) return [];
+    return [...w.some(x => INLINE_FLAG.test(x)) || (name === 'deno' && w[1] === 'eval') ? [w.slice(1).join(' ')] : [], ...heredoc ? [heredoc] : []];
+  });
+}
+// The path-like words after an interpreter's inline body (node -e BODY a b): its argv, which the body may open or write.
+export function inlineOperands(source, language) {
+  return shellCommands(source, language).flatMap(({words}) => {
     const w = words.slice(executable(words));
     if (!INTERPRETER.test(exeName(w[0] || ''))) return [];
-    return [...w.some(x => INLINE_FLAG.test(x)) ? [w.slice(1).join(' ')] : [], ...heredoc ? [heredoc] : []];
+    let at = -1;
+    for (let k = 1; k < w.length && /^[-\/]/.test(w[k]); k++) if (INLINE_FLAG.test(w[k])) {at = k; break;}
+    if (at < 0) return [];
+    return w.slice(at + (w[at].includes('=') ? 1 : 2)).filter(x => !x.startsWith('-') && (/[\/\\]/.test(x) || /\.\w+$/.test(x)));
   });
 }
 // Text that names a protected location, for the nets that judge a body or a verb the parser does not model.
@@ -134,10 +151,14 @@ const ASSIGNMENT = /^[A-Za-z_]\w*=/;
 const exeName = w => basename(String(w).replace(/\\/g, '/')).toLowerCase().replace(/\.exe$/, '');
 const KEYWORD = /^(?:then|do|else|elif|if|while|until|!|\{|time)$/;
 const ENV_VALUE = /^(?:-u|-C|-S|--unset|--chdir|--split-string)$/;
+const TIMEOUT_VALUE = /^(?:-s|-k|--signal|--kill-after)$/;
+const STDBUF_VALUE = /^(?:-i|-o|-e|--input|--output|--error)$/;
+const FLOCK_VALUE = /^(?:-w|-E|--timeout|--wait|--conflict-exit-code)$/;
+const IONICE_VALUE = /^(?:-c|-n|-p|-P|-u|--class|--classdata|--pid)$/;
 const SUDO_VALUE = /^(?:-u|-g|-h|-p|-C|-D|-r|-t|-T|-U|--user|--group|--host|--prompt|--close-from|--chdir|--role|--type|--other-user)$/;
 const XARGS_VALUE = /^(?:-I|-n|-P|-d|-E|-L|-s|-a|-l|--max-args|--max-procs|--delimiter|--eof|--arg-file|--max-lines|--max-chars|--replace)$/;
 // Index of the command word: past assignments, shell keywords, and the wrappers that run what follows
-// (env with its flags, sudo, time, nice, xargs, timeout, command, exec, cmd /c).
+// (env with its flags, sudo, time, nice, xargs, timeout, stdbuf, winpty, flock, ionice, unbuffer, chronic, command, exec, cmd /c).
 export function executable(words) {
   let at = 0;
   for (;;) {
@@ -145,18 +166,38 @@ export function executable(words) {
     const name = exeName(w);
     if (ASSIGNMENT.test(w) || KEYWORD.test(w) || /^(?:command|exec|nohup|builtin)$/.test(name)) at++;
     else if (name === 'cmd' && /^\/[ck]$/i.test(words[at + 1] ?? '') && (words.length > at + 3 || !/\s/.test(words[at + 2] ?? ''))) at += 2;
-    else if (/^(?:env|sudo|nice|xargs|timeout)$/.test(name)) {
-      const valued = name === 'env' ? ENV_VALUE : name === 'sudo' ? SUDO_VALUE : name === 'xargs' ? XARGS_VALUE : /^-n$/;
+    else if (/^(?:env|sudo|nice|xargs|timeout|stdbuf|winpty|flock|ionice|unbuffer|chronic)$/.test(name)) {
+      const valued = {env: ENV_VALUE, sudo: SUDO_VALUE, xargs: XARGS_VALUE, timeout: TIMEOUT_VALUE, stdbuf: STDBUF_VALUE, flock: FLOCK_VALUE, ionice: IONICE_VALUE, nice: /^-n$/}[name] ?? /(?!)/;
       at++;
       while (words[at] !== undefined && words[at].startsWith('-') && words[at] !== '--') at += valued.test(words[at]) ? 2 : 1;
       if (words[at] === '--') at++;
-      if (name === 'timeout' && words[at] !== undefined) at++;
+      // timeout takes a duration and flock a lock file before the command
+      if (/^(?:timeout|flock)$/.test(name) && words[at] !== undefined) at++;
     } else return at;
   }
+}
+// `env -S "cmd args"` and `flock FILE -c "cmd args"` run the command their string spells; put those words where the string was.
+function expandWrapperStrings(words) {
+  for (let i = 0; i < words.length; i++) {
+    if (exeName(words[i]) === 'flock' && executable(words.slice(0, i)) === i) {
+      // flock FILE -c 'cmd args' runs the command string
+      const c = words.findIndex((x, j) => j > i && /^(?:-c|--command)$/.test(x));
+      if (c > 0 && words[c + 1] !== undefined) return expandWrapperStrings([...words.slice(0, i), ...shellCommands(words[c + 1], 'bash').flatMap(x => x.words), ...words.slice(c + 2)]);
+    }
+    if (exeName(words[i]) !== 'env' || executable(words.slice(0, i)) !== i) continue;
+    for (let j = i + 1; words[j] !== undefined && words[j].startsWith('-') && words[j] !== '--'; j += ENV_VALUE.test(words[j]) ? 2 : 1) {
+      const spaced = /^(?:-S|--split-string)$/.test(words[j]), glued = /^(?:-S|--split-string=)(.+)$/s.exec(words[j]);
+      if (!spaced && !glued) continue;
+      return expandWrapperStrings([...words.slice(0, j), ...shellCommands(spaced ? words[j + 1] ?? '' : glued[1], 'bash').flatMap(c => c.words), ...words.slice(j + (spaced ? 2 : 1))]);
+    }
+  }
+  return words;
 }
 const CD = /^(?:cd|Set-Location|pushd)$/i;
 const firstOperand = w => w.slice(1).find(x => !x.startsWith('-'));
 const META = /[*?\[{$]/;
+// A scratch directory named by a variable is not a protected place.
+const TEMP_VARIABLE = /^\$(?:\{(?:TMPDIR|TEMP|TMP)\}|(?:TMPDIR|TEMP|TMP)|env:(?:TEMP|TMP|TMPDIR))(?=[\/\\]|$)/i;
 const NULL_DEVICE = /^(?:\$null|nul|\/dev\/(?:null|stdout|stderr|tty|zero|full))$/i;
 // Track the working directory across `cd`. A glob or variable target cannot be resolved, so its
 // unresolved tail is kept in `pending` and prefixed to every later relative operand.
@@ -175,12 +216,12 @@ function steps(source, cwd, language) {
   const out = [], vars = {}, exported = []; let current = resolve(cwd), pending = '';
   const remember = x => {vars[x.slice(0, x.indexOf('='))] = x.slice(x.indexOf('=') + 1);};
   for (const segment of shellCommands(source, language)) {
-    const words = segment.words.map(x => x.replace(/\$(?:\{(\w+)\}|(\w+))/g, (m, a, b) => vars[a ?? b] ?? m));
+    const words = expandWrapperStrings(segment.words).map(x => x.replace(/\$(?:\{(\w+)\}|(\w+))/g, (m, a, b) => vars[a ?? b] ?? m));
     const at = executable(words), w = words.slice(at), prefix = words.slice(0, at);
     if (!w.length) {prefix.filter(x => ASSIGNMENT.test(x)).forEach(remember); continue;}
     if (/^export$/i.test(w[0])) {for (const x of w.slice(1).filter(x => ASSIGNMENT.test(x))) {exported.push(x); remember(x);} continue;}
     if (CD.test(w[0]) && firstOperand(w)) {({current, pending} = changeDirectory(current, pending, firstOperand(w))); continue;}
-    out.push({w, prefix, current, pending, exported: [...exported], piped: segment.piped, opaque: segment.opaque, xargs: prefix.some(x => exeName(x) === 'xargs')});
+    out.push({w, prefix, current, pending, exported: [...exported], piped: segment.piped, opaque: segment.opaque, xargs: prefix.some(x => exeName(x) === 'xargs'), xargsFile: prefix.some(x => /^(?:-a.*|--arg-file(?:=.*)?)$/.test(x))});
   }
   return out;
 }
@@ -301,7 +342,7 @@ const ATTRIBUTE = /^(?:chmod|chown|chgrp|icacls|attrib|takeown|setfacl|chattr|se
 const CMD_FAMILY = /^(?:copy|xcopy|robocopy|icacls|attrib|takeown|move|ren|rename|del|erase|rd|mklink)$/;
 const TARGET_DIR = /^(?:cp|mv|ln|install|rsync|copy-item|move-item)$/;
 // Verbs whose operands are read, run or printed; naming a protected path to them is not a mutation.
-const INERT = /^(?:cat|ls|dir|grep|egrep|fgrep|rg|head|tail|less|more|wc|diff|cmp|stat|file|echo|printf|test|\[|\[\[|type|which|where|cd|pushd|popd|pwd|node|nodejs|python[\d.]*|py|bash|sh|zsh|pwsh|powershell|deno|bun|npm|npx|pnpm|yarn|cargo|go|make|get-content|gc|get-childitem|gci|select-string|sls|get-item|gi|test-path|resolve-path|get-filehash|sha256sum|md5sum|shasum|sort|uniq|cut|tr|jq|tree|du|basename|dirname|realpath|readlink|date|sleep|true|false|source|\.|write-host|write-output|jest|vitest|mocha|pytest|shellcheck|git)$/;
+const INERT = /^(?:cat|ls|dir|grep|egrep|fgrep|rg|head|tail|less|more|wc|diff|cmp|stat|file|echo|printf|test|\[|\[\[|type|which|where|cd|pushd|popd|pwd|node|nodejs|python[\d.]*|py|bash|sh|zsh|pwsh|powershell|deno|bun|npm|npx|pnpm|yarn|cargo|go|make|get-content|gc|get-childitem|gci|select-string|sls|get-item|gi|test-path|resolve-path|get-filehash|sha256sum|md5sum|shasum|cut|tr|jq|du|basename|dirname|realpath|readlink|date|sleep|true|false|source|\.|write-host|write-output|jest|vitest|mocha|pytest|shellcheck|git)$/;
 const REDIRECT = /^(?:\d*|&)(<>|>>|>\||>|<<<|<<|<)(.*)$/;
 // A PowerShell parameter, possibly abbreviated (-Dest, -LiteralP), as the kind of path it carries.
 const PS_PARAM = {path: 'path', literalpath: 'path', filepath: 'path', pspath: 'path', destination: 'destination', target: 'target'};
@@ -333,11 +374,35 @@ function parseArgs(verb, args) {
 // How a verb touches each operand: delete, write (replace content or move), append, attr, link (the operand
 // is what a link points at), or an `opaque` entry for a mutation whose targets are not on the command line.
 // Returns null for a verb this table does not model.
+// The value of an option given as `-o X`, `-oX`, `--output X` or `--output=X`.
+function optionValue(args, shorts, longs) {
+  for (let k = 0; k < args.length; k++) {
+    const a = args[k];
+    if (shorts.includes(a) || longs.includes(a)) return args[k + 1];
+    const long = longs.find(l => a.startsWith(l + '=')); if (long) return a.slice(long.length + 1);
+    const short = shorts.find(x => a.startsWith(x) && a.length > x.length && !a.startsWith('--')); if (short) return a.slice(short.length);
+  }
+  return undefined;
+}
+// A short-flag cluster (-xzf, or the dashless first word of tar) that holds `letter`.
+const cluster = (args, letter) => args.some((a, k) => (/^-[A-Za-z]+$/.test(a) || (k === 0 && /^[A-Za-z]+$/.test(a))) && a.replace(/^-/, '').includes(letter));
+// What a find -exec command does to the files it is handed: delete, attr, write, null for a read, 'opaque' for a verb nobody modeled.
+const IN_PLACE = /^(?:-[a-zA-Z]*i[a-zA-Z.]*|--in-place(?:=.*)?)$/;
+function execOp(run) {
+  const name = exeName(run[0] ?? '');
+  if (DELETING.test(name) || MOVING.test(name)) return 'delete';
+  if (ATTRIBUTE.test(name)) return 'attr';
+  if (/^(?:sed|perl)$/.test(name)) return run.some(a => IN_PLACE.test(a)) ? 'write' : null;
+  if (COPYING.test(name) || LINKING.test(name) || CREATING.test(name) || SETTING.test(name) || APPENDING.test(name) || /^(?:tee|dd|sh|bash|zsh|dash|ksh|pwsh|powershell|cmd)$/.test(name)) return 'write';
+  return INERT.test(name) || /^(?:awk|gawk)$/.test(name) ? null : 'opaque';
+}
 function pathEntries(verb, args) {
   const {pos, named, after} = parseArgs(verb, args), out = [];
   const pick = kind => named.filter(n => n.param === kind).map(n => n.value);
   const paths = [...pos, ...after, ...pick('path')], dest = pick('destination'), dir = pick('dir'), target = pick('target');
   const add = (list, op, extra) => list.forEach(value => out.push({value, op, ...extra}));
+  // Extraction can overwrite any path under its destination, which is the working directory when none is given.
+  const extraction = destination => out.push({value: destination || '.', op: 'extract', nodest: !destination});
   if (DELETING.test(verb)) add(paths, 'delete');
   else if (MOVING.test(verb)) {
     const to = [...dir, ...dest];
@@ -349,21 +414,44 @@ function pathEntries(verb, args) {
     const to = dir.length ? dir : paths.slice(-1), from = dir.length ? paths : paths.slice(0, -1);
     // A symlink target is read relative to the link's directory; a hard link source is an ordinary path.
     const symbolic = args.some(a => /^-[a-zA-Z]*s[a-zA-Z]*$/.test(a) || a === '--symbolic'), via = symbolic ? {link: to[0] ?? './'} : {};
-    if (paths.length > 1 || dir.length) {add(to, 'write'); add(from, 'link', via);}
-    else add(paths, 'link', symbolic ? {link: './'} : {});
+    // A hard link is a second name for the same bytes, so writing through it writes the source.
+    const hard = symbolic ? {} : {hard: true};
+    if (paths.length > 1 || dir.length) {add(to, 'write'); add(from, 'link', {...via, ...hard});}
+    else add(paths, 'link', symbolic ? {link: './'} : hard);
   }
-  else if (CREATING.test(verb)) {add(paths, 'write'); add(target, 'link', {link: paths[0] ?? './'});}
+  else if (CREATING.test(verb)) {
+    const hardLink = args.some((a, k) => /^-(?:itemtype|type)[:=]?hardlink$/i.test(a) || (/^-(?:itemtype|type)$/i.test(a) && /^hardlink$/i.test(args[k + 1] ?? '')));
+    add(paths, 'write'); add(target, 'link', {link: paths[0] ?? './', ...hardLink && {hard: true}});
+  }
   else if (ATTRIBUTE.test(verb)) add(paths, 'attr');
   else if (verb === 'tee') add(paths, args.some(x => /^(?:-[a-z]*a[a-z]*|--append)$/.test(x)) ? 'append' : 'write');
   else if (/^(?:sed|perl)$/.test(verb)) {if (args.some(x => /^(?:-[a-zA-Z]*i[a-zA-Z.]*|--in-place(?:=.*)?)$/.test(x))) add(paths, 'write');}
   else if (SETTING.test(verb)) add(paths, args.some(x => /^-append$/i.test(x)) ? 'append' : 'write');
   else if (APPENDING.test(verb)) add(paths, 'append');
   else if (verb === 'dd') add(args.filter(x => x.startsWith('of=')), 'write');
+  else if (/^(?:sort|shuf|tree)$/.test(verb)) {
+    // The output file is an option value, so it is read from the arguments, not from the positional operands.
+    const o = optionValue(args, ['-o'], verb === 'tree' ? [] : ['--output']);
+    if (o !== undefined) add([o], 'write');
+  }
+  else if (verb === 'uniq') add(pos.slice(1, 2), 'write');
   else if (verb === 'find') {
     const roots = []; for (const a of args) {if (a.startsWith('-') || a === '(' || a === '!') break; roots.push(a);}
-    const at = args.findIndex(a => /^-(?:exec|execdir|ok|okdir)$/.test(a)), run = at < 0 ? '' : exeName(args[at + 1] ?? '');
-    if (args.includes('-delete') || DELETING.test(run) || MOVING.test(run)) add(roots, 'delete');
+    if (args.includes('-delete')) add(roots, 'delete');
+    for (let k = 0; k < args.length; k++) {
+      if (!/^-(?:exec|execdir|ok|okdir)$/.test(args[k])) continue;
+      const run = []; for (k++; k < args.length && args[k] !== ';' && args[k] !== '+'; k++) run.push(args[k]);
+      const op = execOp(run);
+      if (op === 'opaque') out.push({opaque: 'find -exec runs a verb the parser does not model'});
+      else if (op) {add(roots, op); if (op === 'attr') add(roots, 'write');} // a permission change on a record is a change to it too
+    }
   }
+  else if (/^(?:tar|gtar|bsdtar)$/.test(verb)) {
+    if (cluster(args, 'x') || args.some(a => /^--(?:extract|get)$/.test(a))) extraction(optionValue(args, ['-C'], ['--directory']));
+  }
+  else if (verb === 'unzip') {if (!args.some(a => /^-[a-zA-Z]*[ltpzv][a-zA-Z]*$/.test(a))) extraction(optionValue(args, ['-d'], []));}
+  else if (/^7z[ar]?$/.test(verb)) {if (/^[xe]$/.test(pos[0] ?? '')) extraction(args.find(a => a.length > 2 && a.startsWith('-o'))?.slice(2));}
+  else if (verb === 'cpio') {if (cluster(args, 'i') && !cluster(args, 't')) extraction(optionValue(args, ['-D'], ['--directory']));}
   else if (verb === 'patch') {
     if (!pos.length || args.some(a => /^(?:-i|--input(?:=.*)?)$/.test(a))) out.push({opaque: 'a patch names its own targets'});
     else add(pos.slice(0, 1), 'write');
@@ -374,8 +462,9 @@ function pathEntries(verb, args) {
 // Git pathspec operands. Restoring, stashing, cleaning or removing a path discards what the worktree holds.
 function gitEntries(sub, rest, dir) {
   const dd = rest.indexOf('--'), before = dd < 0 ? rest : rest.slice(0, dd), after = dd < 0 ? [] : rest.slice(dd + 1);
-  const plain = list => list.filter(x => !x.startsWith('-')), del = list => list.map(value => ({value, op: 'delete', dir}));
-  if (sub === 'checkout') return del([...after, ...plain(before).filter(x => existsSync(resolve(dir, x)))]);
+  // A magic pathspec (:/, :(top), :!x) names the whole tree or all but part of it, so it is judged as the whole tree.
+  const plain = list => list.filter(x => !x.startsWith('-')), del = list => list.map(value => ({value: value.startsWith(':') ? '.' : value, op: 'delete', dir}));
+  if (sub === 'checkout') return del([...after, ...plain(before).filter(x => x.startsWith(':') || existsSync(resolve(dir, x)))]);
   if (sub === 'restore') return del([...after, ...plain(before.filter((x, i) => !/^(?:-s|--source)$/.test(before[i - 1] ?? '')))]);
   if (sub === 'stash' || sub === 'reset') return del(after);
   if (sub === 'clean') return rest.some(x => /^(?:--dry-run|-[a-zA-Z]*n[a-zA-Z]*)$/.test(x)) ? [] : del(plain(rest));
@@ -383,6 +472,28 @@ function gitEntries(sub, rest, dir) {
   if (sub === 'mv') {const p = [...plain(before), ...after]; return [...del(p.slice(0, -1)), ...p.slice(-1).map(value => ({value, op: 'write', dir}))];}
   if (sub === 'apply') return rest.some(x => /^(?:--check|--stat|--numstat|--summary)$/.test(x)) ? [] : [{opaque: 'a patch names its own targets'}];
   return [];
+}
+// The possible values glued to a flag: after `=` or `:`, and for a single-dash flag everything after its first letter.
+function flagValues(flag) {
+  const eq = flag.search(/[=:]/), out = eq > 0 ? [flag.slice(eq + 1)] : [];
+  if (!flag.startsWith('--')) for (let i = 2; i < flag.length; i++) out.push(flag.slice(i));
+  return out.filter(v => v && cleanOperand(v));
+}
+const STDIN_RUNNER = /^(?:bash|sh|zsh|dash|ksh|pwsh|powershell|node|nodejs|python[\d.]*|py|perl|ruby)$/;
+const FILE_MUTATORS = [MUTATING, DELETING, MOVING, COPYING, LINKING, CREATING, SETTING, APPENDING, ATTRIBUTE];
+// Executions whose code or targets no argument shows: a string run as code, an awk system() call, an encoded
+// PowerShell command, an interpreter fed by a pipe, and xargs reading its operands from a file.
+function executionReason(verb, args, step, hereString) {
+  if (/^(?:iex|invoke-expression)$/.test(verb)) return 'a string is executed as code';
+  if (/^(?:awk|gawk|mawk|nawk)$/.test(verb) && args.some(a => /\bsystem\s*\(/.test(a))) return 'an awk program runs shell commands';
+  if (/^(?:pwsh|powershell)$/.test(verb) && args.some(a => /^-e(?:c|n[a-z]*)?$/i.test(a))) return 'an encoded PowerShell command cannot be read';
+  // A pipe or a here-string (<<<) feeds the program to a shell or interpreter that has no script operand.
+  const operands = args.filter(a => !REDIRECT.test(a));
+  if ((step.piped || hereString) && STDIN_RUNNER.test(verb)
+    && (operands.includes('-') || !operands.some(a => !a.startsWith('-')) || (/^(?:bash|sh|zsh|dash|ksh)$/.test(verb) && operands.some(a => /^-[a-zA-Z]*s[a-zA-Z]*$/.test(a)))))
+    return 'a pipe or here-string feeds a shell or interpreter that reads its program from standard input';
+  if (step.xargsFile && FILE_MUTATORS.some(re => re.test(verb))) return 'xargs reads the operands of a mutating verb from a file';
+  return null;
 }
 // Path facts for one command line: {kind, op, verb, mutation, value, cwd, opaque}. cd segments
 // are followed, so an operand is classified by where it really points. With `all`, an operand that is
@@ -393,9 +504,9 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
   const facts = [], rootAbs = canonicalPath(resolve(root)); let previous = [];
   for (const step of steps(source, cwd, language)) {
     const {w, current, pending} = step;
-    let verb = '', args = [], entries; const targets = [];
+    let verb = '', args = [], entries, hereString = false; const targets = [];
     for (let k = 0; k < w.length; k++) {
-      const m = REDIRECT.exec(w[k]);
+      const m = REDIRECT.exec(w[k]); if (m && m[1] === '<<<') hereString = true;
       if (m) {
         const target = m[2] || w[++k];
         if (target !== undefined && target[0] !== '&') targets.push({value: target, op: m[1] === '<>' ? 'write' : m[1][0] !== '>' ? null : m[1] === '>>' ? 'append' : 'write'});
@@ -414,10 +525,15 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
     }
     previous = args.filter(a => !a.startsWith('-'));
     const mutation = MUTATING.test(verb) || targets.some(t => t.op);
-    const push = (value, op, {link, opaque} = {}) => {
+    const push = (value, op, {link, opaque, hard, nodest} = {}) => {
       if (opaque) {facts.push({kind: 'opaque', op: null, verb, mutation: true, value: '', cwd: dir, opaque: step.opaque, reason: opaque}); return;}
       const v = cleanOperand(verb === 'dd' ? value.replace(/^(?:of|if)=/, '') : value);
-      if (!v || NULL_DEVICE.test(v)) return;
+      if (!v || NULL_DEVICE.test(v) || TEMP_VARIABLE.test(String(value))) return;
+      if (op === 'extract') {
+        // A destination that is the root or holds a protected location is asked about; so is an extraction with no destination.
+        if (nodest || (protectedKind(v, dir, rootAbs, 'delete') && !protectedKind(v, dir, rootAbs))) facts.push({kind: 'opaque', op: null, verb, mutation: true, value, cwd: dir, opaque: step.opaque, reason: 'extraction can overwrite any path under its destination'});
+        op = 'write';
+      }
       const slashed = v.replace(/\\/g, '/'), eff = pending && !isAbsolute(slashed) ? posix.join(pending, slashed) : slashed;
       const via = link === undefined ? undefined : resolve(/[\/\\]$/.test(link) || isDir(resolve(dir, link)) ? resolve(dir, link) : dirname(resolve(dir, link)), slashed);
       let kind = null, opaqueKind = false;
@@ -430,19 +546,24 @@ export function shellPathFacts(source, cwd = process.cwd(), root = cwd, language
         if (!kind && !opaqueKind) return;
         if (opaqueKind) {facts.push({kind: 'opaque', op: null, verb, mutation: true, value, cwd: dir, opaque: step.opaque, reason: 'a glob, brace or variable operand that could reach a protected path'}); return;}
       } else kind = protectedKind(v, dir, rootAbs, op) ?? (all ? 'path' : null);
-      if (kind) facts.push({kind, op, verb, mutation: mutation || op !== null, value, cwd: dir, opaque: step.opaque, ...(all && {path: resolvedOperand(v, dir)}), ...(via && {via})});
+      if (kind) facts.push({kind, op, verb, mutation: mutation || op !== null, value, cwd: dir, opaque: step.opaque, ...(all && {path: resolvedOperand(v, dir)}), ...(via && {via}), ...(hard && {hard})});
     };
     const handled = new Set();
     for (const e of entries ?? []) {push(e.value, e.op, e); handled.add(e.value);}
     for (const t of targets) push(t.value, t.op);
     for (const a of args) if (!handled.has(a) && !a.startsWith('-')) push(a, null);
-    // The net: an unmodeled verb whose arguments name a protected path.
+    const executes = executionReason(verb, args, step, hereString);
+    if (executes) push('', null, {opaque: executes});
+    // The net: an unmodeled verb whose arguments name git or a protected path.
     if (entries === null && !INERT.test(verb)) {
       const call = /\(|::/.test(w[0]) && NAMES_PROTECTED.test(w[0]);
       const named = args.some(a => !a.startsWith('-') && !handled.has(a) && cleanOperand(a) && protectedKind(a, dir, rootAbs));
       const script = args.some(a => /\s/.test(a) && NAMES_PROTECTED.test(a));
-      const flagged = args.some(a => /^--?[\w-]+[=:]/.test(a) && NAMES_PROTECTED.test(a.replace(/^--?[\w-]+[=:]/, '')));
-      if (call || named || script || flagged) push('', null, {opaque: 'a verb the parser does not model names a protected path'});
+      // A flag's value: `--output=hooks/x`, `--out:x` or a glued short flag such as `-sohooks/x`.
+      const flagged = args.some(a => a.startsWith('-') && flagValues(a).some(v => protectedKind(v, dir, rootAbs)));
+      // git as a word of its own, or at the start of a command string (su -c "git commit"); prose that mentions git does not count.
+      const wraps = args.some(a => /^(?:.*[\/\\])?git(?:\.exe)?$/i.test(a) || /(?:^|[;&|])\s*git(?:\.exe)?\s/i.test(a));
+      if (call || named || script || flagged || wraps) push('', null, {opaque: 'a verb the parser does not model names git or a protected path'});
     }
   }
   return facts;

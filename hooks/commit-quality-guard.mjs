@@ -1,5 +1,5 @@
 // Inspect parsed Git arguments; message text is not a command flag.
-import {runHook, emitVerdict} from './lib.mjs';
+import {runHook, emitVerdict, withoutMessage} from './lib.mjs';
 import {gitOperations, overridesHooksPath, tolerant} from './shell-operation.mjs';
 import {isShell} from './operation.mjs';
 // Git accepts an unambiguous prefix of a long option; --no-veri is the shortest that is not --no-verbose.
@@ -7,7 +7,9 @@ const NO_VERIFY = /^--no-veri(?:fy?)?$/;
 const FORCE = f => f === '--force' || f === '--force-if-includes' || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(f);
 // An alias that runs commit or push with a hook-skipping or force flag.
 const ALIAS_BYPASS = /(?:^|\s)(?:--no-veri(?:fy?)?|-[a-zA-Z]*n[a-zA-Z]*|--force(?:-if-includes)?|-[a-zA-Z]*f[a-zA-Z]*|\+\S)(?=\s|$)/;
-const MIRROR_CONFIG = /^remote\.[^=]*\.(?:mirror|push)$/i;
+// A shell argument array ($@, $*, ${arr[@]}) or $args: the words it expands to are not on the command line.
+const ARG_ARRAY = /(?:^|[^\\])\$(?:@|\*|args\b)|\$\{[^}]*\[[@*]\]\}/;
+const MIRROR_CONFIG =/^remote\.[^=]*\.(?:mirror|push)$/i;
 const INCLUDE_CONFIG = /^include(?:if\.[^=]*)?\.path$/i;
 export const evalCommitQuality = tolerant(j => {
   if (j.tool_name && !isShell(j.tool_name)) return null;
@@ -19,6 +21,13 @@ export const evalCommitQuality = tolerant(j => {
   for (const op of gitOperations(command, j.cwd, language)) {
     const flags = op.flags;
     if (op.subcommand.startsWith('-')) A('a git global option this guard does not know precedes the subcommand, so the real subcommand is hidden. Confirm the command.');
+    if ([op.subcommand, ...op.args.filter(a => !op.messages.includes(a))].some(a => ARG_ARRAY.test(a) || (language === 'powershell' && /^@\w+$/.test(a))))
+      A('a splat or an expanded argument array supplies git arguments this guard cannot read. Confirm the command.');
+    // Whole-tree commands that throw away uncommitted work. Switching, merging, pulling, rebasing and stashing leave the prior tree in history.
+    if ((op.subcommand === 'reset' && flags.some(f => /^--(?:hard|merge|keep)$/.test(f)))
+      || (op.subcommand === 'checkout-index' && flags.some(f => f === '--force' || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(f)))
+      || (op.subcommand === 'read-tree' && flags.some(f => f === '--reset' || /^-[a-zA-Z]*u[a-zA-Z]*$/.test(f))))
+      A('this command overwrites the worktree and can discard uncommitted work. Confirm the command.');
     if (['commit','push'].includes(op.subcommand) && flags.some(f => NO_VERIFY.test(f) || (op.subcommand === 'commit' && /^-[a-zA-Z]*n[a-zA-Z]*$/.test(f))))
       return B('The Git operation skips hooks. Fix the cause rather than bypassing verification.');
     if (op.subcommand === 'push' && (flags.some(FORCE) || op.args.some(a => a.startsWith('+'))))
@@ -40,7 +49,7 @@ export const evalCommitQuality = tolerant(j => {
     if (['filter-branch','filter-repo'].includes(op.subcommand))
       return B('History surgery requires explicit operator maintenance, not ordinary agent work.');
   }
-  if (/core\.hooksPath\s*=/i.test(command)) return B('Overriding core.hooksPath changes hook authority.');
+  if (/core\.hooksPath\s*=/i.test(withoutMessage(command))) return B('Overriding core.hooksPath changes hook authority.');
   return consent;
 });
 if (process.argv[1]?.replace(/\\/g,'/').endsWith('/commit-quality-guard.mjs')) runHook(j => emitVerdict(evalCommitQuality(j)));

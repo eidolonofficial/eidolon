@@ -1,9 +1,11 @@
 // Per-agent write lanes from .claude/agent-scopes.json: { "<agent>": { "read": [...], "write": [...] } }.
 // Roots are prefixes relative to the project root: "src/**" and "docs/" mean a subtree, "hooks/x.mjs" one file.
-import {readFileSync} from 'node:fs';
-import {isAbsolute, join, relative, resolve} from 'node:path';
+import {existsSync, readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {isAbsolute, join, posix, relative, resolve, sep} from 'node:path';
+import {canonicalPath} from './confined-path.mjs';
 import {actorIdentity, policyRoot, escapesRoot, fileTarget} from './operation.mjs';
-import {inlineBodies, shellPathFacts, tolerant} from './shell-operation.mjs';
+import {gitOperations, inlineBodies, inlineOperands, shellPathFacts, tolerant} from './shell-operation.mjs';
 
 export function scopeOf(root, agentType) {
   try {
@@ -30,6 +32,30 @@ function laneOf(j) {
   return scope ? {type: j.agent_type, write: Array.isArray(scope.write) ? scope.write : []} : null;
 }
 
+// Scratch space a worker may write: the literal /tmp/ prefix and the OS temp directory (the $TMPDIR, $TEMP and $TMP
+// variables are never resolved, so the shell parser lets them through). A project that itself sits inside the OS temp
+// directory gets only the literal prefix, or its sibling directories would count as scratch.
+const lc = p => process.platform === 'win32' ? p.toLowerCase() : p;
+function scratch(given, absolute, root) {
+  if (/^\/tmp\//.test(posix.normalize(String(given).replace(/\\/g, '/')))) return true;
+  const temp = lc(canonicalPath(tmpdir())) + sep, base = lc(canonicalPath(root)) + sep;
+  return !base.startsWith(temp) && lc(absolute).startsWith(temp);
+}
+// A git command that rewrites the whole worktree or its index. No lane covers the whole tree.
+const TREE_REWRITE = /^(?:switch|merge|pull|rebase|am|cherry-pick|revert|read-tree|checkout-index)$/;
+function rewritesTree(op) {
+  const {subcommand, args} = op;
+  if (subcommand === 'stash') return !/^(?:list|show)$/.test(args[0] ?? '');
+  if (TREE_REWRITE.test(subcommand)) return true;
+  if (subcommand === 'reset') return op.flags.some(f => /^--(?:hard|merge|keep)$/.test(f));
+  if (subcommand !== 'checkout' || args.includes('--')) return false;
+  // checkout <rev> with no pathspec switches the tree; checkout -b <name> alone does not.
+  const revs = []; for (let k = 0; k < args.length; k++) {
+    if (/^(?:-b|-B|--orphan|--conflict)$/.test(args[k])) k++;
+    else if (args[k] === '-' || !args[k].startsWith('-')) revs.push(args[k]);
+  }
+  return revs.some(r => r === '-' || !existsSync(resolve(op.cwd, r)));
+}
 // ponytail: the shell lane sees redirects, the verbs shellPathFacts models (rm, mv, cp, ln, touch, mkdir, tee, sed -i,
 // Set-Content, git checkout...) and the path-shaped string literals of an interpreter's inline body; a script file is
 // opaque to it. Upgrade path: run workers in a sandbox with a read-only mount.
@@ -45,7 +71,11 @@ export const evalLane = tolerant(j => {
     `worker ${lane.type} may write only under ${lane.write.join(', ') || '(nothing)'}; ${rel} is outside its lane. Return the change to the controller.`);
   const outsideRootVerdict = block(`worker ${lane.type} may not write outside the project root. Return the change to the controller.`);
   if (j.tool_name === 'Write' || j.tool_name === 'Edit') {
-    if (escapesRoot(j)) return outsideRootVerdict;
+    if (escapesRoot(j)) {
+      const given = j.tool_input?.file_path ?? j.tool_input?.path;
+      if (typeof given === 'string' && given && scratch(given, canonicalPath(resolve(j.eidolon_path_cwd || j.cwd || root, given)), root)) return null;
+      return outsideRootVerdict;
+    }
     return outside(toRel(fileTarget(j))) || null;
   }
   if (j.tool_name !== 'Bash') return null;
@@ -55,13 +85,24 @@ export const evalLane = tolerant(j => {
     const target = f.op === 'link' ? f.via ?? f.path : f.path;
     if (!target || !['write', 'append', 'delete', 'link'].includes(f.op)) continue;
     const rel = toRel(target);
+    if (leaves(rel) && f.op !== 'link' && scratch(f.value, target, root)) continue;
     if (leaves(rel)) return outsideRootVerdict;
     const verdict = outside(rel);
     if (verdict) return verdict;
   }
+  for (const op of gitOperations(command, cwd, j.shell_language))
+    if (rewritesTree(op)) return block(`worker ${lane.type} may not rewrite the whole worktree (git ${op.subcommand}); no lane covers the whole tree. Return the change to the controller.`);
+  // The argv of an inline interpreter body can name the path it writes (node -e "...argv[1]..." docs/y.md).
+  for (const operand of inlineOperands(command, j.shell_language)) {
+    const abs = resolve(cwd, operand.replace(/\\/g, '/')), rel = toRel(abs);
+    if (leaves(rel) && scratch(operand, abs, root)) continue;
+    const verdict = leaves(rel) ? outsideRootVerdict : outside(rel);
+    if (verdict) return verdict;
+  }
   for (const body of inlineBodies(command, j.shell_language))
     for (const [, literal] of body.matchAll(PATH_LITERAL)) {
-      const rel = toRel(resolve(cwd, literal.replace(/\\/g, '/')));
+      const abs = resolve(cwd, literal.replace(/\\/g, '/')), rel = toRel(abs);
+      if (leaves(rel) && scratch(literal, abs, root)) continue;
       const verdict = leaves(rel) ? outsideRootVerdict : outside(rel);
       if (verdict) return verdict;
     }

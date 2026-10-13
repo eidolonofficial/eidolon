@@ -27,7 +27,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import {confinedPath} from './confined-path.mjs';
 import {actorIdentity, actorPath, policyRoot, boundedRead} from "./operation.mjs";
-import { runHook, touchesHookSuite, emitVerdict } from "./lib.mjs";
+import { runHook, touchesHookSuite, emitVerdict, withoutMessage } from "./lib.mjs";
 import { tolerant } from "./shell-operation.mjs";
 
 const CODE = /\.(mjs|cjs|js|jsx|ts|tsx|py|go|rs|java|rb|php|c|cc|cpp|h|hpp|cs|kt|swift)$/i;
@@ -39,18 +39,19 @@ function firstMatch(re, s) { const m = String(s).match(re); return m ? { text: m
 const DETECTORS = {
   "irreversible-without-safety-net": (name, ti) => {
     if (name !== "Bash") return null;
-    const m = firstMatch(/\brm\s+-rf\b|\bDROP\s+TABLE\b|\bTRUNCATE\s+TABLE\b|\bdel\s+\/[fsq]/i, ti.command || "");
+    const cmd = withoutMessage(ti.command || ""); // a commit message may mention rm -rf
+    const m = firstMatch(/\brm\s+-rf\b|\bDROP\s+TABLE\b|\bTRUNCATE\s+TABLE\b|\bdel\s+\/[fsq]/i, cmd);
     if (m) return m.text;
-    if (/git\s+push\b/.test(ti.command || "") && /--force\b/.test(ti.command || "") && !/--force-with-lease\b/.test(ti.command || "")) return "git push --force";
+    if (/git\s+push\b/.test(cmd) && /--force\b/.test(cmd) && !/--force-with-lease\b/.test(cmd)) return "git push --force";
     return null;
   },
   "disable-or-route-around-hook": (name, ti, ctx) => {
     if (name !== "Bash") return null;
-    const cmd = String(ti.command || "");
+    const full = String(ti.command || ""), cmd = withoutMessage(full);
     const m = firstMatch(/core\.hooksPath\s*=|git\s+config\b[^|;&\n]*hooksPath/i, cmd);
     if (m) return m.text;
     // flags between the verb and the path must not hide the target (rm -rf hooks)
-    if (/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && tolerant(e => touchesHookSuite(cmd, e))(ctx.event || {})) {
+    if (/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i.test(cmd) && tolerant(e => touchesHookSuite(full, e))(ctx.event || {})) {
       const verb = firstMatch(/\b(chmod|mv|rm|rmdir|del|Remove-Item)\b/i, cmd);
       return verb.text + " on the hook suite";
     }

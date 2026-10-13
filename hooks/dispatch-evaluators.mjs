@@ -6,7 +6,10 @@ import {actorIdentity, isDispatch, policyRoot, sha256} from './operation.mjs';
 import {scopeOf} from './lanes.mjs';
 
 // A done-check is a line of its own that starts with the label and carries text; a keyword in prose is not one.
-const DONE_CHECK = /^[ \t]*(?:[-*>][ \t]+)?(?:done-check|acceptance)[ \t]*:[ \t]*\S/im;
+const DONE_CHECK = /^[ \t]*(?:[-*>][ \t]+)?(?:done-check|acceptance)[ \t]*:[ \t]*(\S.*)$/gim;
+// A value that only says there is no check.
+const PLACEHOLDER = /^(?:none|n\/a|na|tbd|todo|skip|-+)[.!]*$/i;
+const hasDoneCheck = prompt => [...prompt.matchAll(DONE_CHECK)].some(m => !PLACEHOLDER.test(m[1].trim()));
 const READ_ONLY_TYPE = /^(?:Explore|Plan|(?:caveman:)?cavecrew-investigator|(?:caveman:)?cavecrew-reviewer)$/;
 const WAVE_MIN_CHARS = 20;
 
@@ -39,7 +42,7 @@ export function evalWorkerRecursion(j) {
 
 export function evalBriefGate(j) {
   const ti = brief(j);
-  if (!ti || DONE_CHECK.test(ti.prompt)) return null;
+  if (!ti || hasDoneCheck(ti.prompt)) return null;
   return {kind: 'ask', label: 'DISPATCH GUARD', why: 'brief names no done-check. Add a line such as "Done-check: <command> exits 0".'};
 }
 

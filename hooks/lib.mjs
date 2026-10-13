@@ -49,10 +49,12 @@ export function commitMessageOf(cmd, cwd) {
   return messages.join('\n\n');
 }
 
-// The command with its message spans removed, so text inside -m '...' is never
-// mistaken for a flag or a file operand of the command itself.
+// The command with its message spans (and the heredoc body of a commit) removed, so text inside
+// -m '...' is never mistaken for a flag, a file operand or a verb of the command itself.
+// A heredoc fed to git commit (git commit -F - <<'EOF' ... EOF) is a message too; only its opening line stays.
+const COMMIT_HEREDOC = /(git\b[^\n]*\bcommit\b[^\n]*<<-?[ \t]*(['"]?)(\w+)\2[^\n]*)\n[^]*?\n[ \t]*\3[ \t]*(?=\n|$)/g;
 export function withoutMessage(cmd) {
-  return String(cmd).replace(MESSAGE_FLAG, " ");
+  return String(cmd).replace(MESSAGE_FLAG, " ").replace(COMMIT_HEREDOC, "$1");
 }
 
 // True when the command references the governance hook suite: the hooks dir as

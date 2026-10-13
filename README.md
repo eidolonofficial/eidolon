@@ -59,8 +59,8 @@ It needs Node 22 or newer and previews by default; nothing is written until `--y
 ## Proof of life
 
 ```sh
-node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 231 tests; exit 0 means none failed
-node scripts/selfcheck.mjs                            # 64 PASS lines, then "selfcheck: PASS"
+node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 249 tests; exit 0 means none failed
+node scripts/selfcheck.mjs                            # 65 PASS lines, then "selfcheck: PASS"
 node scripts/eidolon-audit.mjs                        # PASS: references resolve, personas pass the rail, wired hooks exist
 node scripts/hooks-readme-check.mjs                   # PASS: wiring, evaluator order and hook rows match the code
 ```
