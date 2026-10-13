@@ -54,7 +54,7 @@ open_questions:      # what the dump did not answer
 ```
 
 Rule: store the user's own words for `outcome` and `frustrating`; do not paraphrase them into jargon. Source: Claude Code best-practices. Carrier: `.claude/session.yaml`.
-Rule: a null field becomes a chip question later; a filled field is shown in the reflect-back and not asked again. Source: this file. Carrier: gap pass.
+Rule: a null field becomes a chip question later, permission_posture included; it is never defaulted from the session state. A filled field is shown in the reflect-back and not asked again. Source: this file. Carrier: gap pass.
 
 ## Reflect-back format
 

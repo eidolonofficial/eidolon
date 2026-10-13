@@ -49,6 +49,17 @@ carriers:        [/goal, /loop, CronCreate, /schedule routines, desktop schedule
 guide:           references/autopilot-guide.md (pick the carrier), references/loop-suite.md (grind queues)
 ```
 
+## Skill copies
+
+```yaml
+# why: observed on 2026-10-13 (Claude Code 2.1.206, headless): with a user-level and a project-level
+#      skill of the same name, the Skill tool loaded the user-level copy, which was the older one
+rule:            keep one copy of eidolon per machine, or keep both at the same commit
+novice_door:     installs user-level (~/.claude/skills), no hooks
+operator_door:   installs project-level (.claude/skills) and wires the project hooks
+check:           ls ~/.claude/skills and .claude/skills before trusting which SKILL.md a session reads
+```
+
 ## Freshness rule
 
 Platform-specific factual claims older than the current host documentation are hypotheses.

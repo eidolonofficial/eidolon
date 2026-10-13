@@ -32,7 +32,7 @@ Rule: never re-ask a field the dump filled. Source: this guide. Carrier: gap pas
 
 ## Step 2: chips interview for the gaps
 
-Ask only the questions whose fields are null after the dump, through AskUserQuestion, one per screen. Each carries skip and other; the first option is Recommended.
+Ask only the questions whose fields are null after the dump, through AskUserQuestion, one per screen. Each carries skip and other; the first option is Recommended. A null field is asked, never defaulted, permission posture included; a run that fills a gap from the session state instead of asking has skipped a step. Without AskUserQuestion, ask the same question in plain text with lettered options and wait.
 
 ```yaml
 shape:

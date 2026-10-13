@@ -117,14 +117,36 @@ Run by the controller with `claude -p` in a throwaway git project after
 
 ### Still unverified, with the settling check
 
-- The novice door on a fresh Windows profile and `/eidolon` appearing in a new interactive
-  session (G1), and the autopilot interview producing and clearing a `/goal` (G5): the
-  owner runs these by hand; the novice-door test covers the copy and backup logic.
-- macOS doors on hardware: `bash -n` and a Git Bash run on Windows only.
-- Whether the host itself would refuse a worker's spawn at depth 1 is unobserved, because the dispatch guard blocks the call first: settle with a scratch run that disables the guard.
+Settled later on 2026-10-13 in sandboxes, at the owner's request:
+
+- G1: `Start Here.cmd` ran with `USERPROFILE` redirected to an empty folder; 159 of 159
+  skill files landed byte for byte and Hearth wrote nothing else there. A fresh headless
+  session in an empty project listed `eidolon` and `eidolon-setup` from the user-level
+  install. While the stale June copy still sat in `~/.claude/skills`, the Skill tool loaded
+  it in preference to the project copy; that copy is archived as
+  `archive/2026-10-13-deployed-skill` and replaced by the release head, and the platform
+  contract now says to keep one copy per machine.
+- G5: the interview ran headless over three turns with the Skill tool invoked explicitly:
+  the brain dump offer, the extraction and reflect-back, then the `/goal` text with one end
+  state (`node --test` exits 0 with a test for `src/a.ts`), the check printed in full,
+  two must-nevers and a six-turn cap; `.claude/autopilot/src-a-test-green.md` and
+  `.claude/session.yaml` landed. The generated prompt, run headless with its own cap,
+  reached the end state in one turn and left `docs/` untouched. The interview defaulted
+  the permission posture instead of asking; the guide now forbids that.
+- macOS doors: the bash door and the operator wrapper run for real in Hearth's test suite
+  wherever bash exists; GitHub's macOS runner ran them on Hearth 79cadb6 (copy, skip,
+  replace with backup, option refusals, picker handoff), as did WSL Ubuntu.
+- CI: green on all three repositories on ubuntu, macos and windows, with the history scan.
+
+Still open:
+
+- The built-in `/goal` evaluator in an interactive session (two minutes by hand; print
+  mode does not expand slash commands).
+- A user's own Mac.
+- Whether the host itself would refuse a worker's spawn at depth 1 is unobserved, because
+  the dispatch guard blocks the call first: settle with a scratch run that disables the guard.
 - The Node 22 check runs before any syntax an older Node would reject: settle by running
   the installer under Node 20.
-- Hearth CI on GitHub for the re-cut: runs on the push of release/v0.1.0.
 
 ### Labeled gaps
 
