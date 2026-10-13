@@ -86,17 +86,27 @@ export function hasAnchor(seat) {
   return false;
 }
 
-// The Expediter is the CONTROLLER'S persona: the orchestrating session that defines
+// A controller seat is the CONTROLLER'S persona: the orchestrating session that defines
 // done-criteria, measures before dispatch, and holds sole authority over hooks and
 // loops. It is locked to the main session by design. A dispatched subagent that seats
-// or claims the Expediter has stepped outside its mandate (a worker conducting the
-// orchestra), so the guard hard-stops the action AND deactivates the seat itself.
-// True when the seated persona identifies as the Expediter under any plain spelling.
+// or claims one has stepped outside its mandate (a worker conducting the orchestra),
+// so the guard hard-stops the action AND deactivates the seat itself.
+// True for the Expediter (eidolon's dispatch default) under any plain spelling, for
+// fable-conductor (the long-horizon controller, ADR 2026-07-03-fable-behavior-pack)
+// under the same spelling tolerance, for ffr-cascade (id, or a "cascade controller"
+// title - the recognition its persona contract promises), and for any seat whose
+// title carries the [CONTROLLER-ONLY] marker (whitespace- and dash-tolerant) — how a
+// built controller persona declares itself in its title line. The exported name and
+// the "subagent-expediter" verdict kind are pinned: persona docs, SKILL.md, and project
+// guard copies cite both (extension ADR 2026-07-03-controller-lock-fable-conductor).
+const CONTROLLER_MARKER = /\[\s*controller[\s_‐-―-]*only\s*\]/;
 export function isExpediterSeat(seat) {
   if (!seat) return false;
   const id = String(seat.persona || "").toLowerCase();
   const title = String(seat.title || "").toLowerCase();
-  return /^(the[-_ ])?expediter$/.test(id) || /\bexpediter\b/.test(title);
+  if (/^(the[-_ ])?expediter$/.test(id) || /\bexpediter\b/.test(title)) return true;
+  if (/^(the[-_ ])?fable[-_ ]conductor$/.test(id) || id === "ffr-cascade") return true;
+  return /\bcascade\b[\s-]+controller\b/.test(title) || CONTROLLER_MARKER.test(title);
 }
 
 // a Write/Edit that targets the seat file itself is always allowed: it is how an
@@ -111,11 +121,11 @@ function isSeatRepair(toolName, toolInput) {
 
 // Decide what to do for a seated persona and a proposed action.
 //   null              -> allow (exit 0)
-//   { kind: "subagent-expediter" }              -> block: a subagent is seated as the Expediter (controller-only persona)
+//   { kind: "subagent-expediter" }              -> block: a subagent holds a controller-only seat (Expediter or fable-conductor)
 //   { kind: "no-anchor" }                       -> block: seat has teeth but no anchor
 //   { kind: "anti-behavior", behavior, hit }    -> block: action crosses a declared anti-behavior
-// The Expediter lock runs FIRST and unconditionally: it does not require declared
-// anti-behaviors (a bare expediter seat is still a violation in a subagent), and it is
+// The controller lock runs FIRST and unconditionally: it does not require declared
+// anti-behaviors (a bare controller seat is still a violation in a subagent), and it is
 // deliberately checked BEFORE the seat-repair carve-out, so a subagent cannot use the
 // repair allowance to keep operating under the seat it is forbidden to hold.
 // After that, the guard acts only when a persona with teeth is seated. The anchor gate
@@ -139,7 +149,7 @@ export function evaluateSeat(seat, toolName, toolInput, ctx = {}) {
 }
 
 // The full hook flow as one evaluator: read the seat, judge the action, and on
-// the Expediter lock clear the seat as a side effect. Returns a suite verdict
+// the controller lock clear the seat as a side effect. Returns a suite verdict
 // ({ kind, label, why, tag? }) or null, so the dispatchers (hooks/guard-bash.mjs,
 // hooks/guard-write.mjs) and the standalone entry share one behavior.
 export function evalPersonaConduct(j) {
@@ -170,11 +180,12 @@ export function evalPersonaConduct(j) {
     try { unlinkSync(seatFile); } catch { /* seat may be locked or already gone */ }
     return { kind: "block", label: "PERSONA CONDUCT GUARD", tag: "HARD STOP - seat cleared", why:
       "a dispatched subagent is seated as " + who + ".\n" +
-      "The Expediter is the controller's persona and is locked to the main session: it holds sole\n" +
-      "authority over hooks and loops, defines done-criteria, and dispatches the waves. A subagent\n" +
-      "that claims it has stepped outside its mandate, so this action is blocked and the seat has\n" +
-      "been deactivated (.claude/active-persona.json removed). Continue the task unseated, or seat a\n" +
-      "persona from references/personas/ that matches the work. Do not re-seat the Expediter." };
+      "A controller-only persona (the Expediter - eidolon's dispatch default - or fable-conductor,\n" +
+      "the long-horizon controller) is locked to the main session: it holds sole authority over\n" +
+      "hooks and loops, defines done-criteria, and dispatches the waves. A subagent that claims one\n" +
+      "has stepped outside its mandate, so this action is blocked and the seat has been deactivated\n" +
+      "(.claude/active-persona.json removed). Continue the task unseated, or seat a working persona\n" +
+      "from references/personas/ that matches the work. Do not re-seat a controller persona." };
   }
 
   if (verdict.kind === "no-anchor") {

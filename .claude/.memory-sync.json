@@ -1,0 +1,24 @@
+{
+  "session": "compact-1781389166868",
+  "ts": "2026-06-13T22:19:26.868Z",
+  "head": "a76d4b670aa7aaa68c7954531d63745aba5ffff9",
+  "findings": [
+    {
+      "axis": "drift",
+      "severity": "high",
+      "file": "graphify-out/graph.json",
+      "detail": "graph.json is older than HEAD (graphify stale)",
+      "proposedFix": "graphify update ."
+    },
+    {
+      "axis": "drift",
+      "severity": "high",
+      "file": "(mempalace + graphify)",
+      "detail": "last synced HEAD never != current a76d4b670aa7aaa68c7954531d63745aba5ffff9",
+      "proposedFix": "mempalace mine . --wing fraud_forensic_replay + graphify update ."
+    }
+  ],
+  "findingsHash": "bbb9f663295c55db",
+  "status": "pending",
+  "syncedHead": null
+}

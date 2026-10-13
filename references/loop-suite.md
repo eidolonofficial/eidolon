@@ -391,11 +391,9 @@ Only the cognition-base + analyzer + closed-loop SHAPE ports; upgrade 3 is delib
 narrowest slice of parent-selection that survives that distinction. Source: ASI-Evolve arXiv
 2603.29640 + github.com/GAIR-NLP/ASI-Evolve; mapping grounded in this file + conductor-standard.md.
 
-This fence governs the DELIVERY loop only, and it still stands here. The machinery it holds out --
-population search, numeric fitness, island/MAP-Elites sampling -- DOES have a sanctioned home in
-Eidolon: the `evolve` mode (SKILL.md; references/evolve-engine.md), which runs the vendored
-ASI-Evolve toolbelt (engine/asi-evolve/) on measurable numeric-optimization work items, consent-
-gated and bounded. The distinction this fence draws is preserved -- delivery tasks are ordered
-steps, not interchangeable variants -- and the evolve mode is exactly the carve-out where the other
-condition (a real scorer over a candidate population) is true. See ADR
-docs/decisions/2026-06-16-fold-asi-evolve-evolve-mode.md.
+This fence governs the DELIVERY loop, and it stands. The machinery it holds out --
+population search, numeric fitness, island/MAP-Elites sampling -- was briefly carried as a
+vendored `evolve` mode (ADR docs/decisions/2026-06-16-fold-asi-evolve-evolve-mode.md); that
+mode never ran in the field and was removed 2026-07-09 (the ADR stands as the append-only
+record). The distinction the fence draws is unchanged: delivery tasks are ordered steps,
+not interchangeable variants of one solution.

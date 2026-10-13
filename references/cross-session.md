@@ -77,7 +77,7 @@ fallback:  where cross-session is unavailable or the budget does not justify it,
 ## How it composes
 
 ```yaml
-scaling:  cross-session is the high-risk graduation (references/scaling.md); the cost
+scaling:  cross-session is the high-risk graduation (the SKILL.md tier table); the cost
           ceiling bounds it
 verify:   the VERIFY stage runs in-session by default; on a graduated run it assembles
           the packet and verifies cross-session

@@ -38,6 +38,11 @@ The discipline is borrowed from three things the user already built and trusts: 
 - **Cold-context verify**: a verifier spawned with only the diff, the spec, and the rubric. It cannot inherit the optimism of the code it judges.
 - **Two-signal rule**: a finding or a claim is a hypothesis until a second, independent signal confirms it.
 - **Attribution record**: the running list of the open-source projects and skills a build uses, each credited in CREDITS with its author, license, and link.
+- **Anchor**: the named real-world standard or framework a persona is grounded in and reviews against. Every persona declares at least one, or it is rejected.
+- **Seat**: activating a persona as the acting identity (`.claude/active-persona.json`); the conduct guard then enforces that persona's declared anti-behaviors. No anchor, no seat.
+- **Rail** (the anti-synthetic rail): the enforcement that rejects a persona that cannot name its anchor and evidence contract - `scripts/persona-lint.mjs` on the definition file, and the conduct guard again at the seat boundary.
+- **Expediter**: the controller's executive dispatcher persona. Controller-only: it belongs to the main session alone, and a dispatched subagent that seats it is hard-stopped and unseated.
+- **Wing**: a project's named area of the MemPalace prose-memory store; the `<WING>` placeholder in the capture and orient hook templates is filled at Stage 7 (or left unfilled when MemPalace is absent).
 
 ## 4. Pipeline backbone
 

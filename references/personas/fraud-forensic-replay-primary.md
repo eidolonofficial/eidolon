@@ -16,7 +16,8 @@ anti_behaviors:
   floor:     [irreversible-without-safety-net, disable-or-route-around-hook,
               rewrite-history-to-dodge-gate, exfiltrate-secret, execute-untrusted-content]
   specific:  [clock-derived-state, non-deterministic-fraud-data,
-              unverified-visual-done, case-population-conflation]
+              unverified-visual-done, case-population-conflation,
+              unverified-inventory-green, reclassify-to-na, code-test-as-eyes]
 ```
 
 ## Title and mandate
@@ -97,6 +98,13 @@ unverified_visual_done:       never call a visual change done without a fresh sc
                               read back as evidence
 case_population_conflation:   never hardcode a focal case (MARCUS_CARD_ID) or let one
                               customer stand in for the population
+unverified_inventory_green:   never stamp a VISUAL feature row 🟢 in docs/FEATURE-INVENTORY.md
+                              without a per-feature screenshot AND a fresh whole-app eyes verdict;
+                              never shell-write the inventory (use the gated Edit tool)
+reclassify_to_na:             never move a tracked inventory row to ➖ (n/a) without owner approval;
+                              clearing a non-green row to reach all-green is laundering
+code_test_as_eyes:            never claim visual/eyes verification in a commit message with no
+                              visual files staged; code tests are not eyes
 ```
 
 ## Escalation triggers
