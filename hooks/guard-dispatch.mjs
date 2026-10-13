@@ -6,7 +6,7 @@ try {
   const {runSuite} = await import('./lib.mjs');
   const {isDispatch} = await import('./operation.mjs');
   const {evalManagedState} = await import('./policy-manifest.mjs');
-  const {evalWorkerRecursion, evalBriefGate, evalWavePlan, evalDispatchLog} = await import('./dispatch-evaluators.mjs');
+  const {evalWorkerRecursion, evalBriefGate, evalWavePlan, evalModelTier, evalDispatchLog} = await import('./dispatch-evaluators.mjs');
   // Regex literals: in a plain string literal, \b becomes a backspace and \s becomes 's'.
   const SENSITIVE = new RegExp([
     /security/, /trust[ -]?safety/, /red[ -]?team/, /blue[ -]?team/,
@@ -25,7 +25,7 @@ try {
     return {kind: 'ask', label: 'SENSITIVE DISPATCH',
       why: 'this dispatch looks destructive or sensitive. Confirm you intend to dispatch it now; see references/security-policy.md.'};
   };
-  runSuite([evalManagedState, evalSensitiveDispatch, evalWorkerRecursion, evalBriefGate, evalWavePlan, evalDispatchLog]);
+  runSuite([evalManagedState, evalSensitiveDispatch, evalWorkerRecursion, evalBriefGate, evalWavePlan, evalModelTier, evalDispatchLog]);
 } catch {
   process.stderr.write('EIDOLON DISPATCH: required runtime unavailable; operation blocked. No payload was logged.\n');
   process.exitCode = 2;

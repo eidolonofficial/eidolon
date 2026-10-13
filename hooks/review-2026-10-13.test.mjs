@@ -88,7 +88,7 @@ test('H2 an alternate data stream or an 8.3 short name resolves to the protected
 
 test('H3 the sensitive-dispatch terms match: prod, pii, pci, token, keys, .env, rm -rf, drop table, delete, wipe, destroy', t => {
   const {root} = repo(t);
-  const dispatch = description => run(root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: {subagent_type: 'Explore', description, prompt: 'look'}});
+  const dispatch = description => run(root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: {subagent_type: 'Explore', model: 'sonnet', description, prompt: 'look'}});
   const terms = ['check the prod box', 'the pii table', 'the pci scope', 'rotate the token', 'list the keys', 'read the .env file', 'run rm -rf build', 'drop table users', 'delete the cache', 'wipe the disk', 'destroy the box'];
   each(terms, term => asked(dispatch(term), 'security-policy\\.md', term));
   silent(dispatch('fix a typo in the readme'), 'a routine dispatch');
@@ -214,7 +214,7 @@ test('H13 the dispatch gates: a Done-check line with text, anchored read-only na
     }
     return {...r, transcript};
   };
-  const go = (r, input, extra = {transcript_path: r.transcript}) => run(r.root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: input, ...extra});
+  const go = (r, input, extra = {transcript_path: r.transcript}) => run(r.root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: {model: 'sonnet', ...input}, ...extra});
   const ok = fixture();
   silent(go(ok, {subagent_type: 'general-purpose', prompt: 'Refactor the parser.\nDone-check: node --test exits 0.'}), 'a Done-check line');
   silent(go(ok, {subagent_type: 'general-purpose', prompt: 'Refactor the parser.\n  done-check: tests pass'}), 'case and indent');

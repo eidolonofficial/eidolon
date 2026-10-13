@@ -238,7 +238,7 @@ test('H32 a Done-check or Acceptance value that is a placeholder asks like a mis
   r.put('.claude/waves/w.md', 'a wave plan that is long enough to count');
   const later = new Date(Date.now() + 5000);
   utimesSync(join(r.root, '.claude/waves/w.md'), later, later);
-  const go = prompt => run(r.root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: {subagent_type: 'general-purpose', prompt}, transcript_path: transcript});
+  const go = prompt => run(r.root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: {subagent_type: 'general-purpose', model: 'sonnet', prompt}, transcript_path: transcript});
   each(['none', 'None', 'N/A', 'n/a', 'na', 'TBD', 'tbd.', 'TODO', 'skip', '-', 'none.'],
     v => { asked(go(`Refactor the parser.\nDone-check: ${v}`), 'brief names no done-check', 'Done-check: ' + v); asked(go(`Refactor the parser.\nAcceptance: ${v}`), 'brief names no done-check', 'Acceptance: ' + v); });
   silent(go('Refactor the parser.\nDone-check: node --test exits 0'), 'a real Done-check');

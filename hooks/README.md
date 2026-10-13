@@ -97,7 +97,8 @@ Run by `hooks/guard-dispatch.mjs` on the `Agent` and `Task` tools, in the order 
 | 3 | `evalWorkerRecursion` | dispatch-evaluators.mjs | A worker (an event with `agent_id`, or a transcript under a `subagents` directory) that dispatches. | block |
 | 4 | `evalBriefGate` | dispatch-evaluators.mjs | A write-capable dispatch whose prompt has no line starting with `Done-check:` or `Acceptance:` followed by text (a leading list marker is allowed; the same words in running prose do not count; a value of none, n/a, na, tbd, todo, skip or a dash is a placeholder and counts as missing). Write-capable means an `agent-scopes.json` entry with a non-empty `write` list, or, with no entry, any agent type other than Explore, Plan, cavecrew-investigator or cavecrew-reviewer (a `caveman:` prefix is allowed; no agent type counts as write-capable). A payload with no prompt is not judged. | ask |
 | 5 | `evalWavePlan` | dispatch-evaluators.mjs | A write-capable dispatch when no `.md` file in `.claude/waves/` with at least 20 non-blank characters is newer than the session start (the transcript's creation time). With no readable `transcript_path` the plan cannot be matched to the session, so it asks. | ask |
-| 6 | `evalDispatchLog` | dispatch-evaluators.mjs | Nothing is refused. Appends one line per dispatch to `.claude/.dispatch-log.jsonl`: time, session, agent type, model, effort, description, persona, write roots and a SHA-256 of the prompt. A dispatch blocked by an earlier evaluator is not logged. A log failure never fails the hook. | none |
+| 6 | `evalModelTier` | dispatch-evaluators.mjs | A dispatch with a prompt that names no model tier: no `model` on the call, no `model:` line in the frontmatter of `.claude/agents/<type>.md` (project first, then the home directory), and not a plugin agent type (one with a `:` in its name, whose definition carries its own model). The tier is a decision (conductor-standard section 4). | ask |
+| 7 | `evalDispatchLog` | dispatch-evaluators.mjs | Nothing is refused. Appends one line per dispatch to `.claude/.dispatch-log.jsonl`: time, session, agent type, the tier (the call's model, else the agent file's model line, else `plugin-defined`), effort, description, persona, write roots and a SHA-256 of the prompt. A dispatch blocked by an earlier evaluator is not logged. A log failure never fails the hook. | none |
 
 ## What asks
 
@@ -134,7 +135,8 @@ commit_quality:       an unknown git global option ahead of the subcommand; git 
                       in place of git arguments (git @a in PowerShell, git "$@", git ${arr[@]}, git $args); git reset --hard, --merge or
                       --keep, git checkout-index -f, git read-tree -u or --reset (they discard uncommitted work)
 hook_integrity:       a controller writing a hook file (a worker is blocked)
-dispatch:             a write-capable brief with no Done-check: or Acceptance: line, or one whose value is none, n/a, na, tbd, todo, skip or -; no readable transcript_path; a wave plan under 20 non-blank characters
+dispatch:             a write-capable brief with no Done-check: or Acceptance: line, or one whose value is none, n/a, na, tbd, todo, skip or -; no readable transcript_path; a wave plan under 20 non-blank characters;
+                      a dispatch that names no model tier (no model on the call, no model line in its .claude/agents file, not a plugin agent)
 other_asks:           the evaluator tables above also list the sensitive dispatch, the visual evidence gate and the persona line
                       irreversible-without-safety-net
 ```
@@ -293,8 +295,9 @@ runtime_load: if a dispatcher cannot import its modules it exits 2 (blocks)
 block:        reason on stderr, exit 2; Claude sees it and retries
 ask:          hookSpecificOutput.permissionDecision "ask" with the reason, exit 0
 advise:       { systemMessage, hookSpecificOutput.additionalContext } on stdout, exit 0
-missing_hook: a hook script that is missing, or that crashes with exit 1, does not block the call
-              (Claude Code treats it as a non-blocking error); see references/current-platform-contract.md
+missing_hook: a hook script that is missing, or that crashes with exit 1, does not block the call; Claude Code shows
+              the hook's stderr to the user as a non-blocking error and continues. The onFailure: block setting that
+              would turn this into a block needs Claude Code 2.1.295 or newer; see references/current-platform-contract.md
 ```
 
 ## Known gaps
@@ -317,7 +320,8 @@ scratch_in_tmp:    a project that sits inside the OS temp directory gets only th
 controller_outside_root: the controller's Write or Edit outside the project root is not judged, except a settings file
 agent_type:        agent_type on a worker's PreToolUse is unverified until a live run with EIDOLON_HOOK_DEBUG=1
 os_sandbox:        the hooks are not an operating-system sandbox
-fail_open:         a hook script that is missing, or that crashes with exit 1, does not block the call
+fail_open:         a hook script that is missing, or that crashes with exit 1, does not block the call; the failure is shown to the
+                   user as a non-blocking hook error (onFailure: block needs Claude Code 2.1.295 or newer)
 ```
 
 ## Tests

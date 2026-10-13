@@ -39,7 +39,7 @@ const run = (root, script, event, env = {}) => spawnSync(process.execPath, [join
   cwd: root, encoding: 'utf8', timeout: 15000, env: {...process.env, ...env},
   input: JSON.stringify({cwd: root, session_id: 's1', transcript_path: join(root, '.claude/session.jsonl'), ...event}),
 });
-const dispatch = (root, input, extra = {}) => run(root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: input, ...extra});
+const dispatch = (root, input, extra = {}) => run(root, 'guard-dispatch.mjs', {tool_name: 'Agent', tool_input: {model: 'sonnet', ...input}, ...extra});
 const wr = (root, file_path, extra = {}, tool = 'Write') => run(root, 'guard-write.mjs', {tool_name: tool, tool_input: {file_path, content: 'x'}, ...extra});
 const sh = (root, command, extra = {}) => run(root, 'guard-bash.mjs', {tool_name: 'Bash', tool_input: {command}, ...extra});
 const blocked = (r, label, what) => {
