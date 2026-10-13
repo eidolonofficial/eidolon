@@ -41,16 +41,26 @@ Eidolon works without asking and pauses only at these moments: installing a skil
 ## The installer
 
 ```sh
-node scripts/install.mjs --project PATH [--yes] [--replace] [--lock FILE]
+node scripts/install.mjs --project PATH [--yes --expect-plan DIGEST] [--replace] [--lock FILE]
 ```
 
-It previews by default and writes nothing until `--yes`. A project install writes `.claude/skills/eidolon/`, the hook wiring and deny floor in `.claude/settings.json`, `.eidolon/policy-manifest.json`, a stub `.claude/eidolon-manifest.yaml`, and marked blocks in `CLAUDE.md` and `.gitignore`. `--home PATH` installs the skill only. `--replace` is required to overwrite an existing skill and keeps a backup. `--lock FILE` checks every bundled file against a vendor lock and refuses a mismatch. It refuses to install into the home directory as a project. It does not generate agents or lanes; setup does.
+It needs Node 22 or newer and previews by default; nothing is written until `--yes`.
+
+- `--project` installs the skill and wires the hooks; `--home PATH` installs the skill only.
+- The preview ends with `To apply exactly this plan: --yes --expect-plan <digest>`. `--yes` without `--expect-plan` is refused, and a plan that changed since the preview is refused.
+- A project install writes `.claude/skills/eidolon/`, the hook wiring and deny floor in `.claude/settings.json`, `.eidolon/policy-manifest.json`, a stub `.claude/eidolon-manifest.yaml`, and one delimited block each in `CLAUDE.md` (`<!-- eidolon:begin -->` to `<!-- eidolon:end -->`) and `.gitignore` (`# eidolon:begin` to `# eidolon:end`). A reinstall replaces the block in place.
+- A source with `.git` installs tracked files only; a plain bundle directory, as Hearth ships, is walked.
+- `--lock FILE` checks every bundled file's hash and, for a git source, that HEAD is the pinned commit. A mismatch, an extra file or a missing file is refused.
+- `--replace` is required to overwrite an existing skill, and the old one is kept as a backup.
+- Files are staged under `.eidolon/stage`. A stage directory or install lock older than 15 minutes is treated as left by a dead run and swept, with a note printed.
+- It refuses: the home directory or a parent of it as a project, a drive or filesystem root, a settings file that already sets `disableAllHooks`, a malformed `permissions.deny` or `env`, and a `CLAUDE.md` or `.gitignore` that is not valid UTF-8.
+- It does not generate agents or lanes; setup does.
 
 ## Proof of life
 
 ```sh
-node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 197 tests; exit 0 means none failed
-node scripts/selfcheck.mjs                            # 63 PASS lines, then "selfcheck: PASS"
+node --test "hooks/*.test.mjs" "scripts/*.test.mjs"   # 231 tests; exit 0 means none failed
+node scripts/selfcheck.mjs                            # 64 PASS lines, then "selfcheck: PASS"
 node scripts/eidolon-audit.mjs                        # PASS: references resolve, personas pass the rail, wired hooks exist
 node scripts/hooks-readme-check.mjs                   # PASS: wiring, evaluator order and hook rows match the code
 ```

@@ -2,7 +2,8 @@
 //
 // Fails when hooks/README.md drifts from the code: the wiring table against .claude/settings.json,
 // the three evaluator tables against suite-evaluators.mjs and guard-dispatch.mjs (same names, same
-// order), a hook file with no README row, and any em or en dash. Read-only; reports, never fixes.
+// order), the --project arg on a wired entry that has one, the "What asks" heading, a hook file with no
+// README row, and any em or en dash. Read-only; reports, never fixes.
 //
 //   node scripts/hooks-readme-check.mjs          # check the repo it lives in
 //   node scripts/hooks-readme-check.mjs PATH     # check another checkout
@@ -37,7 +38,7 @@ function wiredFromSettings(settings) {
   for (const [event, groups] of Object.entries(settings.hooks || {}))
     for (const group of groups) for (const h of group.hooks || []) {
       const file = [h.command, ...(h.args || [])].map(String).find((s) => /\.mjs$/.test(s));
-      out.push(`${event} | ${group.matcher || "(empty)"} | hooks/${basename(file || "?")}`);
+      out.push({ key: `${event} | ${group.matcher || "(empty)"} | hooks/${basename(file || "?")}`, project: (h.args || []).includes("--project") });
     }
   return out;
 }
@@ -65,8 +66,13 @@ export function checkReadme(root, readme) {
   const listed = wiring && wiring.map((r) => `${bare(r[0])} | ${bare(r[1])} | ${bare(r[2])}`);
   if (!listed) problems.push("wiring: no table found in hooks/README.md");
   else {
-    for (const w of wired) if (!listed.includes(w)) problems.push(`wiring: README is missing ${w}`);
-    for (const l of listed) if (!wired.includes(l)) problems.push(`wiring: README lists ${l}, which .claude/settings.json does not wire`);
+    const keys = wired.map((w) => w.key);
+    for (const w of wired) {
+      const at = listed.indexOf(w.key);
+      if (at < 0) problems.push(`wiring: README is missing ${w.key}`);
+      else if (w.project && !String(wiring[at][3] || "").includes("--project")) problems.push(`wiring: README row for ${w.key} lacks the --project arg`);
+    }
+    for (const l of listed) if (!keys.includes(l)) problems.push(`wiring: README lists ${l}, which .claude/settings.json does not wire`);
   }
 
   // (b) evaluators, in code order
@@ -89,6 +95,9 @@ export function checkReadme(root, readme) {
     if (SHARED.includes(f)) { if (!sharedLine.includes(f)) problems.push(`shared module ${f} is not on the "Shared modules" line`); }
     else if (!rowLines.some((l) => l.includes(f))) problems.push(`hook ${f} has no row in hooks/README.md`);
   }
+
+  // (e) the "What asks" section
+  if (!/^#{1,6}\s+What asks\s*$/m.test(readme)) problems.push('hooks/README.md has no "What asks" heading');
 
   // (d) dashes
   readme.split(/\r?\n/).forEach((l, i) => { if (DASH.test(l)) problems.push(`hooks/README.md line ${i + 1}: em or en dash`); });

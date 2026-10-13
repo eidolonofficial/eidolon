@@ -42,3 +42,14 @@ test("a README containing an em dash or an en dash fails", () => {
     assert.ok(problems.some((p) => p.includes("em or en dash")), problems.join("\n"));
   }
 });
+
+test("a wiring row without the --project arg fails", () => {
+  const stripped = readme.split("\n").map((l) => (l.startsWith("| SubagentStop |") ? l.replace(/--project \$\{CLAUDE_PROJECT_DIR\}/, "") : l)).join("\n");
+  const problems = checkReadme(root, stripped);
+  assert.ok(problems.some((p) => p.includes("lacks the --project arg") && p.includes("SubagentStop")), problems.join("\n"));
+});
+
+test('a README with no "What asks" heading fails', () => {
+  const problems = checkReadme(root, readme.replace(/^## What asks$/m, "## Questions"));
+  assert.ok(problems.some((p) => p.includes("What asks")), problems.join("\n"));
+});

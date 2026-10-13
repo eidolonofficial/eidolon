@@ -13,19 +13,34 @@ Shared modules: `lib.mjs`, `operation.mjs`, `shell-operation.mjs`, `confined-pat
 
 ## Wiring
 
-The wired set read from `.claude/settings.json`. An installed project wires the same files from
-`.claude/skills/eidolon/hooks/` with `--project ${CLAUDE_PROJECT_DIR}` and a 20 second timeout; this
-repository wires them from `hooks/` with a 10 second timeout. The exec form (`command` plus `args`)
-substitutes `${CLAUDE_PROJECT_DIR}` into each argument.
+The wired set read from `.claude/settings.json`. Every entry passes `--project ${CLAUDE_PROJECT_DIR}`
+after the script path, which pins the policy root to the project instead of the event's working
+directory. An installed project wires the same files from `.claude/skills/eidolon/hooks/` with a 20
+second timeout; this repository wires them from `hooks/` with a 10 second timeout. The exec form
+(`command` plus `args`) substitutes `${CLAUDE_PROJECT_DIR}` into each argument.
 
-| Event | Matcher | File |
-|---|---|---|
-| PreToolUse | Bash\|PowerShell | hooks/guard-bash.mjs |
-| PreToolUse | Write\|Edit | hooks/guard-write.mjs |
-| PreToolUse | Agent\|Task | hooks/guard-dispatch.mjs |
-| PostToolUse | Write\|Edit | hooks/post-tool-entry.mjs |
-| SubagentStart | (empty) | hooks/subagent-start.mjs |
-| SubagentStop | (empty) | hooks/subagent-stop.mjs |
+| Event | Matcher | File | Project arg |
+|---|---|---|---|
+| PreToolUse | Bash\|PowerShell | hooks/guard-bash.mjs | --project ${CLAUDE_PROJECT_DIR} |
+| PreToolUse | Write\|Edit | hooks/guard-write.mjs | --project ${CLAUDE_PROJECT_DIR} |
+| PreToolUse | Agent\|Task | hooks/guard-dispatch.mjs | --project ${CLAUDE_PROJECT_DIR} |
+| PostToolUse | Write\|Edit | hooks/post-tool-entry.mjs | --project ${CLAUDE_PROJECT_DIR} |
+| SubagentStart | (empty) | hooks/subagent-start.mjs | --project ${CLAUDE_PROJECT_DIR} |
+| SubagentStop | (empty) | hooks/subagent-stop.mjs | --project ${CLAUDE_PROJECT_DIR} |
+
+One entry, as written in `.claude/settings.json`:
+
+```json
+{
+  "matcher": "Bash|PowerShell",
+  "hooks": [{
+    "type": "command",
+    "command": "node",
+    "args": ["${CLAUDE_PROJECT_DIR}/hooks/guard-bash.mjs", "--project", "${CLAUDE_PROJECT_DIR}"],
+    "timeout": 10
+  }]
+}
+```
 
 One process runs per matcher. Each dispatcher passes the payload through an ordered list of pure
 evaluators (`runSuite` in `lib.mjs`). Precedence: the first block halts the call at once, so the
@@ -37,7 +52,8 @@ host names the tool Bash or PowerShell; the evaluators see a normalized `Bash` c
 
 ## Evaluators
 
-In the exact order the code runs them. Verdict tiers are as implemented.
+In the exact order the code runs them. Verdict tiers are as implemented. "What asks" and "What blocks"
+below collect the shell cases by tier.
 
 ### Bash and PowerShell evaluators
 
@@ -46,29 +62,29 @@ Run by `hooks/guard-bash.mjs`, order from `bashEvaluators` in `suite-evaluators.
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | When `.eidolon/policy-manifest.json` exists, reads `.claude/settings.json` and refuses the call if `disableAllHooks` is true, a managed hook handler (event, matcher, command, args) or managed deny rule is missing, or the manifest or settings are unreadable or invalid. | block |
-| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | A shell operation that changes an authority path (`.git`, the settings files, `.claude/eidolon-manifest.yaml`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/`, `.claude/skills/eidolon/`) is blocked. An interpreter inline body (`node -e`, `python -c`, `pwsh -Command`, `bash -c`) that names settings, the policy manifest or a hooks path asks. A command the shell parser cannot read asks. Any other internal error blocks. | block, ask |
-| 3 | `evalLane` | lanes.mjs | A worker's redirect or write, append or delete verb outside its `write` roots in `.claude/agent-scopes.json`. See "Write lanes". | block |
+| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a shell operation that changes an authority path (`.git`, the settings files, `.claude/eidolon-manifest.yaml`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/`, `.claude/skills/eidolon/`). Asks for a mutation the parser cannot place, an interpreter body, heredoc or substitution that names git or a protected path, and a command it cannot parse; a command it cannot parse whose raw text matches a block net blocks instead. See "What asks". Any other internal error blocks. | block, ask |
+| 3 | `evalLane` | lanes.mjs | A worker's redirect or write, append, delete or link outside its `write` roots in `.claude/agent-scopes.json`, a write outside the project root, or a path-shaped string literal in an interpreter inline body outside the lane. See "Write lanes". | block |
 | 4 | `evalVerification` | verification-guard.mjs | A `git commit` whose message claims a visual or runtime result works ("looks good", "renders correctly", "works in the browser") and names no evidence (a screenshot, an image path, `evidence:`, `verified via`, `signal:`, `proof:`). | block |
-| 5 | `evalCommitQuality` | commit-quality-guard.mjs | `--no-verify` (and unambiguous prefixes, and `-n` on commit) on commit or push; an unconditional force push (`--force`, `-f`, a `+` refspec; `--force-with-lease` alone passes); a `core.hooksPath` override through `git -c`, `--config-env`, `GIT_CONFIG_KEY_n` or an inline `GIT_CONFIG_PARAMETERS`; `git config core.hooksPath`; `filter-branch` and `filter-repo`. Message text is not read as flags. | block |
+| 5 | `evalCommitQuality` | commit-quality-guard.mjs | Reads the parsed argv of each git invocation. Blocks `--no-verify` (and unambiguous prefixes, and `-n` on commit) on commit or push; a force push (`--force`, `--force-if-includes`, `-f`, a `+` refspec; `--force-with-lease` alone passes); a mirror push or `remote.*.mirror` or `remote.*.push` config; `include.path` config; a `core.hooksPath` override through `git -c`, `--config-env`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_PARAMETERS`, or a swapped `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`; `git config core.hooksPath`; an alias that runs commit or push with a hook-skipping or force flag; `filter-branch` and `filter-repo`. Some cases ask; see "What asks". | block, ask |
 | 6 | `evalPersonaConduct` | persona-conduct-guard.mjs | With a persona seated, an action that crosses one of its declared anti-behaviors. See "The seated persona". `irreversible-without-safety-net` asks; every other line blocks. No seat file is a no-op, except that a worker may never edit the seat file. | block, ask |
-| 7 | `evalHookIntegrity` | hook-integrity-guard.mjs | Blocks a `core.hooksPath` change, `chmod` on a hook, and `mv`, `rm`, `rmdir`, `del` or `Remove-Item` of a hook, the hooks directory or an authority path. Any other shell write to a hook file (`cp`, `tee`, a redirect, `sed -i`) asks the controller and blocks a worker. The persona template and `references/security-policy.md` count as hook files here. | block, ask |
-| 8 | `evalDeletion` | deletion-guard.mjs | A shell command that deletes or overwrites an append-only record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`). Appends (`>>`, `tee -a`, `Add-Content`) pass. | block |
+| 7 | `evalHookIntegrity` | hook-integrity-guard.mjs | Blocks a `core.hooksPath` change, an attribute change (`chmod`, `icacls`, `Set-ItemProperty` and kin) on a hook or authority path, and `mv`, `rm`, `rmdir`, `del`, `Remove-Item`, `Move-Item` or `Rename-Item` of a hook, the hooks directory or an authority path. Any other shell write to a hook file (`cp`, `tee`, a redirect, `sed -i`, `ln`, `touch`) asks the controller and blocks a worker. The persona template and `references/security-policy.md` count as hook files here. | block, ask |
+| 8 | `evalDeletion` | deletion-guard.mjs | A shell command that deletes, overwrites or creates over an append-only record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`), or deletes or moves a parent directory that holds one. Appends (`>>`, `tee -a`, `Add-Content`) pass. | block |
 | 9 | `evalProtectedPaths` | protected-paths-guard.mjs | A delete verb (`rm`, `rmdir`, `del`, `Remove-Item`, `truncate`, `shred`, `unlink`) aimed at `.git`, a record, a hook, `.claude/settings.json` or `references/persona-template.md`. Overlaps the record guards on purpose. | block |
 | 10 | `evalVisualEvidence` | visual-evidence-gate.mjs | A `git commit` that stages a visual file (png, jpg, jpeg, gif, webp, svg, mp4, mov, webm, pdf), including one staged in the same command or swept in by `-a`, `--all` or `-am`, with a message that names no evidence (screenshot, looked at it, viewed it, verified visually, `see <image>`, `evidence:`, user confirmed, approved or saw). | ask |
 
 ### Write and Edit evaluators
 
-Run by `hooks/guard-write.mjs`, order from `writeEvaluators` in `suite-evaluators.mjs`. A Write or Edit aimed outside the project root is not judged.
+Run by `hooks/guard-write.mjs`, order from `writeEvaluators` in `suite-evaluators.mjs`. A Write or Edit by the controller aimed outside the project root is not judged, except a Claude settings file, which is judged wherever it lives.
 
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | Same check as in the Bash suite. | block |
 | 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a write to `.claude/skills/eidolon/`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/` or `.claude/eidolon-manifest.yaml`. Then applies the hook-file check of `evalHookIntegrity` to the write: a Write or Edit under `hooks/`, `.git/hooks/` or any directory named `hooks` that holds a wired guard asks the controller and blocks a worker. | block, ask |
-| 3 | `evalLane` | lanes.mjs | A worker's Write or Edit outside its `write` roots. | block |
+| 3 | `evalLane` | lanes.mjs | A worker's Write or Edit outside its `write` roots, or outside the project root. | block |
 | 4 | `evalAppendOnlyRecord` | append-only-record-guard.mjs | A Write or Edit to a record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`) whose result is not the existing bytes plus an append. A record that does not exist yet may be created. A result that cannot be validated blocks. | block |
 | 5 | `evalPersonaConduct` | persona-conduct-guard.mjs | Same check as in the Bash suite. | block, ask |
 | 6 | `evalDrift` | drift-guard.mjs | Consecutive scaffold writes (`hooks/`, `.claude/`, `scripts/`, `.github/`, Dockerfile, Makefile, `.gitignore`, yaml, toml, ini, cfg, `*.config.js` and `*.config.ts`). Advises from a projected count of 6; blocks at 10 unless the policy manifest sets `workType` to `infrastructure` (then it only advises). Any other write resets the count. The count advances only after a successful write (PostToolUse). | advise, block |
-| 7 | `evalSettingsIntegrity` | settings-integrity-guard.mjs | A write to `.claude/settings.json` or `.claude/settings.local.json` whose result sets `disableAllHooks` to anything but false, drops a managed hook handler or deny rule, drops an existing handler or deny rule when no manifest lists the file, or cannot be validated. | block |
+| 7 | `evalSettingsIntegrity` | settings-integrity-guard.mjs | A write to a `.claude/settings.json` or `.claude/settings.local.json` anywhere, inside or outside the project, whose result sets `disableAllHooks` to anything but false, drops a managed hook handler or deny rule, drops an existing handler or deny rule when no manifest lists the file, or cannot be validated. | block |
 
 ### Dispatch evaluators
 
@@ -77,11 +93,62 @@ Run by `hooks/guard-dispatch.mjs` on the `Agent` and `Task` tools, in the order 
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | Same check as in the Bash suite. | block |
-| 2 | `evalSensitiveDispatch` | guard-dispatch.mjs | The dispatch text (description, prompt, message, agent type, task) matches a sensitive keyword: security, trust safety, red or blue team, deploy, release, publish, rollout, production, migrat, personal data, payment, cardholder, credential, secret, destructive, truncate, irreversible, force push. See "Known gaps" for the entries that do not match. | ask |
+| 2 | `evalSensitiveDispatch` | guard-dispatch.mjs | The dispatch text (description, prompt, message, agent type, task) matches a sensitive keyword: security, trust safety, red or blue team, deploy, release, publish, rollout, production, prod, migrat, pii, personal data, payment, cardholder, pci, credential, secret, token, key or keys, `.env`, destructive, `rm -rf`, drop table or database, truncate, delete, wipe, destroy, irreversible, force push. | ask |
 | 3 | `evalWorkerRecursion` | dispatch-evaluators.mjs | A worker (an event with `agent_id`, or a transcript under a `subagents` directory) that dispatches. | block |
-| 4 | `evalBriefGate` | dispatch-evaluators.mjs | A write-capable dispatch whose prompt names no done-check (done-check, done when, acceptance, exits 0, must pass, verify by, `evidence:`). Write-capable means an `agent-scopes.json` entry with a non-empty `write` list, or, with no entry, any agent type other than explore, plan, or a name containing investigator or reviewer (no agent type counts as write-capable). A payload with no prompt is not judged. | ask |
-| 5 | `evalWavePlan` | dispatch-evaluators.mjs | A write-capable dispatch when no `.md` file in `.claude/waves/` is newer than the session start (the transcript's creation time; 24 hours back when it cannot be read). | ask |
+| 4 | `evalBriefGate` | dispatch-evaluators.mjs | A write-capable dispatch whose prompt has no line starting with `Done-check:` or `Acceptance:` followed by text (a leading list marker is allowed; the same words in running prose do not count). Write-capable means an `agent-scopes.json` entry with a non-empty `write` list, or, with no entry, any agent type other than Explore, Plan, cavecrew-investigator or cavecrew-reviewer (a `caveman:` prefix is allowed; no agent type counts as write-capable). A payload with no prompt is not judged. | ask |
+| 5 | `evalWavePlan` | dispatch-evaluators.mjs | A write-capable dispatch when no `.md` file in `.claude/waves/` with at least 20 non-blank characters is newer than the session start (the transcript's creation time). With no readable `transcript_path` the plan cannot be matched to the session, so it asks. | ask |
 | 6 | `evalDispatchLog` | dispatch-evaluators.mjs | Nothing is refused. Appends one line per dispatch to `.claude/.dispatch-log.jsonl`: time, session, agent type, model, effort, description, persona, write roots and a SHA-256 of the prompt. A dispatch blocked by an earlier evaluator is not logged. A log failure never fails the hook. | none |
+
+## What asks
+
+The cases below end in a question to the human, not a refusal. Anything not listed here and not in
+"What blocks" passes. Asks from several evaluators are joined into one question, and any block in the
+same call wins.
+
+```yaml
+# why: an ask is for what the parser cannot place or what a human may legitimately want; each line is a case the code implements
+unplaceable_operand:  a mutating op whose operand contains *, ?, [, { or an unexpanded $var and could reach a protected
+                      location: its literal prefix is on the path to one, or it starts with $. A cd into a glob followed by a
+                      mutation counts. A bare * delete at a directory that holds a protected path blocks instead.
+patch_targets:        git apply (unless --check, --stat, --numstat or --summary), and patch with no file operand or with -i or --input
+unmodeled_verb:       an unmodeled verb whose arguments name a protected path (docs/decisions, docs/fixes, docs/insights, DECISIONS.md,
+                      hooks/, .claude/settings*, .eidolon, .git, the policy manifest): curl -o, Invoke-WebRequest -OutFile, vim, tar,
+                      eval, Invoke-Expression, a PowerShell [Type]::Method call
+inert_verbs:          never ask: cat, ls, grep, git, node, python, bash, npm, Get-Content and the rest of the inert list in shell-operation.mjs
+opaque_body:          an interpreter inline body (sh, bash or zsh -c, node -e, python -c, pwsh -Command, cmd /c), a heredoc body fed
+                      to an interpreter, or a $(...) or backtick body that names git, a protected path or settings. Read-only git
+                      subcommands are exempt: status, log, diff, show, rev-parse, rev-list, describe, ls-files, ls-tree, cat-file,
+                      blame, shortlog, merge-base
+unparseable:          a command that cannot be parsed and whose raw text matches no block net
+commit_quality:       an unknown git global option ahead of the subcommand; git push --delete, -d, or origin :ref
+hook_integrity:       a controller writing a hook file (a worker is blocked)
+dispatch:             a write-capable brief with no Done-check: or Acceptance: line; no readable transcript_path; a wave plan under 20 non-blank characters
+other_asks:           the evaluator tables above also list the sensitive dispatch, the visual evidence gate and the persona line
+                      irreversible-without-safety-net
+```
+
+## What blocks
+
+Beyond the single-verb cases in the evaluator tables, the path parser follows `cd`, simple assignments,
+wrappers (`env`, `sudo`, `xargs`, `timeout`, `cmd /c`) and the verbs below, then judges where each operand
+really points. A protected location is `.git`, the settings files, the Eidolon manifest and sessions, the
+installed skill, `hooks/`, the persona template, the security policy and the three records.
+
+```yaml
+# why: each line is a shape that once slipped past a single-verb check and is now judged
+modeled_verbs:    ln (a link onto a protected path, or one pointing into it), find -delete or -exec rm, rsync including --delete,
+                  New-Item -Force, touch, mkdir, install, Move-Item, Rename-Item, icacls, attrib, Set-ItemProperty, patch with a file operand
+git_pathspecs:    git checkout, restore, stash, clean (not -n), reset, rm and mv aimed at a protected path
+parents:          deleting or moving a parent of a protected path (rm -rf docs, mv hooks hooks2, rm -rf .)
+bare_glob:        a bare * delete at a directory that holds a protected path
+redirects:        >, >>, >| and <> to a protected path
+git_config:       a mirror push, a remote.*.mirror or remote.*.push setting, an include.path setting, an alias that skips hooks
+path_spellings:   NTFS alternate data streams (file::$DATA), 8.3 short names (DECISI~1), MSYS /c/ drive paths, symlinks
+raw_nets:         a line the tokenizer cannot parse is still matched against raw patterns (a hook-skipping commit, a core.hooksPath
+                  override, a delete of .git, hooks, a record or settings) before it downgrades to an ask
+workers:          a worker's write outside the project root, in any tool
+settings:        a settings file anywhere, inside or outside the project, runs through settings-integrity
+```
 
 ## Write lanes
 
@@ -95,8 +162,11 @@ lane_is_set: only when the worker's PreToolUse input carries a string agent_type
              with no entry, and a worker whose input has no agent_type, are unconstrained
 unverified:  agent_type arrival on a worker's PreToolUse is unverified until a live run with EIDOLON_HOOK_DEBUG=1
              (it appends the key names of each hook input, never the values, to .claude/.hook-debug.jsonl)
-no_entry_write_list: an entry with no write list means the worker may write nothing
-shell:       redirects and the verbs the path parser knows (rm, mv, cp, tee, sed -i, Set-Content and kin)
+no_write_list: an entry with no write list means the worker may write nothing
+outside_root: a worker with a lane may not write outside the project root at all
+sees:        Write and Edit; redirects and the modeled verbs (rm, mv, cp, ln, touch, mkdir, tee, sed -i, Set-Content, git checkout and kin);
+             path-shaped string literals in an interpreter inline body
+does_not_see: a script file the worker runs, and a glob or $var operand
 ```
 
 The same file decides whether a dispatch is write-capable (`evalBriefGate`, `evalWavePlan`). A reviewer gets an empty `write` list.
@@ -108,14 +178,16 @@ All three are advisory (they never block a tool call) and exit 0 on bad input.
 | Hook | Event | Behavior |
 |---|---|---|
 | subagent-start.mjs | SubagentStart | Hands the worker its lane (read and write roots), the Brief contract summary and its latest dispatch record from the log, as additional context. |
-| subagent-stop.mjs | SubagentStop | Logs an outcome line (agent, whether evidence was found). When the last message contains no evidence token (the word evidence, a path-like `a/b` token, or a backticked span) it sends the worker back once with a reason; after that it lets it stop. The check is lexical. |
+| subagent-stop.mjs | SubagentStop | Logs an outcome line (agent, whether evidence was found). Evidence is a backtick-quoted span, an `Evidence:` line with text, or a path under the project root that exists. When the last message has none it sends the worker back once with a reason; after that it lets it stop. This proves the report names something real, not that the done-check passed. |
 | post-tool-entry.mjs | PostToolUse (Write, Edit) | Advances the drift counter after a successful write, once per tool call id. On a bookkeeping failure it prints a system message and claims nothing. |
 
 ## The seated persona
 
 `persona-conduct-guard.mjs` reads the controller's seat from `.claude/active-persona.json` (or an actor-scoped
 state file under `.eidolon/sessions/`). The seat carries the persona id, title, anchors and two anti-behavior
-layers. The guard enforces only the anti-behaviors one tool call can reveal.
+layers. The guard enforces only the anti-behaviors one tool call can reveal. Worker detection is `actorIdentity`
+in `operation.mjs`: an event with `agent_id` is a worker, and without one a transcript path under a `subagents`
+directory marks a worker.
 
 ```yaml
 # why: the seat is where the persona's own rules become checks; the rest are caught by closeout gates
@@ -191,8 +263,8 @@ fact about content that no permission rule can see. That is `evalSettingsIntegri
 input:        Claude Code hook JSON on stdin, BOM stripped, at most 5 MiB; tool_input must be an object
 bad_input:    an enforcement hook (guard-bash, guard-write, guard-dispatch) that cannot parse or
               normalize its input writes a notice and exits 2 (blocks); an advisory hook exits 0
-bad_command:  a shell command the parser cannot read is an ask from evalRuntimeIntegrity; the evaluators
-              that parse the command skip it, so the human decides
+bad_command:  a shell command the parser cannot read is an ask from evalRuntimeIntegrity, unless its raw text
+              matches a block net, which blocks; the evaluators that parse the command skip it
 runtime_load: if a dispatcher cannot import its modules it exits 2 (blocks)
 block:        reason on stderr, exit 2; Claude sees it and retries
 ask:          hookSpecificOutput.permissionDecision "ask" with the reason, exit 0
@@ -207,20 +279,17 @@ Labeled as defense in depth: these are the shapes the lexical checks and the den
 
 ```yaml
 # why: a guard that claims more than it does is worse than none; this is the honest list
-shell_bodies:      "bash -c" and "sh -c" bodies are not parsed recursively; only an authority path named in
-                   an interpreter inline body asks
-powershell_env:    $env:GIT_CONFIG_PARAMETERS set in PowerShell is not tracked (only the inline and exported forms)
-encoded_commands:  -EncodedCommand bodies are not decoded
+script_files:      a script file a worker runs (node build.js, sh run.sh) does what it does; the guards see only its command line
+lane_operands:     a glob or $var operand does not trigger the lane check
+shell_bodies:      "bash -c" and "sh -c" bodies are asked about when they name git, a protected path or settings; they are not parsed
 git_aliases:       aliases defined in .git/config are not visible to the Git parser
-subshells:         (cd x; rm y) is not followed
-interpreter_code:  a script run by node, python or another interpreter does what it does; its body is opaque
-outside_root:      a Write or Edit aimed outside the project root is not judged by any evaluator
-lanes:             a worker without an agent_type, or an agent without an entry, has no lane
-dispatch_keywords: in guard-dispatch.mjs the sensitive-keyword entries written with \b or \s inside ordinary
-                   string literals (prod, pii, pci, token, key, .env, rm -rf, drop table, delete, wipe, destroy)
-                   never match; this is a defect in the code and not a feature
+subshells:         a subshell is judged as top-level commands, not as a unit
+powershell_env:    $env:GIT_CONFIG_PARAMETERS and $env:GIT_CONFIG_KEY_n set in PowerShell are not tracked
+encoded_commands:  -EncodedCommand bodies are not decoded
+controller_outside_root: the controller's Write or Edit outside the project root is not judged, except a settings file
+agent_type:        agent_type on a worker's PreToolUse is unverified until a live run with EIDOLON_HOOK_DEBUG=1
 os_sandbox:        the hooks are not an operating-system sandbox
-fail_open:         a hook that is missing, or that crashes with exit 1, does not block the call
+fail_open:         a hook script that is missing, or that crashes with exit 1, does not block the call
 ```
 
 ## Tests
@@ -229,11 +298,12 @@ fail_open:         a hook that is missing, or that crashes with exit 1, does not
 node --test "hooks/*.test.mjs"
 ```
 
-`hooks.test.mjs` runs each guard as Claude Code does, as a child process with the hook JSON on stdin, in
-throwaway directories. The other `*.test.mjs` files cover the dispatch gate, the persona guard, path spellings,
-the native pipeline hooks and the 2026-10-13 reds. The installer adds the transient state to `.gitignore`: `.eidolon/sessions/`,
-`.claude/.drift-count`, `.claude/.session-state`, `.claude/.dispatch-log.jsonl`, `.claude/.hook-debug.jsonl`
-and `.claude/waves/`.
+The test files are `hooks.test.mjs` (each guard run as Claude Code does, as a child process with the hook
+JSON on stdin, in throwaway directories), `reds-2026-10-13.test.mjs`, `pipeline-2026-10-13.test.mjs`,
+`review-2026-10-13.test.mjs`, `review-hardening.test.mjs`, `path-alias.test.mjs`, `guard-dispatch.test.mjs`,
+`codebase-memory-orient.test.mjs` and `persona-conduct-guard.test.mjs`. This repository's `.gitignore` lists the
+transient state: `.eidolon/sessions/`, `.claude/.dispatch-log.jsonl`, `.claude/.hook-debug.jsonl` and
+`.claude/waves/`, with the seat file, `.claude/.session-state` and `.claude/.memory-synced-head`.
 
 The append-only records are the fix log (`docs/fixes/`), the insight log (`docs/insights/`) and the decision
 log (`docs/decisions/` or `DECISIONS.md`). They never retire, cap or auto-archive; removing one is an explicit

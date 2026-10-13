@@ -59,8 +59,10 @@ consent_gates:
            references/security-policy.md)
   shape:   one AskUserQuestion each, with a why/liability line; never a typed menu
 dispatch_gate:                  # hooks/guard-dispatch.mjs asks the human; a worker that dispatches is blocked
-  done_check: a write-capable dispatch names its done-check ("Done-check: <command> exits 0")
-  wave_plan:  a swarm has a wave plan at .claude/waves/<date>-<slug>.md before its first dispatch
+  done_check: a write-capable dispatch carries a line that starts "Done-check:" (exact spelling) with the
+              command or observation after it, e.g. "Done-check: <command> exits 0"
+  wave_plan:  a fresh wave plan exists at .claude/waves/<date>-<slug>.md, newer than the session start and
+              at least 20 non-blank characters, before the first write-capable dispatch
 orchestration:
   standard:  references/conductor-standard.md governs; it supersedes any older clause that permits
              inline building, optional persona seating, or cost-timid fan-out
@@ -71,7 +73,7 @@ orchestration:
   reasoning: every claim states cause, mechanism, falsifier, evidence (references/persona-template.md,
              section "Reasoning")
   brief:     every dispatch carries the Brief contract (references/persona-template.md, section
-             "Brief contract")
+             "Brief contract"); a write-capable one adds a "Done-check:" line and needs a fresh wave plan
   cascade:   model and effort per role come from conductor-standard.md section 4, as aliases
   discipline: done means the outcome is observed, never merely a green gate; measure before build;
              scope every claim to what ran; verify by execution; answer a challenge with evidence first

@@ -142,6 +142,9 @@ heartbeat_loops: references/loop-suite.md (2026-06-12 section) - the standing se
    the anti-behaviors and refuses to act for a seat that names no anchor: no anchor, no seat).
    One task at a time, test first (the test red before the change, green after),
    against the spec. No scope drift; new ideas go to the work queue, never the live diff.
+   Every write-capable brief carries a line that starts "Done-check:" (exact spelling) and a
+   fresh wave plan exists in `.claude/waves/` before the first dispatch; the dispatch gate
+   asks otherwise (hooks/guard-dispatch.mjs).
 5. REVIEW: by tier, run the security swarm (red finds, blue hardens), the
    trust-and-safety swarm, and the code-review swarm, in parallel
    (references/review-swarms.md; the security method is in references/security-swarm.md).

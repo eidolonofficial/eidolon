@@ -237,6 +237,7 @@ hooks/README.md table is the per-guard trigger/enforcement reference.
 # why: the installer wires the whole set in one pass so no guard is left unwired; the generator never rewrites it
 hook_groups:   six: PreToolUse Bash|PowerShell, PreToolUse Write|Edit, PreToolUse Agent|Task,
                PostToolUse Write|Edit, SubagentStart, SubagentStop
+hook_args:     each entry runs node with the script path, then --project ${CLAUDE_PROJECT_DIR} (hooks/README.md, "Wiring")
 deny_floor:    the Layer A deny list above, with PowerShell mirrors of each Bash rule
 settings:      env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: "1"
                effortLevel: "xhigh"
