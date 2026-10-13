@@ -60,19 +60,22 @@ export function checkReadme(root, readme) {
   const problems = [];
   const hooks = join(root, "hooks");
 
-  // (a) wiring
-  const wired = wiredFromSettings(JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8")));
-  const wiring = table(readme, "Wiring");
-  const listed = wiring && wiring.map((r) => `${bare(r[0])} | ${bare(r[1])} | ${bare(r[2])}`);
-  if (!listed) problems.push("wiring: no table found in hooks/README.md");
-  else {
-    const keys = wired.map((w) => w.key);
-    for (const w of wired) {
-      const at = listed.indexOf(w.key);
-      if (at < 0) problems.push(`wiring: README is missing ${w.key}`);
-      else if (w.project && !String(wiring[at][3] || "").includes("--project")) problems.push(`wiring: README row for ${w.key} lacks the --project arg`);
+  // (a) wiring; a bundle or an installed copy carries no .claude/settings.json, so this part needs the repo checkout
+  const settings = join(root, ".claude", "settings.json");
+  if (existsSync(settings)) {
+    const wired = wiredFromSettings(JSON.parse(readFileSync(settings, "utf8")));
+    const wiring = table(readme, "Wiring");
+    const listed = wiring && wiring.map((r) => `${bare(r[0])} | ${bare(r[1])} | ${bare(r[2])}`);
+    if (!listed) problems.push("wiring: no table found in hooks/README.md");
+    else {
+      const keys = wired.map((w) => w.key);
+      for (const w of wired) {
+        const at = listed.indexOf(w.key);
+        if (at < 0) problems.push(`wiring: README is missing ${w.key}`);
+        else if (w.project && !String(wiring[at][3] || "").includes("--project")) problems.push(`wiring: README row for ${w.key} lacks the --project arg`);
+      }
+      for (const l of listed) if (!keys.includes(l)) problems.push(`wiring: README lists ${l}, which .claude/settings.json does not wire`);
     }
-    for (const l of listed) if (!keys.includes(l)) problems.push(`wiring: README lists ${l}, which .claude/settings.json does not wire`);
   }
 
   // (b) evaluators, in code order
@@ -112,5 +115,6 @@ if (invokedDirectly) {
   if (!existsSync(path)) { console.error("FAIL  hooks/README.md not found"); process.exit(1); }
   const problems = checkReadme(root, readFileSync(path, "utf8"));
   if (problems.length) { console.error(problems.map((p) => "FAIL  " + p).join("\n")); process.exit(1); }
-  console.log("PASS  hooks/README.md matches the code: wiring, evaluator order, hook rows, no dashes.");
+  const wiring = existsSync(join(root, ".claude", "settings.json")) ? "wiring" : "wiring skipped (no .claude/settings.json in this copy)";
+  console.log("PASS  hooks/README.md matches the code: " + wiring + ", evaluator order, hook rows, no dashes.");
 }

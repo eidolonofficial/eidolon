@@ -219,7 +219,7 @@ test('N4 EIDOLON_HOOK_DEBUG=1 records the input keys, never the values', t => {
   for (const value of ['builder', 'SECRETBODY', 'w1', 'src/a.ts']) assert.ok(!text.includes(value), value);
 });
 
-test('N5 the repo settings wire every hook in the exec form, with the PowerShell deny mirrors', () => {
+test('N5 the repo settings wire every hook in the exec form, with the PowerShell deny mirrors', {skip: !existsSync(join(REPO, '.claude/settings.json')) && 'the repo settings are not bundled'}, () => {
   const conf = JSON.parse(readFileSync(join(REPO, '.claude/settings.json'), 'utf8'));
   const wired = Object.entries(conf.hooks).flatMap(([event, groups]) => groups.flatMap(g => g.hooks.map(h => {
     assert.equal(h.type, 'command'); assert.equal(h.command, 'node');

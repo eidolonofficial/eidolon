@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync, execFileSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -57,7 +57,7 @@ const gated = (r, what) => assert.ok(r.status === 2 || (r.status === 0 && askedW
 const silent = (r, what) => assert.ok(r.status === 0 && r.stdout === '', `${what}: expected silent allow, got exit ${r.status}\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
 const each = (list, fn) => list.forEach(fn);
 
-test('H1 the wired settings pass --project, so a Write from a subdirectory still resolves the policy root', t => {
+test('H1 the wired settings pass --project, so a Write from a subdirectory still resolves the policy root', {skip: !existsSync(join(REPO, '.claude/settings.json')) && 'the repo settings are not bundled'}, t => {
   const {root} = repo(t);
   const conf = JSON.parse(readFileSync(join(REPO, '.claude/settings.json'), 'utf8'));
   const entries = Object.values(conf.hooks).flatMap(groups => groups.flatMap(g => g.hooks));
