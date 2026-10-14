@@ -229,7 +229,7 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
     if (conf.env !== undefined && !plain(conf.env)) throw Error(path + ': "env" must be an object');
     if (conf.permissions !== undefined && !plain(conf.permissions)) throw Error(path + ': "permissions" must be an object');
     if (conf.permissions?.deny !== undefined && !Array.isArray(conf.permissions.deny)) throw Error(path + ': "permissions.deny" must be an array');
-    const group =(matcher, file) => ({ matcher, hooks: [{ type: 'command', command: 'node', args: [PROJECT_DIR + '/.claude/skills/eidolon/hooks/' + file, '--project', PROJECT_DIR], timeout: 20 }] });
+    const group =(matcher, file) => ({ matcher, hooks: [{ type: 'command', command: 'node', args: [PROJECT_DIR + '/.claude/skills/eidolon/hooks/' + file, '--project', PROJECT_DIR], timeout: 20, onFailure: 'block' }] });
     const groups = {PreToolUse:[group(SHELL_TOOLS.join('|'),'guard-bash.mjs'),group('Write|Edit','guard-write.mjs'),group(DISPATCH_TOOLS.join('|'),'guard-dispatch.mjs')],PostToolUse:[group('Write|Edit','post-tool-entry.mjs')],SubagentStart:[group('','subagent-start.mjs')],SubagentStop:[group('','subagent-stop.mjs')]};
     // The wired hook files must ship in the bundle, or the wired hook would fail open.
     const shipped = bundles.get(sources.find(s => s.name === 'eidolon'));
@@ -268,7 +268,7 @@ export function planInstall({ sources = [{ name: 'eidolon', source: SOURCE }], p
       'Report executed evidence separately from inspection, native-client observations, and unresolved uncertainty.',
     ].join('\n');
     textItem(join(root, 'CLAUDE.md'), markedText(join(root, 'CLAUDE.md'), claudeGuide, MARKDOWN));
-    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), ['# Eidolon local state and rollback copies', '.eidolon/backups/', '.eidolon/sessions/', '.eidolon/tasks/', '.eidolon/install.lock/', '.claude/.session-state', '.claude/.dispatch-log.jsonl', '.claude/.hook-debug.jsonl', '.claude/waves/'].join('\n'), HASHED));
+    textItem(join(root, '.gitignore'), markedText(join(root, '.gitignore'), ['# Eidolon local state and rollback copies', '.eidolon/backups/', '.eidolon/sessions/', '.eidolon/scratch/', '.eidolon/tasks/', '.eidolon/install.lock/', '.claude/.session-state', '.claude/.dispatch-log.jsonl', '.claude/.hook-debug.jsonl', '.claude/waves/'].join('\n'), HASHED));
   }
   for (const item of items) item.original = fingerprint(item.path);
   const plan = {version:1, root, items, workType, replace,

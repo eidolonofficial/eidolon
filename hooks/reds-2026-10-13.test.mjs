@@ -132,16 +132,18 @@ test('R7 overwriting a hook: the controller is asked, a worker is blocked, for s
   silent(sh(root, 'cp hooks/lib.mjs /tmp/lib-copy.mjs'), 'reading a hook');
 });
 
-test('R8 an interpreter inline body naming an authority path asks', t => {
+test('R8 an interpreter inline body naming an authority path asks; one that also changes it with a mutation call blocks (round 5)', t => {
   const root = repo(t);
+  // Round 5: an inline body with a mutation call next to an authority name is a block (the lexical scan), not only an ask.
   for (const [c, tool] of [
     [`node -e "require('fs').writeFileSync('.claude/settings.json', '{}')"`, 'Bash'],
     [`python -c "open('.claude/settings.json','w').write('{}')"`, 'Bash'],
     [`pwsh -Command "Set-Content .claude/settings.json '{}'"`, 'PowerShell'],
-    [`node -e "require('fs').rmSync('hooks',{recursive:true})"`, 'Bash'],
     [`python -c "open('.eidolon/policy-manifest.json','w')"`, 'Bash'],
-    [`bash -c 'echo {} > .claude/settings.local.json'`, 'Bash'],
-  ]) asked(sh(root, c, tool), 'RUNTIME INTEGRITY GUARD', c);
+  ]) blocked(sh(root, c, tool), 'RUNTIME INTEGRITY GUARD', c);
+  // Round 6: a literal delete target is judged where it points, so deleting the hooks directory from an inline body blocks as rm -rf hooks does.
+  blocked(sh(root, `node -e "require('fs').rmSync('hooks',{recursive:true})"`), 'HOOK INTEGRITY GUARD', 'an inline body that deletes the hooks directory');
+  asked(sh(root, `bash -c 'echo {} > .claude/settings.local.json'`), 'RUNTIME INTEGRITY GUARD', 'a shell body that names a settings file');
   silent(sh(root, `node -e "console.log(1)"`), 'harmless node -e');
   silent(sh(root, `python -c "print(1)"`), 'harmless python -c');
 });

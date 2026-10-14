@@ -89,7 +89,7 @@ export function fileTarget(j) {
 }
 // The path a Write or Edit names, resolved against the event cwd with no confinement, in its real spelling (an 8.3 short
 // name such as SETTIN~1.JSO is the settings file it names).
-const rawTarget = j => {
+export const rawTarget = j => {
   const given = j.tool_input?.file_path ?? j.tool_input?.path;
   return typeof given === 'string' && given ? canonicalPath(resolve(j.eidolon_path_cwd || j.cwd || policyRoot(j), given)) : '';
 };

@@ -46,7 +46,7 @@ export const evalHookIntegrity = tolerant((j) => {
   const suite = facts.some((f) => f.kind === "hooks" || f.kind === "authority");
   const bare = withoutMessage(cmd); // the raw nets below must not read a commit message
 
-  if (/core\.hooksPath\s*=/.test(bare) || /git\s+config\b[^|;&\n]*hooksPath/i.test(bare) || gitOperations(cmd, j.cwd, j.shell_language).some(overridesHooksPath))
+  if (/core\.hooksPath\s*=/.test(bare) || /git\s+config\b[^|;&\n]*hooksPath/i.test(bare) || gitOperations(cmd, j.cwd, j.shell_language, policyRoot(j)).some(overridesHooksPath))
     return B("changing the hooks path disables the suite. The hooks are not optional.");
   if ((/\bchmod\b/i.test(bare) && suite) || facts.some((f) => f.op === "attr" && (f.kind === "hooks" || f.kind === "authority")))
     return B("chmod on a hook changes how it runs. Do not alter hook permissions.");

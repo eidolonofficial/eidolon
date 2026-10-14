@@ -297,7 +297,8 @@ test('N7 a Write outside the project root (a plan file, a scratchpad) gets no ve
   const plan = join(outside, 'plan.md');
   silent(wr(root, plan), 'controller');
   blocked(wr(root, plan, WORKER), 'WRITE LANE GUARD', 'a worker with a lane may not write outside the project root');
-  silent(wr(root, join(outside, 'docs', 'decisions', 'x.md')), 'record-shaped path outside the root');
+  // Round 5: a record-shaped path outside the root asks the controller; other outside writes stay unjudged.
+  asked(wr(root, join(outside, 'docs', 'decisions', 'x.md')), 'RUNTIME INTEGRITY GUARD', 'record-shaped path outside the root');
   blocked(wr(root, '.claude/skills/eidolon/x.md', {}), 'RUNTIME INTEGRITY GUARD', 'managed paths inside the root stay blocked');
 });
 
