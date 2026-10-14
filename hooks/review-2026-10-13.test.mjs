@@ -185,7 +185,7 @@ test('H10 dash-prefixed path parameters and target-directory options are targets
   silent(sh(root, 'cp -t src docs/a.md'), 'copying into an ordinary directory');
 });
 
-test('H11 .gitignore drops the stale drift counter and ignores the session state', () => {
+test('H11 .gitignore drops the stale drift counter and ignores the session state', {skip: !existsSync(join(REPO, '.gitignore')) && 'the repository .gitignore is not bundled'}, () => {
   const lines = readFileSync(join(REPO, '.gitignore'), 'utf8').split(/\r?\n/);
   assert.ok(!lines.includes('.claude/.drift-count'), 'stale entry');
   assert.ok(lines.includes('.eidolon/sessions/'), '.eidolon/sessions/ is not ignored');

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.2 (2026-10-14)
+
+Tests: the two tests that read this repository's `.gitignore` skip when the file is absent,
+so the suite also passes inside a Hearth bundle, which leaves that file out because npm
+renames it inside a published package. No hook or script changed.
+
 ## v0.1.1 (2026-10-14)
 
 Added: an advisory update check, `scripts/check-updates.mjs`. It compares this copy's
