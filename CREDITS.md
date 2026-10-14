@@ -60,7 +60,7 @@ The vetted set in references/token-economy.md. None of it is bundled; each is of
   A repo or subtree packed into one file, with a compressed mode.
 - **LLMLingua**, by Microsoft. MIT. https://github.com/microsoft/LLMLingua
   Prompt compression by a small local model; optional and measured before trust.
-- **mempalace**, by milla-jovovich. MIT. https://github.com/milla-jovovich/mempalace
+- **mempalace**, by the MemPalace project, led by igorls. MIT. https://github.com/MemPalace/mempalace
   The prose memory Eidolon reads for a bounded prior.
 - **codebase-memory-mcp**, by DeusData. MIT. https://github.com/DeusData/codebase-memory-mcp
   The local code graph that answers structure questions; the primary orient.
