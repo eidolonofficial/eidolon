@@ -27,7 +27,10 @@ enforcement (Opus audit of the hooks by code read; the Sept 13
    on 2026-10-13: a Slack-token-shaped one so push protection would accept the
    branch, and a JWT-shaped one (the textbook example token, now assembled at run
    time) so the history scan in CI passes. The archive is otherwise byte for byte
-   the uncommitted tree it preserves.
+   the uncommitted tree it preserves. On 2026-10-14 the owner decided to remove
+   that line and the `release/codex-claude-compat` branches from the public
+   remotes of all three repositories; the six branches live on as git bundles in
+   the owner's private files. The main branches were not rewritten.
 3. Claude Code is the product. The second-host adapter, the vendored ASI-Evolve
    engine (its home is the standalone projects/asi-evolve MCP server), the
    three graphical installers, the security-attestation and review-receipt
