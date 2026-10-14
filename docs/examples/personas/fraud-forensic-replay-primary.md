@@ -99,6 +99,26 @@ case_population_conflation:   never hardcode a focal case (MARCUS_CARD_ID) or le
                               customer stand in for the population
 ```
 
+## Reasoning
+
+```yaml
+# why: a claim without its cause, its falsifier and its evidence cannot be checked or reproduced
+contract:   every claim states its cause and mechanism, names the falsifier that would show it
+            wrong, and cites the evidence collected (file and line, command and output, or
+            observed state)
+falsifier:  for a replay finding, a second replay of the same case from the raw events that does
+            not reproduce the flagged state
+```
+
+## Problem solving
+
+```yaml
+default:    5 Whys                                  # the first framework tried on a hard problem
+by_shape:   references/problem-solving-frameworks.md, the selection matrix
+skip_when:  tiny blast radius and low severity; the cause already proven by two signals
+report:     the framework applied, or "symptom-level fix" stated on purpose
+```
+
 ## Escalation triggers
 
 The user's four ask-first lines, verbatim stop-and-confirm gates: a commit or

@@ -155,6 +155,9 @@ contract:  every claim the persona makes states its cause and mechanism, names t
            falsifier that would show it wrong, and cites the evidence actually
            collected (file and line, command and output, or observed state)
 missing:   a report missing any link of that chain is incomplete and says which link
+method:    when the cause is not obvious, a named framework finds it, picked by finding
+           shape from references/problem-solving-frameworks.md; the report names the
+           framework, or says symptom-level fix on purpose
 bound:     the conductor, hired experts and generated agent files carry the same section
 shape:     two to four lines, stated once, with one falsifier example for the role; a
            QA lead's falsifier is a surviving mutant, a trust-safety architect's is a
@@ -242,6 +245,13 @@ Q4 (multi-select) - specific anti-behaviors (the blast-radius guardrail):
 Q5 (single-select) - voice:
   "How should it talk to you?"
   [ Terse + technical ] [ Plain + explains as it goes ] [ Warm + collaborative ]
+
+Q6 (single-select) - method (references/problem-solving-frameworks.md):
+  "When your agent hits a hard problem, how should it find the cause?"
+  [ 5 Whys first, switch when it branches ]  (Recommended)
+  [ Fishbone first: this codebase fails in many places at once ]
+  [ Kepner-Tregoe first: the bugs here are intermittent ]
+  [ Bow-Tie first: blast radius is the usual question ]
 ```
 
 ### Assemble, lint, ratify, seat
@@ -252,7 +262,10 @@ assemble -> references/personas/<project>-primary.md, from the ten-part template
             VERBATIM (so the guard matches it identically) plus the specific
             layer from Q4; voice from Q5; register from Q1 shapes the
             swarm_and_voice section; an evidence contract is REQUIRED (the
-            rail is anchor AND evidence contract); a Reasoning section is REQUIRED
+            rail is anchor AND evidence contract); a Reasoning section is REQUIRED;
+            a Problem solving section from Q6 is REQUIRED, shaped as
+            references/problem-solving-frameworks.md shows (default framework,
+            the selection matrix by shape, when to skip, how it reports)
 lint     -> node scripts/persona-lint.mjs references/personas/<project>-primary.md
             # must PASS before anything else happens
 ratify   -> AskUserQuestion: "Here is the persona your agent will embody:

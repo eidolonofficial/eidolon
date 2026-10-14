@@ -120,6 +120,7 @@ orchestration:
   references/loop-suite.md: bounded autonomous iteration and the heartbeat
   references/review-swarms.md: the engineering, code-review, trust-and-safety and ship swarms
   references/persona-template.md: persona construction, the rail, Reasoning, Brief contract, primary persona
+  references/problem-solving-frameworks.md: the root-cause frameworks a persona picks by finding shape; Q6 of the house interview
   references/personas/: the built roster, one file per persona
   references/architect-synthesis.md: one ordered disposition of every swarm finding
   references/cross-session.md: verification from a self-contained packet in a separate session

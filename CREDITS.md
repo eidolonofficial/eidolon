@@ -10,6 +10,8 @@ Eidolon stands on open-source work by other people. Every project it builds on, 
   Skills over 150-plus Lighthouse audits and Core Web Vitals.
 - **agent-engineer**, by Addy Osmani. Apache-2.0. https://github.com/addyosmani/agent-engineer
   A practical AI-agents engineering course; reference material.
+- **trust-but-verify**, by Jonah Butterbaugh. MIT. https://github.com/gmrmk/trust-but-verify
+  The root-cause framework selection (5 Whys, Fishbone, Fault Tree, Bow-Tie, Kepner-Tregoe, Pareto, DMAIC) and the verification anti-behavior catalog that references/problem-solving-frameworks.md and the house persona's problem-solving section are adapted from.
 
 ## Design patterns (reference)
 
