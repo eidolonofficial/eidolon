@@ -66,7 +66,8 @@ The house agent for this repo, built by the same machine that builds the
 swarms and held to the same anti-synthetic rail (no anchor, no seat). One
 AskUserQuestion round, proposed from Stage 1 recon and ratified by the user:
 register, mandate, anchors (the rail, satisfied with consent), specific
-anti-behaviors, voice. Assemble against references/persona-template.md, lint
+anti-behaviors, voice, and the problem-solving method (Q6, the root-cause
+frameworks in references/problem-solving-frameworks.md). Assemble against references/persona-template.md, lint
 with scripts/persona-lint.mjs (a FAIL re-prompts the anchors question, never
 seats), then ratify: [Seat it] [Edit] [Explain]. The full contract is the
 `## The primary persona` section of references/persona-template.md. Ask through references/interview.md
@@ -149,6 +150,12 @@ install  -> on the explicit yes, the controller installs (marketplace add +
             RECORDS (CREDITS.md with license, decision-log row). Note to the
             operator: the skill activates on the next session restart.
 ```
+
+Then the token economy offer (references/token-economy.md): detect what is present,
+offer the rest of the vetted set one AskUserQuestion at a time (ponytail, caveman with
+cavecrew, rtk, headroom, repomix), with name, source, license and what it changes;
+install only on a yes, verify, record. Compressed output is never evidence, and
+instruction, memory and record files are never compressed; the reference states both.
 
 #### Stage 5 - Subagents
 

@@ -271,7 +271,8 @@ test('H16 a Write or Edit of any .claude/settings(.local).json runs settings-int
     blocked(wr(root, join(outside, '.claude', name), '{"disableAllHooks":true}'), 'SETTINGS INTEGRITY GUARD', 'disableAllHooks in ' + name);
   blocked(wr(root, existing, '{}'), 'SETTINGS INTEGRITY GUARD', 'dropping an existing handler');
   blocked(wr(root, existing, '{"disableAllHooks":true}', WORKER), '', 'a worker writing outside settings');
-  silent(wr(root, existing, JSON.stringify({...handler, permissions: {allow: []}})), 'a benign edit that keeps the handler');
+  // Round 5: a settings file outside the root is a protected shape, so the controller is asked even when the edit keeps the handler.
+  asked(wr(root, existing, JSON.stringify({...handler, permissions: {allow: []}})), 'RUNTIME INTEGRITY GUARD', 'a benign edit that keeps the handler');
   silent(wr(root, join(outside, 'plan.md')), 'other outside-root writes stay ungated');
   silent(wr(root, join(outside, '.claude', 'other.json')), 'other files under an outside .claude');
 });

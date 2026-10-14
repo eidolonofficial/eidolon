@@ -86,16 +86,24 @@ hooks_posture:
 ## What you must do when invoked
 
 1. If no path was given, use `.`; do not ask for one.
-2. Pick the mode from the request and say which. Then read the owning reference in full
+2. Run `node scripts/check-updates.mjs` from this skill's folder (read-only: one request to the
+   Hearth releases API on GitHub, at most once a day; `EIDOLON_UPDATE_CHECK=0` turns it off).
+   If it prints `UPDATE AVAILABLE`, name both versions and ask once, with AskUserQuestion,
+   whether to update now. On yes: `npx -y eidolon-hearth@latest --yes` replaces the user copy
+   and keeps a backup; when the project has `.claude/eidolon-manifest.yaml`, also run
+   `npx -y eidolon-hearth@latest --yes .` for the project copy and its hooks, and say that
+   new hooks apply in the next session. Without Node, give the release link from that line.
+   On no, or on any skipped line, continue and do not ask again this session.
+3. Pick the mode from the request and say which. Then read the owning reference in full
    before acting; do not work from memory of it.
-3. Follow its stages in order and skip none. Honor its checkpoints: setup pauses after Stage 2
+4. Follow its stages in order and skip none. Honor its checkpoints: setup pauses after Stage 2
    (plan), Stage 6 (structure) and Stage 8 (wiring); build stops at gates 1, 2 and 3.
-4. Dispatch through the conductor standard: a wave plan first, a persona and a done-check on
+5. Dispatch through the conductor standard: a wave plan first, a persona and a done-check on
    every brief, state read back after every wave.
-5. Run the gates before any closeout and quote their output: `node scripts/selfcheck.mjs`,
+6. Run the gates before any closeout and quote their output: `node scripts/selfcheck.mjs`,
    `node scripts/eidolon-audit.mjs`, `node scripts/hooks-readme-check.mjs`, and
    `node scripts/persona-lint.mjs` on any persona or agent file written.
-6. Do not declare done while any AMBIGUOUS item or unverified finding stands.
+7. Do not declare done while any AMBIGUOUS item or unverified finding stands.
 
 ## Read next
 
@@ -107,11 +115,13 @@ procedures:
   references/autopilot-guide.md: loops, goals and routines, guided from a brain dump
   references/interview.md: the question bank, the brain dump, the reflect-back format
   references/engineering-principles.md: the principles behind workflows, loops, retrieval, DAGs, context
+  references/token-economy.md: the vetted compressors, graphs and presets that make each token go further; the Stage 4 offer
 orchestration:
   references/conductor-standard.md: conductor lanes, swarm-first law, preflight, model cascade, gates
   references/loop-suite.md: bounded autonomous iteration and the heartbeat
   references/review-swarms.md: the engineering, code-review, trust-and-safety and ship swarms
   references/persona-template.md: persona construction, the rail, Reasoning, Brief contract, primary persona
+  references/problem-solving-frameworks.md: the root-cause frameworks a persona picks by finding shape; Q6 of the house interview
   references/personas/: the built roster, one file per persona
   references/architect-synthesis.md: one ordered disposition of every swarm finding
   references/cross-session.md: verification from a self-contained packet in a separate session

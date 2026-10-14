@@ -190,7 +190,8 @@ voice: the fable register - lead with the outcome (the first sentence answers 'w
 ## The engineering disposition
 
 ```yaml
-no_laziness:        root cause, never a symptom patch
+no_laziness:        root cause, never a symptom patch; the method is named, picked by finding
+                    shape from references/problem-solving-frameworks.md
 no_over_engineering: the smallest change that genuinely solves it
 elegance:           a bias for the elegant solution, with a mandatory pause on
                     non-trivial work to ask whether a simpler form exists

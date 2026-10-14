@@ -24,7 +24,8 @@ subagent_depth:  subagents can spawn subagents up to three layers
 # why: the guard suite and the generated settings depend on exactly these behaviors
 command_entry:   command plus args; ${CLAUDE_PROJECT_DIR} is substituted inside args
 fail_mode:       a hook that exits 1 or is missing is non-blocking (fails open)
-on_failure:      "onFailure": "block" needs Claude Code 2.1.295 or later
+on_failure:      "onFailure": "block" takes effect on Claude Code 2.1.295 or later (a missing or crashing hook then blocks the call); 2.1.206 accepts the key,
+                 loads the settings and still fails open (observed 2026-10-14); the installer writes it on every hook entry, older hosts fail open with a visible error
 dispatch_matcher: Agent
 subagent_start:  SubagentStart carries agent_id and agent_type and can inject context into the worker
 subagent_stop:   SubagentStop can hold a worker with a reason

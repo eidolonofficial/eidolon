@@ -4,9 +4,11 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { validatePersona, validateAgent } from "./persona-lint.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -51,6 +53,36 @@ test("rejects a persona with an anchor but no evidence contract (the full rail)"
   const r = validatePersona(text);
   assert.equal(r.ok, false, "a persona with no evidence contract must be rejected");
   assert.ok(r.problems.some((p) => /evidence contract/i.test(p)), "the rejection should name the missing evidence contract");
+});
+
+test("a primary persona names its problem-solving framework; a roster persona needs no such section", () => {
+  const path = join(here, "..", "docs", "examples", "personas", "fraud-forensic-replay-primary.md");
+  const text = readFileSync(path, "utf8");
+  let r = validatePersona(text, { primary: true });
+  assert.equal(r.ok, true, "the example house persona should validate as primary; problems: " + r.problems.join("; "));
+  const stripped = text.replace(/\n## Problem solving[\s\S]*?(?=\n## )/, "");
+  assert.notEqual(stripped, text, "the fixture carries a Problem solving section");
+  r = validatePersona(stripped, { primary: true });
+  assert.equal(r.ok, false, "a primary persona without ## Problem solving must be rejected");
+  assert.ok(r.problems.some((p) => /problem solving/i.test(p)), "the rejection names the section");
+  const unnamed = text.replace(/\n## Problem solving[\s\S]*?(?=\n## )/, "\n## Problem solving\n\ndefault: vibes\n");
+  r = validatePersona(unnamed, { primary: true });
+  assert.equal(r.ok, false, "a section that names no known framework must be rejected");
+  assert.ok(r.problems.some((p) => /5 Whys/.test(p)), "the rejection lists the known frameworks");
+  assert.equal(validatePersona(stripped).ok, true, "a roster persona needs no Problem solving section");
+});
+
+test("the CLI treats a *-primary.md path as a primary persona", () => {
+  const lint = join(here, "persona-lint.mjs");
+  const example = join(here, "..", "docs", "examples", "personas", "fraud-forensic-replay-primary.md");
+  let r = spawnSync(process.execPath, [lint, example], { encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const dir = mkdtempSync(join(tmpdir(), "persona-lint-"));
+  const copy = join(dir, "house-primary.md");
+  writeFileSync(copy, readFileSync(example, "utf8").replace(/\n## Problem solving[\s\S]*?(?=\n## )/, ""));
+  r = spawnSync(process.execPath, [lint, copy], { encoding: "utf8" });
+  assert.equal(r.status, 1, "a primary persona file without the section fails on the CLI");
+  assert.match(r.stderr, /Problem solving/);
 });
 
 test("rejects a persona with no Reasoning section", () => {

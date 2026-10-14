@@ -62,10 +62,10 @@ Run by `hooks/guard-bash.mjs`, order from `bashEvaluators` in `suite-evaluators.
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | When `.eidolon/policy-manifest.json` exists, reads `.claude/settings.json` and refuses the call if `disableAllHooks` is true, a managed hook handler (event, matcher, command, args) or managed deny rule is missing, or the manifest or settings are unreadable or invalid. | block |
-| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a shell operation that changes an authority path (`.git`, a settings file anywhere, `.claude/eidolon-manifest.yaml`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/`, `.claude/skills/eidolon/`); only an operand the command writes, appends to, deletes, re-permissions or links counts, so a read-only source (`cp .claude/settings.json /tmp/x`) passes. Blocks a shell write, append, truncate or delete aimed at a file that has more than one hard link, as it does for Write and Edit. A shell `-c`, `eval` or `iex` body that names nothing protected, holds no variable and nests no other body is parsed one level and judged like top-level commands. Asks for a mutation the parser cannot place (including an extraction, `find -exec` of an unknown verb and `xargs -a` of a mutating verb), a string run as code (`iex`, an encoded PowerShell command, a pipe into a shell), an interpreter body, `eval`, heredoc or substitution that names git, a protected path, `hooks` or `.claude`, a shell body that nests another body or cannot be parsed, `Start-Process` of a shell, and a command it cannot parse; a command it cannot parse whose raw text matches a block net blocks instead. See "What asks". Any other internal error blocks. | block, ask |
-| 3 | `evalLane` | lanes.mjs | A worker's redirect or write, append, delete or link outside its `write` roots in `.claude/agent-scopes.json`, a write outside the project root, a path-shaped string literal or a trailing path-like argv operand of an interpreter inline body outside the lane, or a whole-tree git rewrite (`reset --hard`, `checkout <rev>`, `switch`, `merge`, `pull`, `rebase`, `am`, `cherry-pick`, `revert`, `stash`, `read-tree`, `checkout-index`). A worker may write scratch files under the OS temp directory, the literal `/tmp/` prefix, `$TMPDIR`, `$TEMP` and `$TMP`, but every scratch root that contains the project root is dropped, and the variable forms are dropped whenever the project sits inside the OS temp directory or `/tmp`. See "Write lanes". | block |
+| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a shell operation that changes an authority path (`.git`, a settings file anywhere, `.claude/eidolon-manifest.yaml`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/`, `.claude/skills/eidolon/`); only an operand the command writes, appends to, deletes, re-permissions or links counts, so a read-only source (`cp .claude/settings.json /tmp/x`) passes. Blocks a shell write, append, truncate or delete aimed at a file that has more than one hard link, as it does for Write and Edit. A shell `-c`, `eval` or `iex` body that names nothing protected, holds no variable and nests no other body is parsed one level and judged like top-level commands. Asks for a mutation the parser cannot place (including an extraction, `find -exec` of an unknown verb and `xargs -a` of a mutating verb), a string run as code (`iex`, an encoded PowerShell command, a pipe into a shell), an interpreter body, `eval`, heredoc or substitution that names git, a protected path, `hooks` or `.claude`, a shell body that nests another body or cannot be parsed, `Start-Process` of a shell, and a command it cannot parse; a command it cannot parse whose raw text matches a block net blocks instead. See "What asks". Any other internal error blocks. It also reads what a command runs. A script file under the project root (`node x.js`, `python x.py`, `sh run.sh`, `bash run.sh`, `./run.sh`, `pwsh -File x.ps1`, `npm run <name>` when package.json names the script) is read (text, under 512 KB) and a shell script is parsed line by line with `cd` tracked, while a node, python or PowerShell script gets a lexical scan for mutation calls next to a protected name or parent literal (docs, hooks, .claude, .eidolon, .git, DECISIONS.md, the policy manifest) or next to a git command with a bypass flag; the verdicts are the ones a command naming that path gets (a record or authority path blocks, a hook asks the controller and blocks a worker, a git bypass blocks). The same scan reads the inline body of node -e, deno eval, python -c, ruby -e, perl -e, php -r and pwsh -Command, a heredoc fed to an interpreter, and a PowerShell `-EncodedCommand` body once decoded. A script that cannot be read or is over 512 KB asks. A subshell, `$( )` or backtick body gives its `cd` back when it closes, and a heredoc fed to a shell is parsed like a `-c` body. A local archive is listed before an extraction (zip central directory in node, `tar -tf` with a 10 second timeout; 7z and cpio ask) and blocks on an absolute entry, a `..` entry or an entry that lands on a protected path; a listing that fails asks. A PowerShell call-operator target held in a variable is resolved from a literal assignment in the same command, else it asks. A `git` alias from `.git/config` or the user's global config is expanded and judged as the expanded command; a shell alias asks, naming the alias. | block, ask |
+| 3 | `evalLane` | lanes.mjs | A worker's redirect or write, append, delete or link outside its `write` roots in `.claude/agent-scopes.json`, a write outside the project root, a path-shaped string literal or a trailing path-like argv operand of an interpreter inline body outside the lane, or a whole-tree git rewrite (`reset --hard`, `checkout <rev>`, `switch`, `merge`, `pull`, `rebase`, `am`, `cherry-pick`, `revert`, `stash`, `read-tree`, `checkout-index`). A worker may write scratch files under the OS temp directory, the literal `/tmp/` prefix, `$TMPDIR`, `$TEMP` and `$TMP`, but every scratch root that contains the project root is dropped, and the variable forms are dropped whenever the project sits inside the OS temp directory or `/tmp`. A worker's mutating verb whose operand is a glob or holds an unexpanded variable blocks unless the operand's literal prefix resolves inside its lane. A worker's script is judged by the literal targets of its mutation calls (outside the lane blocks, so an `npm run build` that writes `dist/` blocks a worker whose lane lacks `dist/`), an inline interpreter body that changes a file with no path literal blocks with the advice to use the Write tool, and a worker's script outside the project root asks (the controller's is not read). Every project gives a worker two scratch roots that are always allowed, `.eidolon/scratch/` and `<temp>/eidolon-scratch-<12 hex of the root's sha256>/`. See "Write lanes". | block, ask |
 | 4 | `evalVerification` | verification-guard.mjs | A `git commit` whose message claims a visual or runtime result works ("looks good", "renders correctly", "works in the browser") and names no evidence (a screenshot, an image path, `evidence:`, `verified via`, `signal:`, `proof:`). | block |
-| 5 | `evalCommitQuality` | commit-quality-guard.mjs | Reads the parsed argv of each git invocation. Blocks `--no-verify` (and unambiguous prefixes, and `-n` on commit) on commit or push; a force push (`--force`, `--force-if-includes`, `-f`, a `+` refspec; `--force-with-lease` alone passes); a mirror push or `remote.*.mirror` or `remote.*.push` config; `include.path` config; a `core.hooksPath` override through `git -c`, `--config-env`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_PARAMETERS`, or a swapped `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`; `git config core.hooksPath`; an alias that runs commit or push with a hook-skipping or force flag; `filter-branch` and `filter-repo`. Blocks a PowerShell command that sets `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` or `GIT_DIR` (`$env:`, `Set-Item env:`, `SetEnvironmentVariable`) and also runs git. Asks for a splat or an argument array in place of git arguments, and for a worktree overwrite (`reset --hard`, `--merge`, `--keep`, `checkout-index -f`, `read-tree -u` or `--reset`, `checkout -f`, `switch -f` or `--discard-changes`, `stash -u` or `-a`, `clean -f` with no pathspec). The raw patterns read the command without its commit message. Some cases ask; see "What asks". | block, ask |
+| 5 | `evalCommitQuality` | commit-quality-guard.mjs | Reads the parsed argv of each git invocation. Blocks `--no-verify` (and unambiguous prefixes, and `-n` on commit) on commit or push; a force push (`--force`, `--force-if-includes`, `-f`, a `+` refspec; `--force-with-lease` alone passes); a mirror push or `remote.*.mirror` or `remote.*.push` config; `include.path` config; a `core.hooksPath` override through `git -c`, `--config-env`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_PARAMETERS`, or a swapped `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`; `git config core.hooksPath`; an alias that runs commit or push with a hook-skipping or force flag; `filter-branch` and `filter-repo`. Blocks a PowerShell command that sets `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_n`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` or `GIT_DIR` (`$env:`, `Set-Item env:`, `SetEnvironmentVariable`) and also runs git. Asks for a splat or an argument array in place of git arguments, and for a worktree overwrite (`reset --hard`, `--merge`, `--keep`, `checkout-index -f`, `read-tree -u` or `--reset`, `checkout -f`, `switch -f` or `--discard-changes`, `stash -u` or `-a`, `clean -f` with no pathspec). Blocks `GIT_DIR` set in a bash prefix, `export` or `declare -x` when git runs in the same command, unless it names this project's own `.git`, and a `GIT_CONFIG_KEY_n` or `GIT_CONFIG_VALUE_n` that holds a hooks path (a variable set in an earlier tool call is not tracked; Claude Code keeps no shell state between calls). For the controller, `git checkout <rev>`, `switch`, `merge`, `rebase`, `cherry-pick`, `revert` and `pull` compare HEAD with the target using read-only git commands (rev-parse, diff) and ask, listing the files, when a hook, a settings file, the policy manifest or a record would change (an added record file is an append and passes); a target that cannot be resolved asks, and a repository with no commit has nothing to rewrite. The raw patterns read the command without its commit message. Some cases ask; see "What asks". | block, ask |
 | 6 | `evalPersonaConduct` | persona-conduct-guard.mjs | With a persona seated, an action that crosses one of its declared anti-behaviors. See "The seated persona". `irreversible-without-safety-net` asks; every other line blocks. No seat file is a no-op, except that a worker may never edit the seat file. | block, ask |
 | 7 | `evalHookIntegrity` | hook-integrity-guard.mjs | Blocks a `core.hooksPath` change, an attribute change (`chmod`, `icacls`, `Set-ItemProperty` and kin) on a hook or authority path, and `mv`, `rm`, `rmdir`, `del`, `Remove-Item`, `Move-Item` or `Rename-Item` of a hook, the hooks directory or an authority path. Any other shell write to a hook file (`cp`, `tee`, a redirect, `sed -i`, `ln`, a hard link to a hook including `cp -l` and `rsync --link-dest`, `touch`) asks the controller and blocks a worker. The persona template and `references/security-policy.md` count as hook files here. | block, ask |
 | 8 | `evalDeletion` | deletion-guard.mjs | A shell command that deletes, overwrites or creates over an append-only record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`), or deletes or moves a parent directory that holds one, or makes a hard link to one (`ln`, `cp -l`, `cp --link`, `rsync --link-dest`, `New-Item -ItemType HardLink`). Appends (`>>`, `tee -a`, `Add-Content`) pass. The raw delete pattern reads the command without its commit message. | block |
@@ -74,13 +74,13 @@ Run by `hooks/guard-bash.mjs`, order from `bashEvaluators` in `suite-evaluators.
 
 ### Write and Edit evaluators
 
-Run by `hooks/guard-write.mjs`, order from `writeEvaluators` in `suite-evaluators.mjs`. A Write or Edit by the controller aimed outside the project root is not judged, except a Claude settings file, which is judged wherever it lives.
+Run by `hooks/guard-write.mjs`, order from `writeEvaluators` in `suite-evaluators.mjs`. A Write or Edit by the controller aimed outside the project root is not judged, except a Claude settings file, which is judged wherever it lives, and a path shaped like a records directory, DECISIONS.md, a hooks directory that holds .mjs files, a settings file, `.git/` or a policy manifest, which asks.
 
 | # | Evaluator | File | Checks | Verdict |
 |---|---|---|---|---|
 | 1 | `evalManagedState` | policy-manifest.mjs | Same check as in the Bash suite. | block |
-| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a write to `.claude/skills/eidolon/`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/` or `.claude/eidolon-manifest.yaml`, and a Write or Edit whose existing target has more than one hard link (it may be another name for a record, a hook or an authority file). Then applies the hook-file check of `evalHookIntegrity` to the write: a Write or Edit under `hooks/`, `.git/hooks/` or any directory named `hooks` that holds a wired guard asks the controller and blocks a worker. | block, ask |
-| 3 | `evalLane` | lanes.mjs | A worker's Write or Edit outside its `write` roots, or outside the project root (scratch under the OS temp directory or `/tmp/` excepted unless the project sits inside it, as in the Bash row). | block |
+| 2 | `evalRuntimeIntegrity` | runtime-integrity-guard.mjs | Blocks a write to `.claude/skills/eidolon/`, `.eidolon/policy-manifest.json`, `.eidolon/sessions/` or `.claude/eidolon-manifest.yaml`, and a Write or Edit whose existing target has more than one hard link (it may be another name for a record, a hook or an authority file). Then applies the hook-file check of `evalHookIntegrity` to the write: a Write or Edit under `hooks/`, `.git/hooks/` or any directory named `hooks` that holds a wired guard asks the controller and blocks a worker. A controller's Write or Edit outside the project root asks when the path has a protected shape (see the intro above). | block, ask |
+| 3 | `evalLane` | lanes.mjs | A worker's Write or Edit outside its `write` roots, or outside the project root (scratch under the OS temp directory or `/tmp/` excepted unless the project sits inside it, as in the Bash row), with the two always-allowed scratch roots (`.eidolon/scratch/` and the temp directory named for the project, as in the Bash row). | block |
 | 4 | `evalAppendOnlyRecord` | append-only-record-guard.mjs | A Write or Edit to a record (`docs/fixes/`, `docs/insights/`, `docs/decisions/`, root `DECISIONS.md`) whose result is not the existing bytes plus an append. A record that does not exist yet may be created. A result that cannot be validated blocks. | block |
 | 5 | `evalPersonaConduct` | persona-conduct-guard.mjs | Same check as in the Bash suite. | block, ask |
 | 6 | `evalDrift` | drift-guard.mjs | Consecutive scaffold writes (`hooks/`, `.claude/`, `scripts/`, `.github/`, Dockerfile, Makefile, `.gitignore`, yaml, toml, ini, cfg, `*.config.js` and `*.config.ts`). Advises from a projected count of 6; blocks at 10 unless the policy manifest sets `workType` to `infrastructure` (then it only advises). Any other write resets the count. The count advances only after a successful write (PostToolUse). | advise, block |
@@ -110,7 +110,8 @@ same call wins.
 # why: an ask is for what the parser cannot place or what a human may legitimately want; each line is a case the code implements
 unplaceable_operand:  a mutating op whose operand contains *, ?, [, { or an unexpanded $var and could reach a protected
                       location: its literal prefix is on the path to one, or it starts with $. A cd into a glob followed by a
-                      mutation counts. A bare * delete at a directory that holds a protected path blocks instead.
+                      mutation counts. A bare * delete at a directory that holds a protected path blocks instead. A worker's glob or variable
+                      operand is judged by the lane check instead (see lane_operands under What blocks)
 patch_targets:        git apply (unless --check, --stat, --numstat or --summary), and patch with no file operand or with -i or --input
 unmodeled_verb:       an unmodeled verb whose arguments name a protected path (docs/decisions, docs/fixes, docs/insights, DECISIONS.md,
                       hooks/, .claude/settings*, .eidolon, .git, the policy manifest): curl -o, Invoke-WebRequest -OutFile, vim, split, csplit,
@@ -126,11 +127,12 @@ opaque_body:          an interpreter inline body (sh, bash or zsh -c, node -e, -
                       eval body and an iex body that names none of those, holds no $ or backtick and nests no other body is not asked about:
                       it is parsed one level and its commands are judged like top-level ones (bash -c "npm test" and sh -c "ls src" pass,
                       bash -c 'rm -rf docs' blocks). A shell body that nests another body or cannot be parsed asks
-opaque_execution:     iex and Invoke-Expression; an awk program that calls system(; pwsh or powershell with -EncodedCommand, -enc or -ec;
+opaque_execution:     iex and Invoke-Expression; an awk program that calls system(; pwsh or powershell with -EncodedCommand, -enc, -ec or -e whose
+                      value is not base64 of UTF-16LE text (a value that decodes is judged as an inline body, so it asks only when it cannot be read);
                       a pipe into a shell or interpreter that reads its program from standard input (| bash, | sh, | node, | python and kin
                       with no script operand); xargs -a FILE (or --arg-file) followed by a mutating verb; Start-Process (or start, saps) of
                       cmd, pwsh, powershell, bash or sh, with or without -FilePath
-extraction:           tar -x or --extract, bsdtar -x, gtar, unzip (not -l, -t, -p), 7z x or e, cpio -i: asks unless a destination (-C, -d, -o<dir>)
+extraction:           tar -x or --extract, bsdtar -x, gtar, unzip (not -l, -t, -p), 7z x or e, cpio -i, Expand-Archive: asks unless a destination (-C, -d, -o<dir>)
                       is given and is neither the project root nor an ancestor of a protected location. A destination that is itself
                       protected is judged as a write to it. A worker needs a destination inside its lane
 find_exec:            find -exec, -execdir, -ok, -okdir of a verb outside the modeled and inert lists
@@ -143,6 +145,21 @@ commit_quality:       an unknown git global option ahead of the subcommand; git 
 hook_integrity:       a controller writing a hook file (a worker is blocked)
 dispatch:             a write-capable brief with no Done-check: or Acceptance: line, or one whose value is none, n/a, na, tbd, todo, skip or -; no readable transcript_path; a wave plan under 20 non-blank characters;
                       a dispatch that names no model tier (no model on the call, no model line in its .claude/agents file, not a plugin agent)
+script_files:         a script file under the project root that cannot be read as text or is over 512 KB (the script is opaque); for a worker,
+                      a script outside the project root; a script with a file call whose target is not a literal (rmSync(d), open(path, 'w'))
+                      that names a protected path in a literal the scan cannot tie to a literal target ("a script names docs/decisions in a way
+                      the parser cannot resolve"). A parent (docs, .claude, .eidolon) counts only when that call deletes or moves
+shell_alias:          a git alias from a config file that starts with ! (the ask names the alias); a plain alias is expanded and judged
+call_operator:        & $x, . $x and Start-Process $x in PowerShell when $x is not a literal assigned earlier in the same command, and a call
+                      operator whose target is a subexpression: & (Get-Command git), & $(...), & @(...)
+archives:             an archive that exists and cannot be listed (a bad zip or tar, or a 7z or cpio archive, which the hook cannot list)
+whole_tree:           the controller's git checkout, switch, merge, rebase, cherry-pick, revert or pull when a hook, a settings file, the policy
+                      manifest or a record (other than an added file) would change, or when its target cannot be resolved; a repository with no
+                      commit is not asked about
+outside_root:         a controller Write or Edit outside the project root whose path is shaped like a records directory, DECISIONS.md, a hooks
+                      directory that holds .mjs files, a settings file, .git/, a policy manifest, ~/.gitconfig or ~/.config/git/config (git reads
+                      aliases from both); a shell write, append or delete outside the root to one of those shapes other than a hooks directory
+                      (echo x >> ~/.gitconfig)
 other_asks:           the evaluator tables above also list the sensitive dispatch, the visual evidence gate and the persona line
                       irreversible-without-safety-net
 ```
@@ -156,7 +173,8 @@ installed skill, `hooks/`, the persona template, the security policy and the thr
 
 ```yaml
 # why: each line is a shape that once slipped past a single-verb check and is now judged
-modeled_verbs:    ln, cp -l, cp --link and rsync --link-dest (a link onto a protected path, or one pointing into it; a hard link to a record or
+modeled_verbs:    ln, cp -l, cp --link and rsync --link-dest (a link onto a protected path, or one pointing into it, or at or above one: cp -al docs,
+                  rsync --link-dest=docs, ln docs/* are judged as links to the descendants; a hard link to a record or
                   authority path blocks, to a hook it asks the controller), find -delete or -exec/-execdir/-ok/-okdir of rm, mv, cp, chmod,
                   chown, truncate, tee, dd, sed -i, ln, install, touch or a shell (the find roots take a delete or write; when the command is
                   handed the found file {} as its target, a root that holds a protected path, such as docs or the project root, counts as
@@ -174,6 +192,25 @@ git_config:       a mirror push, a remote.*.mirror or remote.*.push setting, an 
 path_spellings:   NTFS alternate data streams (file::$DATA), 8.3 short names (DECISI~1), MSYS /c/ drive paths, symlinks
 raw_nets:         a line the tokenizer cannot parse is still matched against raw patterns (a hook-skipping commit, a core.hooksPath
                   override, a delete of .git, hooks, a record or settings) before it downgrades to an ask
+script_files:     a script file the command runs (node, python, pwsh -File, sh, bash, ./run.sh, npm run) whose contents mutate a protected path: a shell
+                  script line by line with cd tracked, any other by a lexical scan of its calls (rmSync, writeFileSync, os.remove, shutil.rmtree,
+                  open(..., 'w'), Remove-Item, Set-Content, [IO.File]::, child_process, subprocess and kin). Each literal target (join('docs', 'x'),
+                  'do' + 'cs' and Path('a') / 'b' count as literals) is judged where it points, as a shell operand is: a write only at a protected
+                  path, a delete or move also at a parent of one (rmSync('docs')), a copy source not at all. A record or authority target blocks;
+                  deleting a hook blocks, writing one asks the controller and blocks a worker; a git command with a bypass flag blocks
+interpreter_bodies: the same scan on node -e, node --eval, deno eval, python -c, ruby -e, perl -e, php -r and pwsh -Command bodies, on a heredoc
+                  fed to an interpreter, and on a PowerShell -EncodedCommand body once decoded
+subshells:        ( ), $( ) and backtick bodies give their cd back when they close, so a cd inside one applies to the commands inside it only; a { } group
+                  runs in the current shell, so its cd carries on, as bash does; a heredoc fed to bash or sh is parsed like a -c body
+git_aliases:      a git alias from .git/config, ~/.gitconfig or ~/.config/git/config, from a file one of them includes ([include] or
+                  [includeIf] path, one level), or given with -c, GIT_CONFIG_KEY_n with GIT_CONFIG_VALUE_n, or GIT_CONFIG_PARAMETERS, is
+                  expanded and judged as the command it spells
+archive_entries:  an extraction of a local archive whose entries include an absolute path, a .. segment or a path under a protected location
+git_env:          GIT_DIR set in a bash prefix, export or declare -x when git runs in the same command (unless it names this project's own .git);
+                  GIT_CONFIG_KEY_n or GIT_CONFIG_VALUE_n that holds a hooks path; GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM
+lane_operands:    a worker's mutating verb whose operand is a glob or holds an unexpanded variable, unless the operand's literal prefix resolves
+                  inside a write root; the message says a worker's target must be a literal path inside its lane. An inline interpreter body
+                  or script that changes a file with no path literal blocks a worker with the advice to use the Write tool
 workers:          a worker's write outside the project root, in any tool (scratch under the OS temp directory or /tmp/ excepted, each unless the project root sits inside it);
                   a worker's whole-tree git rewrite (reset --hard, --merge, --keep, checkout <rev> with no pathspec, switch, merge, pull,
                   rebase, am, cherry-pick, revert, stash other than list and show, read-tree, checkout-index); a trailing path-like
@@ -199,13 +236,18 @@ roots:       prefixes relative to the project root; "src/**" and "docs/" mean a 
 applies_to:  workers only. The controller is never gated.
 lane_is_set: only when the worker's PreToolUse input carries a string agent_type that has an entry; an agent
              with no entry, and a worker whose input has no agent_type, are unconstrained
-unverified:  agent_type arrival on a worker's PreToolUse is unverified until a live run with EIDOLON_HOOK_DEBUG=1
-             (it appends the key names of each hook input, never the values, to .claude/.hook-debug.jsonl)
+verified:    on 2026-10-13 a live run with EIDOLON_HOOK_DEBUG=1 showed agent_id and agent_type on a worker's PreToolUse input (Claude Code 2.1.206)
+             (the flag appends the key names of each hook input, never the values, to .claude/.hook-debug.jsonl)
 no_write_list: an entry with no write list means the worker may write nothing
 outside_root: a worker with a lane may not write outside the project root at all
 sees:        Write and Edit; redirects and the modeled verbs (rm, mv, cp, ln, touch, mkdir, tee, sed -i, Set-Content, git checkout and kin);
-             path-shaped string literals in an interpreter inline body
-does_not_see: a script file the worker runs, and a glob or $var operand
+             path-shaped string literals in an interpreter inline body; the literal targets of the mutation calls in a script file the worker runs;
+             a glob or $var operand (its literal prefix must sit inside the lane)
+scripts:     a worker's scripts are held to its lane too: npm run build whose script writes dist/ blocks a worker whose lane lacks dist/,
+             so a dispatch brief gives the lane every path the build, test or docs scripts it runs will write
+scratch:     two roots every worker may write whatever its lane: <root>/.eidolon/scratch/ and <os tmpdir>/eidolon-scratch-<first 12 hex of the
+             sha256 of the canonical root>/. Neither is an ancestor of the root, so both hold when the project sits inside the temp directory
+does_not_see: a path a script builds at run time, and what a program does after it starts (see Known gaps)
 ```
 
 The same file decides whether a dispatch is write-capable (`evalBriefGate`, `evalWavePlan`). A reviewer gets an empty `write` list.
@@ -216,7 +258,7 @@ All three are advisory (they never block a tool call) and exit 0 on bad input.
 
 | Hook | Event | Behavior |
 |---|---|---|
-| subagent-start.mjs | SubagentStart | Hands the worker its lane (read and write roots), the Brief contract summary and its latest dispatch record from the log, as additional context. |
+| subagent-start.mjs | SubagentStart | Hands the worker its lane (read and write roots), its two scratch roots, the Brief contract summary and its latest dispatch record from the log, as additional context. |
 | subagent-stop.mjs | SubagentStop | Logs an outcome line (agent, whether evidence was found). Evidence is a backtick-quoted span, an `Evidence:` line with text (markdown emphasis or a list marker around the label is ignored), or a path under the project root that exists. When the last message has none it sends the worker back once with a reason; after that it lets it stop. This proves the report names something real, not that the done-check passed. |
 | post-tool-entry.mjs | PostToolUse (Write, Edit) | Advances the drift counter after a successful write, once per tool call id. On a bookkeeping failure it prints a system message and claims nothing. |
 
@@ -309,8 +351,9 @@ block:        reason on stderr, exit 2; Claude sees it and retries
 ask:          hookSpecificOutput.permissionDecision "ask" with the reason, exit 0
 advise:       { systemMessage, hookSpecificOutput.additionalContext } on stdout, exit 0
 missing_hook: a hook script that is missing, or that crashes with exit 1, does not block the call; Claude Code shows
-              the hook's stderr to the user as a non-blocking error and continues. The onFailure: block setting that
-              would turn this into a block needs Claude Code 2.1.295 or newer; see references/current-platform-contract.md
+              the hook's stderr to the user as a non-blocking error and continues. The installer writes "onFailure": "block"
+              on every hook entry: Claude Code 2.1.206 accepts the key (the settings load and the guards run) but still fails open on
+              a missing hook (observed 2026-10-14), and 2.1.295 or newer blocks the call; see references/current-platform-contract.md
 ```
 
 ## Known gaps
@@ -319,33 +362,28 @@ Labeled as defense in depth: these are the shapes the lexical checks and the den
 
 ```yaml
 # why: a guard that claims more than it does is worse than none; this is the honest list
-script_files:      a script file a worker runs (node build.js, sh run.sh) does what it does; the guards see only its command line
-lane_operands:     a glob or $var operand does not trigger the lane check
+script_reach:      a script file is read once and judged by what it says, one level deep. A path built at run time (join(base, name), a variable, a
+                   decoded string) is not resolved: when a file call's target is not a literal, a protected name elsewhere in the script asks
+                   (a variable-held record path asks, it does not block), and when every file call has a literal target, a protected name
+                   elsewhere is not judged. A script that a script runs, a module it imports (a helper that deletes what it is handed), a file
+                   written by one call and run by a later one, and the test files that node --test runs are not read. The scan is lexical: it
+                   matches call names and string literals, so a call spelled in a way the patterns miss passes
+outside_scripts:   a script outside the project root is not read: a worker with a lane is asked about it, the controller is not
+alias_includes:    a config file's [include] and [includeIf] paths are followed one level, and an includeIf is followed whatever its condition;
+                   an include inside an included file is not read
 shell_bodies:      a shell -c, eval or iex body is parsed one level only when it names nothing protected, holds no $ or backtick and nests no body;
-                   otherwise it is asked about only when it names git, a protected path or settings. Bodies of node -e, python -c and other
-                   interpreters are never parsed (node -e with rmSync('docs') names no protected child and passes)
-git_aliases:       aliases defined in .git/config are not visible to the Git parser
-subshells:         a subshell is judged as top-level commands, not as a unit
-encoded_commands:  -EncodedCommand bodies are not decoded; the command asks
-controller_whole_tree: git checkout <rev>, switch, merge, pull, rebase, am, cherry-pick, revert and a bare git stash stay allowed for the
-                   controller (ordinary workflow, and history keeps the prior tree); only the commands that discard uncommitted work ask
-                   (reset --hard, checkout -f, switch -f, stash -u or -a, clean -f with no pathspec, and the forms under commit_quality)
+                   otherwise it is asked about only when it names git, a protected path or settings
+tree_commands:     the controller's whole-tree check reads local refs and the repository's object store: git pull is compared with the remote-tracking
+                   ref as it stands before the fetch, and git am, git stash pop and git reset without --hard are not compared
 hard_link_scope:   the hard-link check runs on a literal operand that exists; a glob or $var operand is not checked, and rm of one name of a
-                   hard-linked file refuses too. A hard link made outside the tool calls (a script) is not seen
-cp_link_parents:   cp -al or rsync --link-dest of a parent directory (docs, the project root) is not judged as links to the records under it
-bash_git_env:      GIT_DIR=... and GIT_CONFIG_COUNT=... without a core.hooksPath key in a bash prefix or export are not blocked; the
-                   PowerShell forms are, and only when git runs in the same command (a variable set in an earlier call is not tracked)
-ps_call_operator:  & $cmd and other call-operator targets held in a variable are not resolved; & cmd /c ... and & pwsh -Command ... are
-                   judged like the same command without the &
-archive_contents:  an archive extracted into a destination that is not protected can still hold entries that climb out of it (../x)
-scratch_in_tmp:    a worker's scratch roots (the OS temp directory, the literal /tmp/ and the $TMPDIR, $TEMP and $TMP forms) each drop out when the
-                   project root sits inside them, and the variable forms drop out when it sits inside the OS temp directory or /tmp, so a project
-                   under /tmp gives its worker no scratch space at all
-controller_outside_root: the controller's Write or Edit outside the project root is not judged, except a settings file
-agent_type:        agent_type on a worker's PreToolUse is unverified until a live run with EIDOLON_HOOK_DEBUG=1
-os_sandbox:        the hooks are not an operating-system sandbox
-fail_open:         a hook script that is missing, or that crashes with exit 1, does not block the call; the failure is shown to the
-                   user as a non-blocking hook error (onFailure: block needs Claude Code 2.1.295 or newer)
+                   hard-linked file refuses too. A hard link a program makes after it starts is seen only through the lexical scan of its source
+bash_env_state:    a variable set in an earlier tool call is not tracked, because Claude Code keeps no shell state between calls; GIT_DIR exported in one
+                   call and git run in the next is not seen
+os_sandbox:        the hooks are not an operating-system sandbox; pair them with Claude Code's permission rules and its sandbox mode where the host
+                   offers one. A program's behavior after it starts is seen only through the lexical scan of its source
+fail_open:         a hook script that is missing, or that crashes with exit 1, does not block the call on Claude Code before 2.1.295; the failure
+                   is shown as a non-blocking hook error. The installer writes onFailure: block on every hook entry, which 2.1.295 or newer honors
+                   (2.1.206 accepts the key and still fails open)
 ```
 
 ## Tests
@@ -356,7 +394,7 @@ node --test "hooks/*.test.mjs"
 
 The test files are `hooks.test.mjs` (each guard run as Claude Code does, as a child process with the hook
 JSON on stdin, in throwaway directories), `reds-2026-10-13.test.mjs`, `pipeline-2026-10-13.test.mjs`,
-`review-2026-10-13.test.mjs`, `review-round2-2026-10-13.test.mjs`, `review-round3-2026-10-13.test.mjs`, `review-round4-2026-10-13.test.mjs`, `review-hardening.test.mjs`, `path-alias.test.mjs`, `guard-dispatch.test.mjs`,
+`review-2026-10-13.test.mjs`, `review-round2-2026-10-13.test.mjs`, `review-round3-2026-10-13.test.mjs`, `review-round4-2026-10-13.test.mjs`, `review-round5-2026-10-14.test.mjs`, `review-round6-2026-10-14.test.mjs`, `review-hardening.test.mjs`, `path-alias.test.mjs`, `guard-dispatch.test.mjs`,
 `codebase-memory-orient.test.mjs` and `persona-conduct-guard.test.mjs`. This repository's `.gitignore` lists the
 transient state: `.eidolon/sessions/`, `.claude/.dispatch-log.jsonl`, `.claude/.hook-debug.jsonl` and
 `.claude/waves/`, with the seat file, `.claude/.session-state` and `.claude/.memory-synced-head`.

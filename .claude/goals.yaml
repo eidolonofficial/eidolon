@@ -21,7 +21,7 @@ milestones:
         status: OPEN
       - id: cuts-executed
         signal: gate
-        check: "codex/, engine/, security/, examples/, AGENTS.md and the cut hooks, scripts and references are absent; no reference to them outside docs/decisions"
+        check: "the second-host adapter, engine/, security/, examples/, AGENTS.md and the cut hooks, scripts and references are absent; no reference to them outside docs/decisions"
         status: OPEN
       - id: reds-fixed-test-first
         signal: gate

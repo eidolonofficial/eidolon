@@ -22,7 +22,7 @@ The operator specifically requested pipelines for selecting personas when deploy
 - Select persona roles from a hash-pinned, grounded registry; enforce project/path boundaries and required role capabilities before dispatch.
 - Delegate for a concrete benefit: independent verification, useful parallel work, specialist analysis or isolated context. Do not require swarm theater for trivial work or substitute cheap under-coverage for the requested review.
 - Inject a bounded, provenance-labelled packet containing the original task and acceptance contract. Keep unrelated/private context out. Sources and memories do not grant authority.
-- Preserve human consent in each host. Codex ask is a shared policy decision, not unsupported raw PreToolUse output. PermissionRequest preserves a native prompt already initiated by Codex; other unsupported ask operations stay blocked.
+- Preserve human consent in each host. A second-host ask is a shared policy decision, not unsupported raw PreToolUse output. PermissionRequest preserves a native prompt already initiated by that host; other unsupported ask operations stay blocked.
 - Preserve historical evidence. Supersession changes the active guidance/index, not prior record bytes. Explicit removal or privacy redaction is separate operator work.
 - Preflight policy evaluation does not commit success state. Successful host outcomes update actor-local bookkeeping idempotently.
 - Retain the exact installation plan approved at preview, reject source/target drift, and keep backups plus recovery evidence. Exception rollback is not a claim of proven crash recovery.
@@ -42,6 +42,6 @@ R13/R14/R15: one browser server, real static-route checks, request authority/ori
 
 Record tests actually run and their exact source revision in the change/CI results. Do not count duplicated source and bundled tests as independent guarantees. Policy fixtures are not authenticated native permission-bypass tests. Persona/dispatch fixtures do not prove all models obey their prompt. Browser HTTP tests do not certify full native GUI usability.
 
-The installed Codex and Claude coding clients returned usage-limit errors during bounded worker attempts in this repair session. Those attempted worker launches produced no implementation or review evidence. No purchase, quota bypass or global settings change was made.
+The installed coding clients returned usage-limit errors during bounded worker attempts in this repair session. Those attempted worker launches produced no implementation or review evidence. No purchase, quota bypass or global settings change was made.
 
 Remaining acceptance areas are the review's U01-U13: authenticated hosts, native GUI, browser security assessment, process-kill/concurrency recovery, live actor identity, differential patch semantics, trust-root custody, advertised runtime combinations, Setup behavioral evaluation, optional integrations, full history/supply-chain scan and every mutating tool. Preserve these limits rather than rewriting a green unit test as a certification.

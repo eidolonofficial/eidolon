@@ -1,6 +1,7 @@
 // Per-agent write lanes from .claude/agent-scopes.json: { "<agent>": { "read": [...], "write": [...] } }.
 // Roots are prefixes relative to the project root: "src/**" and "docs/" mean a subtree, "hooks/x.mjs" one file.
 import {existsSync, readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {isAbsolute, join, posix, relative, resolve, sep} from 'node:path';
 import {canonicalPath} from './confined-path.mjs';
@@ -43,7 +44,16 @@ export function scratchPolicy(root, osTemp = tmpdir(), literal = '/tmp') {
   const inOs = holds(osTemp, root), inLiteral = holds(literal, root);
   return {osTemp: !inOs, literal: !inLiteral, variables: !inOs && !inLiteral};
 }
+// The two scratch roots every project gives its workers, always allowed: one inside the project, one in the OS temp directory
+// named for the project. Neither contains the project root, so a project that sits inside the temp directory still has both.
+export function scratchRoots(root) {
+  const canonical = canonicalPath(root);
+  return {project: join(canonical, '.eidolon', 'scratch'), temp: join(tmpdir(), 'eidolon-scratch-' + createHash('sha256').update(canonical).digest('hex').slice(0, 12))};
+}
+const SCRATCH_REL = /^\.eidolon\/scratch(?:\/|$)/i;
 function scratch(given, absolute, root) {
+  const own = lc(canonicalPath(scratchRoots(root).temp)) + sep;
+  if (lc(absolute).startsWith(own) || lc(canonicalPath(absolute)).startsWith(own)) return true;
   const keep = scratchPolicy(root);
   if (keep.literal && /^\/tmp\//.test(posix.normalize(String(given).replace(/\\/g, '/')))) return true;
   return keep.osTemp && lc(absolute).startsWith(lc(canonicalPath(tmpdir())) + sep);
@@ -66,6 +76,8 @@ function rewritesTree(op) {
 // ponytail: the shell lane sees redirects, the verbs shellPathFacts models (rm, mv, cp, ln, touch, mkdir, tee, sed -i,
 // Set-Content, git checkout...) and the path-shaped string literals of an interpreter's inline body; a script file is
 // opaque to it. Upgrade path: run workers in a sandbox with a read-only mount.
+// Which verdicts a fact kind carries in the lane check: glob (a mutating operand with a glob or variable), bare (an inline body that changes a
+// file whose path is not a literal), outside-script (a script file outside the project root).
 const PATH_LITERAL = /['"]([\w.\/\\-]*[\/\\.][\w.\/\\-]*)['"]/g;
 export const evalLane = tolerant(j => {
   const lane = laneOf(j);
@@ -74,7 +86,7 @@ export const evalLane = tolerant(j => {
   const block = why => ({kind: 'block', label: 'WRITE LANE GUARD', why});
   const toRel = path => relative(root, path).replace(/\\/g, '/');
   const leaves = (rel) => rel === '..' || rel.startsWith('../') || isAbsolute(rel);
-  const outside = (rel) => !inRoots(rel, lane.write) && block(
+  const outside = (rel) => !inRoots(rel, lane.write) && !SCRATCH_REL.test(rel) && block(
     `worker ${lane.type} may write only under ${lane.write.join(', ') || '(nothing)'}; ${rel} is outside its lane. Return the change to the controller.`);
   const outsideRootVerdict = block(`worker ${lane.type} may not write outside the project root. Return the change to the controller.`);
   if (j.tool_name === 'Write' || j.tool_name === 'Edit') {
@@ -87,7 +99,17 @@ export const evalLane = tolerant(j => {
   }
   if (j.tool_name !== 'Bash') return null;
   const command = String(j.tool_input?.command || ''), cwd = j.cwd || root;
+  let consent = null; // an ask is returned only when nothing blocks
   for (const f of shellPathFacts(command, cwd, root, j.shell_language, true)) {
+    if (f.kind === 'bare') return block(`worker ${lane.type}: an inline body changes a file whose path is not a literal in the command, so its target cannot be checked against the lane (${lane.write.join(', ') || 'nothing'}). Use the Write tool, or name the path in the command.`);
+    if (f.kind === 'outside-script') { consent ??= {kind: 'ask', label: 'WRITE LANE GUARD', why: `worker ${lane.type} is running a script outside the project root (${f.path}); its contents cannot be judged against the lane. Approve only after reading it.`}; continue; }
+    if (f.kind === 'glob') {
+      // A worker's target must be literal: the part of the operand before its first glob character or variable has to sit inside the lane.
+      const rel = toRel(f.prefix);
+      if (leaves(rel) ? !scratch(f.value, f.prefix, root) : !inRoots(rel, lane.write) && !SCRATCH_REL.test(rel))
+        return block(`worker ${lane.type}: a worker's target must be a literal path inside its lane (${lane.write.join(', ') || 'nothing'}); "${f.value}" is a glob or variable operand whose literal prefix is outside it. Name the exact files.`);
+      continue;
+    }
     // A link made in the lane must not point out of it: the lane would then write through it.
     if (f.tempVariable) { if (scratchPolicy(root).variables || !['write', 'append', 'delete', 'link'].includes(f.op)) continue; return outsideRootVerdict; }
     const target = f.op === 'link' ? f.via ?? f.path : f.path;
@@ -98,7 +120,7 @@ export const evalLane = tolerant(j => {
     const verdict = outside(rel);
     if (verdict) return verdict;
   }
-  for (const op of gitOperations(command, cwd, j.shell_language))
+  for (const op of gitOperations(command, cwd, j.shell_language, root))
     if (rewritesTree(op)) return block(`worker ${lane.type} may not rewrite the whole worktree (git ${op.subcommand}); no lane covers the whole tree. Return the change to the controller.`);
   // The argv of an inline interpreter body can name the path it writes (node -e "...argv[1]..." docs/y.md).
   for (const operand of inlineOperands(command, j.shell_language)) {
@@ -114,5 +136,5 @@ export const evalLane = tolerant(j => {
       const verdict = leaves(rel) ? outsideRootVerdict : outside(rel);
       if (verdict) return verdict;
     }
-  return null;
+  return consent;
 });

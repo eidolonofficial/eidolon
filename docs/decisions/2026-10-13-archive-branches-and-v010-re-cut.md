@@ -10,7 +10,7 @@ An audit on 2026-10-13 found four divergent lines of this harness. GitHub main
 lines held months of work that had been verified green in a working tree and
 never committed or pushed: the 2026-07-09 triage refactor and 2026-09-05 skill
 cleanup in the local dev clone, the 2026-07-09 Hearth re-mirror, and the
-2026-09-13 Codex "safety program" worktrees (builds 01 to 04 and 07 verified,
+2026-09-13 "safety program" worktrees of a third-party agent tool (builds 01 to 04 and 07 verified,
 stopped at build 05 of 14). Two independent measures agreed on the enforcement
 picture: the hook suite is lexical and bypassable while the docs called it hard
 enforcement (Opus audit of the hooks by code read; the Sept 13
@@ -27,8 +27,11 @@ enforcement (Opus audit of the hooks by code read; the Sept 13
    on 2026-10-13: a Slack-token-shaped one so push protection would accept the
    branch, and a JWT-shaped one (the textbook example token, now assembled at run
    time) so the history scan in CI passes. The archive is otherwise byte for byte
-   the uncommitted tree it preserves.
-3. Claude Code is the product. The Codex adapter, the vendored ASI-Evolve
+   the uncommitted tree it preserves. On 2026-10-14 the owner decided to remove
+   that line and the `release/codex-claude-compat` branches from the public
+   remotes of all three repositories; the six branches live on as git bundles in
+   the owner's private files. The main branches were not rewritten.
+3. Claude Code is the product. The second-host adapter, the vendored ASI-Evolve
    engine (its home is the standalone projects/asi-evolve MCP server), the
    three graphical installers, the security-attestation and review-receipt
    ceremonies, the Sept persona-pipeline CLI and the dead or orphan hooks are

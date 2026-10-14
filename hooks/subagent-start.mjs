@@ -2,16 +2,19 @@
 // Advisory; any failure leaves the worker uninformed, never blocked.
 import {runHook} from './lib.mjs';
 import {policyRoot} from './operation.mjs';
-import {scopeOf} from './lanes.mjs';
+import {scopeOf, scratchRoots} from './lanes.mjs';
 import {readLog} from './dispatch-evaluators.mjs';
 
+// Both spellings, so the path can be copied on any platform.
+const spell = p => { const slashed = p.replace(/\\/g, '/') + '/'; return p.includes('\\') ? slashed + ' (' + p + ')' : slashed; };
 const roots = list => Array.isArray(list) && list.length ? list.join(', ') : '(none)';
 
 runHook(j => {
-  const root = policyRoot(j), type = j.agent_type, scope = scopeOf(root, type);
+  const root = policyRoot(j), type = j.agent_type, scope = scopeOf(root, type), scratch = scratchRoots(root);
   const dispatched = readLog(root).findLast(l => l.kind === 'dispatch' && l.agent_type === type);
   const context = [
-    scope ? `Your lane (${type}) - read: ${roots(scope.read)}; write: ${roots(scope.write)}. Writes outside it are blocked, except scratch files under the OS temp directory or /tmp/ (no exception when the project itself sits inside them).` : 'Your lane: no lane recorded.',
+    (scope ? `Your lane (${type}) - read: ${roots(scope.read)}; write: ${roots(scope.write)}. Writes outside it are blocked, except scratch files under the OS temp directory or /tmp/ (no exception when the project itself sits inside them).` : 'Your lane: no lane recorded.')
+      + ` Two scratch roots are always writable, whatever the lane: ${spell(scratch.project)} and ${spell(scratch.temp)}.`,
     'Brief contract: return a 1 to 2K token summary with evidence (command and output, or file and line) and the state you changed as paths.',
     'State what you did not do, and for your central claim give cause, falsifier, evidence.',
     dispatched && `Dispatch record: ${JSON.stringify(dispatched)}`,

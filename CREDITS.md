@@ -10,6 +10,8 @@ Eidolon stands on open-source work by other people. Every project it builds on, 
   Skills over 150-plus Lighthouse audits and Core Web Vitals.
 - **agent-engineer**, by Addy Osmani. Apache-2.0. https://github.com/addyosmani/agent-engineer
   A practical AI-agents engineering course; reference material.
+- **trust-but-verify**, by Jonah Butterbaugh. MIT. https://github.com/gmrmk/trust-but-verify
+  The root-cause framework selection (5 Whys, Fishbone, Fault Tree, Bow-Tie, Kepner-Tregoe, Pareto, DMAIC) and the verification anti-behavior catalog that references/problem-solving-frameworks.md and the house persona's problem-solving section are adapted from.
 
 ## Design patterns (reference)
 
@@ -41,6 +43,29 @@ Eidolon stands on open-source work by other people. Every project it builds on, 
 - Config and supply chain: Checkov, syft, OpenSSF Scorecard.
 
 trufflehog (AGPL-3.0) and Brakeman (dual-license) are run as isolated subprocesses, never linked in, and their terms are honored.
+
+## Token economy, memory and graphs
+
+The vetted set in references/token-economy.md. None of it is bundled; each is offered at Stage 4 and installed only on the person's yes.
+
+- **ponytail**, by Dietrich Gebert. MIT. https://github.com/DietrichGebert/ponytail
+  The minimalism ladder; its doctrine is folded into the conductor standard, section 10.
+- **caveman** and its **cavecrew** presets, by Julius Brussee. Apache-2.0. https://github.com/JuliusBrussee/caveman
+  The compressed register for chat and reports, and the investigator, builder and reviewer presets for the fast mechanical tier.
+- **rtk**, by rtk-ai. CLI Apache-2.0; engine and proxy BUSL-1.1. https://github.com/rtk-ai/rtk
+  Compressed output for git, gh, npm, cargo, pytest and other everyday commands.
+- **headroom**, by Headroom Labs. Apache-2.0. https://github.com/headroomlabs-ai/headroom
+  Compression of tool outputs, logs, files and retrieval chunks, with the originals retrievable.
+- **repomix**, by yamadashy. MIT. https://github.com/yamadashy/repomix
+  A repo or subtree packed into one file, with a compressed mode.
+- **LLMLingua**, by Microsoft. MIT. https://github.com/microsoft/LLMLingua
+  Prompt compression by a small local model; optional and measured before trust.
+- **mempalace**, by the MemPalace project, led by igorls. MIT. https://github.com/MemPalace/mempalace
+  The prose memory Eidolon reads for a bounded prior.
+- **codebase-memory-mcp**, by DeusData. MIT. https://github.com/DeusData/codebase-memory-mcp
+  The local code graph that answers structure questions; the primary orient.
+- **graphify**, by Graphify Labs. Apache-2.0 and MIT. https://github.com/Graphify-Labs/graphify
+  The docs, schema and code graph; the fallback orient.
 
 ## The author
 

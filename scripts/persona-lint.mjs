@@ -10,6 +10,7 @@
 //   node scripts/persona-lint.mjs --agent .claude/agents/<name>.md
 //
 // A .md file under a directory named "agents" is linted as an agent file without the flag.
+// A file named *-primary.md is the house persona and must also carry ## Problem solving.
 // README.md files are skipped (they describe personas, they are not personas).
 
 import { readFileSync } from "node:fs";
@@ -31,8 +32,21 @@ function reasoningProblems(text) {
   return lacking.length ? ["## Reasoning section lacks the word(s): " + lacking.join(", ")] : [];
 }
 
-// Returns { ok, problems } for a persona file's text.
-export function validatePersona(text) {
+// The frameworks references/problem-solving-frameworks.md names; a primary persona's
+// ## Problem solving section must name at least one of them.
+export const FRAMEWORKS = ["5 Whys", "Fishbone", "Fault Tree", "Bow-Tie", "Kepner-Tregoe", "Pareto", "DMAIC"];
+
+// The house persona's problem-solving contract: the section exists and names a known framework.
+function problemSolvingProblems(text) {
+  const body = section(text, "Problem solving");
+  if (body === null) return ["missing ## Problem solving section (a primary persona names its root-cause method; see references/problem-solving-frameworks.md)"];
+  const named = FRAMEWORKS.some((f) => new RegExp(f.replace(/[-\s]/g, "[-\\s]?"), "i").test(body));
+  return named ? [] : ["## Problem solving names none of the known frameworks: " + FRAMEWORKS.join(", ")];
+}
+
+// Returns { ok, problems } for a persona file's text. A primary (house) persona also needs
+// its problem-solving section; the CLI sets primary for any *-primary.md path.
+export function validatePersona(text, { primary = false } = {}) {
   const problems = [];
   const require_ = (re, label) => { if (!re.test(text)) problems.push("missing " + label); };
 
@@ -54,6 +68,7 @@ export function validatePersona(text) {
   require_(/(^|\n)#{1,6}\s*evidence contract\b/i, "Evidence contract section (the rail: anchor and evidence contract)");
 
   problems.push(...reasoningProblems(text));
+  if (primary) problems.push(...problemSolvingProblems(text));
 
   return { ok: problems.length === 0, problems };
 }
@@ -122,7 +137,8 @@ if (invokedDirectly) {
     try {
       const text = readFileSync(path, "utf8");
       const agent = agentFlag || isAgentPath(path);
-      const r = agent ? validateAgent(text) : validatePersona(text);
+      const primary = /-primary\.md$/i.test(path);
+      const r = agent ? validateAgent(text) : validatePersona(text, { primary });
       if (!r.ok) { failed++; console.error("FAIL  " + path + "\n  " + r.problems.join("\n  ")); }
       else if (paths.length === 1) console.log("PASS  " + (agent ? "agent" : "persona") + " is well-formed: " + path);
     } catch (e) {

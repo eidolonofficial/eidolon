@@ -175,7 +175,9 @@ tiers:
   - tier:    fast mechanical
     models:  [haiku]
     effort:  [low, medium]
-    use:     bounded low-risk mechanical edits, inventories, doc reformatting
+    use:     bounded low-risk mechanical edits, inventories, doc reformatting; the cavecrew
+             presets (investigator, builder, reviewer; references/token-economy.md) fit here
+             and return a third of the tokens, with the persona line and done-check still in the brief
 ```
 
 - Never dispatch the session's own tier as a worker; the chair conducts, workers work.
