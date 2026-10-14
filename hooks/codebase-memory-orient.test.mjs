@@ -60,10 +60,10 @@ test("formatArch: includes node/edge counts and languages", () => {
   assert.match(out, /8970/);
   assert.match(out, /TypeScript/);
 });
-test("formatArch: ENFORCED ORIENT-GATE block names cbm (primary) + graphify (fallback), 'source code'", () => {
+test("formatArch: the advisory orient note names cbm (primary) + graphify (fallback) and 'editing source'", () => {
   const out = formatArch(sampleArch, { exe: "cbm", project: PROJECT });
-  assert.match(out, /ORIENT-GATE/);
-  assert.match(out, /editing source code/);
+  assert.match(out, /orientation is advisory; read the graph and the memory before editing source/);
+  assert.ok(!/ENFORCED/.test(out));
   assert.match(out, /codebase-memory-mcp/);
   assert.match(out, /graphify/i);
   assert.match(out, /mempalace search/);
@@ -74,8 +74,8 @@ test("formatArch: a filled wing adds --wing; an unfilled <WING> placeholder does
   const noWing = formatArch(sampleArch, { exe: "cbm", project: PROJECT, wing: "<WING>" });
   assert.ok(!/--wing/.test(noWing), "unfilled <WING> placeholder must not emit a --wing flag");
 });
-test("formatArch: empty architecture does not throw and still emits the gate", () => {
+test("formatArch: empty architecture does not throw and still emits the note", () => {
   const out = formatArch({}, { exe: "cbm", project: PROJECT });
   assert.equal(typeof out, "string");
-  assert.match(out, /ORIENT-GATE/);
+  assert.match(out, /orientation is advisory/);
 });

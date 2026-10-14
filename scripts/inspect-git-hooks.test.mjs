@@ -44,15 +44,14 @@ function fixture(t) {
 const samePath = (a, b) => assert.equal(resolve(a), resolve(b));
 
 // This regression fails against #4's literal Stage 1 and Stage 9 instructions.
-test('Stages 1, 7, 9 and 10 use the same effective-path contract on both hosts', () => {
-  const skill = readFileSync(join(source, 'SKILL.md'), 'utf8');
+test('Stages 1, 7, 9 and 10 use the effective-path contract', () => {
+  const skill = readFileSync(join(source, 'references/setup-workflow.md'), 'utf8');
   const stage = n => skill.split(`#### Stage ${n} - `)[1].split('\n#### Stage ')[0];
   for (const n of [1, 7, 9]) assert.match(stage(n), /inspect-git-hooks\.mjs/);
   assert.doesNotMatch(stage(1), /ls \.git\/hooks/);
   assert.doesNotMatch(stage(9), /is-inside-work-tree[^\n]*post-commit path valid/);
   assert.match(stage(9), /--check-post-commit/);
   assert.match(stage(10), /<effective-post-commit-path>/);
-  assert.match(readFileSync(join(source, 'codex/SKILL.md'), 'utf8'), /inspect-git-hooks\.mjs/);
   assert.match(readFileSync(join(source, 'references/git-hooks-path.md'), 'utf8'), /never.*overwrite/i);
 });
 

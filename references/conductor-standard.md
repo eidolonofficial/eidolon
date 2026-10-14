@@ -3,8 +3,8 @@
 The operating standard for the orchestrating session. The conductor is the single
 session that holds the baton across a whole delivery: it conducts, it does not cook.
 User-ordered 2026-06-12; field-proven on fraud-forensic-replay across the 2026-06-11/12
-swarm runs. Where it tightens scaling.md, expert-hiring.md, loop-suite.md, or
-process-doctrine.md, the named anti-pattern it replaces is called out at that line.
+swarm runs. Where it tightens the hiring rules in find-skills-reach.md or loop-suite.md,
+the named anti-pattern it replaces is called out at that line.
 
 ```yaml
 # why: the failure this standard exists to kill
@@ -60,16 +60,39 @@ self_contained: every agent prompt stands alone; subagents carry no conversation
 ```yaml
 # the parallel-spawn invariant - non-negotiable
 parallel_spawn: all independent agents launch in ONE controller message; sequential
-                dispatch of independent work is a defect (agents.md parallel-task rule,
-                proven by the ffr-pipeline build-chain fan-out 2026-06-11)
+                dispatch of independent work is a defect (proven by the ffr-pipeline
+                build-chain fan-out 2026-06-11)
 fan_out_size:   sized to coverage - the minimum that satisfies the swarm's coverage
                 manifest, never smaller
-# replaces SKILL.md:527 / scaling.md:14-15 "at small fan-out": breadth is not waste;
+# replaces the old "at small fan-out" wording: breadth is not waste;
 # token cost is not the constraint, correctness is - "small" anchored the default at the
 # minimum instead of at coverage sufficiency (see section 4)
 worktrees:      overlapping scopes get worktree isolation so two agents never write the
                 same file in the same tree (expediter-orchestration-persona memory, 2026-06-10)
 ```
+
+```yaml
+# preflight: a wave that fans out before it is planned spends tokens on a guess
+# why: the plan is cheap and the unplanned fan-out is not; the file is what a cold session,
+#      a reviewer, and the dispatch hook read to see that the wave was thought through
+file:           .claude/waves/<date>-<slug>.md, written by the conductor before any wave
+define:         the outcome signal the wave exists for, named before work starts (section 6)
+measure:        a read-only inventory of files, data, and running state; no diffs, no commits
+dag:            the work items, each with a write root disjoint from every other item, its
+                dependencies, its model and effort (section 4), and a done-check; fan-out
+                sized to coverage (above)
+budget:         the coverage budget (section 4) and the agent-run count, stated as arithmetic
+gates:          the human gates at the edges (section 8), named in the plan
+enforced_by:    hooks/guard-dispatch.mjs asks on the first write-capable dispatch of a session
+                that has no wave plan newer than the session start
+depth:          the depth of this pass is the session's effort: xhigh by generated settings;
+                the owner's ultrathink keyword is the manual turbo
+```
+
+- Write the wave plan before the first dispatch; a plan written after the fan-out is a log, not a plan.
+- Give every work item a disjoint write root and a done-check; an item with neither is not ready.
+- Size fan-out to coverage, then state the arithmetic in the budget line.
+- Name the human gates in the plan; a gate discovered mid-run is a plan defect.
 
 ## 3. Personas on every dispatch, no exceptions
 
@@ -82,7 +105,8 @@ how_seated:     the conductor writes .claude/active-persona.json; the conduct gu
 subagents_never: a subagent never writes a seat file; the conductor seats, the agent embodies
                 (subagents-cannot-edit-hook-dir memory)
 no_anchor_no_seat: a seat that names no anchor does not get to act - teeth without an anchor
-                is rejected at the seat boundary (expert-hiring.md anti-synthetic rail)
+                is rejected at the seat boundary (the anti-synthetic rail, find-skills-reach.md
+                "Hiring an expert persona")
 primary_surface: the PRIMARY (house) persona is seated ONCE at Stage 10 and persists; the
                 SessionStart orientation set (seat-surface + codebase-memory-orient, with
                 graphify-orient as its automatic fallback, + mempalace-orient)
@@ -106,47 +130,63 @@ loop_wave:      a grind wave seats the working persona before any code-mutating 
 ```
 
 ```yaml
-# reflexive expert hiring - replaces expert-hiring.md:6,15-18 passive "when recon detects a need"
+# reflexive expert hiring - replaces the old passive "when recon detects a need" wording
 trigger:        hire the moment recon names a gap no roster persona anchors - a domain,
                 framework, or regulatory surface; the trigger is reflexive, the rail is the filter
 rail_filters:   the anti-synthetic rail (scripts/persona-lint.mjs) rejects an ungrounded hire;
                 a named gap is hired, an unnamed one is rejected - the conductor does not
                 pre-self-censor a hire because the gap is "not certain enough"
 gate_always:    the hire is gated at the plan checkpoint at EVERY tier; the user approves or
-                declines (replaces expert-hiring.md:30 "for higher-risk work" - a hired expert
+                declines (replaces the old "for higher-risk work" wording - a hired expert
                 carries persona authority and that authority always needs user approval)
 proven:         geospatial-viz-engineer hired 2026-06-11 (persona-lint PASS; detection signal:
                 globe-projection + camera choreography no base persona anchored)
                 (geospatial-viz-engineer.md:1-18, eidolon-manifest.yaml:247-254, queue.yaml:117)
 ```
 
+```yaml
+# brief and reasoning: what every dispatched persona receives and how it thinks
+brief:          every dispatch carries the Brief contract in references/persona-template.md
+                (not restated here); a write-capable dispatch without it is not ready
+reasoning:      every persona, the conductor included, reasons cause, mechanism, falsifier,
+                evidence (the Reasoning rail in references/persona-template.md)
+```
+
 ## 4. The model cascade
 
 ```yaml
-# why: model names drift faster than governance doctrine; route by capability and availability
+# why: route by role and risk, not by habit; the session is the most expensive seat, so it
+#      conducts and judges while cheaper tiers do the volume
 # current platform behavior is governed by references/current-platform-contract.md
-conductor_tier:  use the strongest suitable model actually available in the current host for
-                synthesis, delicate/canonical/infra edits, security/trust/safety judgment, and
-                orchestration decisions that require the full working context
-fan_out_top:     use the strongest dispatchable model available for premium independent work -
-                deep single-lens review, hard implementation, architecture/scale synthesis,
-                what-if framing, and security/trust/safety lenses
-fan_out_work:    use a capable general workhorse model for build chains, focused review, research
-                breadth, tests, renders, and other bounded implementation work
-fast_mechanical: use the fastest suitable model only for bounded low-risk mechanical edits;
-                never use a speed tier merely because a task touches few files
-escalation:      when a dispatched leg exhausts its bounded fix loop or cannot hold its scope,
-                escalate THAT leg to the strongest suitable available model; if that still fails,
-                re-plan instead of repeatedly spending the same shape
-not_ambient:     record the chosen capability tier per dispatch; never assume a remembered point
-                release or context-window size is present
-resolver:        host aliases such as opus/sonnet/haiku are availability-resolved aliases when
-                the host exposes them, not promises about a specific version; inspect the current
-                host or first-party docs when identity/capability matters
+tiers:
+  - tier:    driver chair
+    models:  [fable, opus]
+    effort:  xhigh                # max by /effort or the ultrathink keyword
+    use:     conducting, synthesis, merge, canonical and hook edits, the swarm preflight
+  - tier:    premium judgment
+    models:  [opus]
+    effort:  [high, xhigh]
+    use:     security and trust review, architecture synthesis, failed-leg escalation,
+             adversarial merge
+  - tier:    workhorse
+    models:  [sonnet]
+    effort:  [medium, high]
+    use:     build chains, focused review, research breadth, tests, renders
+  - tier:    fast mechanical
+    models:  [haiku]
+    effort:  [low, medium]
+    use:     bounded low-risk mechanical edits, inventories, doc reformatting
 ```
 
+- Never dispatch the session's own tier as a worker; the chair conducts, workers work.
+- Let a brief lower a worker's tier; never let it raise the tier above the worker's agent file.
+- Escalate one failed leg one tier up before re-planning; a leg that fails at the top tier re-plans.
+- Record model and effort per dispatch in the dispatch log at `.claude/.dispatch-log.jsonl`.
+- Use aliases (`fable`, `opus`, `sonnet`, `haiku`); they resolve to the current generation, never a point release.
+- Never use a speed tier merely because a task touches few files; risk picks the tier, file count does not.
+
 ```yaml
-# the coverage budget - replaces scaling.md:23-35 "the cost ceiling" framing
+# the coverage budget - replaces the old "cost ceiling" framing
 # the audit named this cost-timidity: a ceiling framed only as a runaway-cost guard
 # incentivizes setting it LOW (to stay under) instead of coverage-sufficient
 budget_is_a_floor: the ceiling is a coverage floor stated as a budget - high enough to run
@@ -154,11 +194,11 @@ budget_is_a_floor: the ceiling is a coverage floor stated as a budget - high eno
                 correctness failure, not a cost saving
 on_approach:    when a run nears its ceiling, pause and state what coverage remains unverified;
                 the DEFAULT is to raise the ceiling to complete coverage
-                # replaces scaling.md:29-30 "raise the ceiling OR narrow scope" as co-equals
+                # replaces the old "raise the ceiling OR narrow scope" as co-equals
 narrowing:      narrowing scope is a user-approved correctness trade-off, stated explicitly as
                 "this coverage will not run" - never a neutral cost choice
 no_silent_cap:  a bounded run says what it dropped; a silent truncation reads as "covered
-                everything" when it did not (scaling.md no_silent_cap, kept)
+                everything" when it did not (no_silent_cap, kept)
 ```
 
 ## 5. Supervise by state
@@ -205,7 +245,7 @@ verify_by_exec: verification executes the thing and observes the result; reading
 ```
 
 ```yaml
-# the canonical proof - replaces the audit's process-staleness gap (no doctrine in process-doctrine.md)
+# the canonical proof - replaces the audit's process-staleness gap
 restart_banner: the staleness-banner drill was proven only by a REAL kill-and-restart watched
                 by a live browser tab with a screenshot - after two green commits (8af4669,
                 43400aa) and green unit tests had said NOTHING about the running world
@@ -242,7 +282,7 @@ speculative:    foundry output is marked SPECULATIVE and needs human ratificatio
 cognition_audit: a foundry VARIANT (read-only, commits nothing): audit mempalace priors against
                 current code and emit docs/notes/MEMORY-AUDIT-*.md (deprecate/update/promote),
                 closing the graphify-auto-refreshes-but-mempalace-grows-only asymmetry
-                (loop-suite.md 2026-06-13 ASI-Evolve cognition-loop uplift, upgrade 4)
+                (loop-suite.md, the memory-audit wave)
 ```
 
 ## 8. Gates - human gates at the edges only
@@ -263,18 +303,13 @@ how_asked:      surface findings and forks ONE at a time via AskUserQuestion, ea
 ask_first:      stop-and-confirm before commit/push, before changing canonical data, before
                 touching hook/guard infra, and before a long autonomous run
                 (ask-first-boundaries memory, all four lines user-set 2026-06-10)
-attestation_gate: before dispatching destructive or sensitive work (the security/trust-safety
+dispatch_gate:  before dispatching destructive or sensitive work (the security/trust-safety
                 swarm, a deploy, a migration, anything touching prod, PII, payments, or
-                credentials) with no valid signed security attestation in effect, the dispatch
-                ASKS the human (the consent tier, hooks/dispatch-attestation-guard.mjs). It rides
-                as a standalone PreToolUse hook on the dispatch-tool (Task) matcher, NOT on
-                guard-bash/guard-write (those match Bash/Write/Edit, never the dispatch tool). A
-                soft layer: it asks, it never blocks (references/security-awareness.md).
-evolve_gate:    before launching an evolve run, the preflight --confirmed true flip (evolve-brief)
-                ASKS the human (the consent tier, hooks/evolve-engine-guard.mjs): it unlocks the
-                vendored ASI-Evolve engine's mutate/evaluate loop on a real compute budget. One
-                confirm per run; the engine's reported best score is a CLAIM the conductor
-                re-verifies COLD (re-run the evaluator) before trusting (references/evolve-engine.md).
+                credentials), the dispatch ASKS the human (the consent tier,
+                hooks/guard-dispatch.mjs). It rides as a standalone PreToolUse hook on the
+                dispatch-tool matcher (`Agent`), NOT on guard-bash/guard-write (those match
+                Bash/Write/Edit, never the dispatch tool). It asks, it never blocks
+                (references/security-policy.md).
 ```
 
 ## 9. Resolve uncertainty by climbing the ladder
@@ -360,10 +395,14 @@ line_cook_drift:        section 1 - building inline what a swarm could build
 size_proxy_for_risk:    section 1 - "one file" treated as low-risk without a risk predicate
 swarm_as_optional:      section 2 - a swarm framed as escalation instead of the baseline
 small_fan_out_default:  section 2,4 - "small fan-out" anchoring breadth at the minimum
+unreasoned_persona:     section 3 - a dispatch with no brief or no cause-mechanism-falsifier-evidence reasoning
 unseated_dispatch:      section 3 - a REVIEW/SHIP/loop dispatch with no persona anchor
 hiring_as_exceptional:  section 3 - a hire withheld because the gap is "not certain enough"
 conditional_hire_gate:  section 3 - the hire gate skipped for lower-risk work
 cost_timidity:          section 4 - a ceiling set low to stay under, starving coverage
+tier_inversion:         section 4 - the session's own tier dispatched as a worker, or a brief
+                        raising a worker above its agent file
+unplanned_fan_out:      section 2 - a wave dispatched with no preflight wave plan
 report_as_truth:        section 5 - trusting an agent's "done" over state on disk
 idle_pass_through_gate: section 5 - LOOP-STOP firing while a human reviews a parked task
 green_gate_as_done:     section 6 - a passing suite beside a stale running process

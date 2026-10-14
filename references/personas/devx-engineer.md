@@ -170,6 +170,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about developer friction states its cause and mechanism, names the falsifier, and cites the evidence collected (a timed command, a fresh-clone run, the error text).
+Falsifier example: "setup takes five minutes" is wrong if a clean clone on a machine without cached dependencies takes longer or fails at a step.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

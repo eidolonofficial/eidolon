@@ -1,15 +1,15 @@
 // Evaluate the complete proposed JSON against the same manifest the installer creates.
 import {relative} from 'node:path';
 import {runHook,emitVerdict} from './lib.mjs';
-import {proposedFile,fileTarget} from './operation.mjs';
+import {proposedFile,settingsTarget,outsideRoot} from './operation.mjs';
 import {manifestAt,handlerKeys,assertManagedWiring} from './policy-manifest.mjs';
-const SETTINGS=/(?:^|[\\/])\.(?:claude[\\/]settings(?:\.local)?|codex[\\/]hooks)\.json$/i;
+const SETTINGS=/(?:^|[\\/])\.claude[\\/]settings(?:\.local)?\.json$/i;
 function object(bytes){const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,''));if(!value||Array.isArray(value)||typeof value!=='object')throw Error('Settings must be an object');return value;}
 export function evalSettingsIntegrity(j){
-  if(!['Write','Edit'].includes(j.tool_name))return null;
+  if(!['Write','Edit'].includes(j.tool_name)||outsideRoot(j))return null;
   const block=why=>({kind:'block',label:'SETTINGS INTEGRITY GUARD',why});
   try{
-    if(!SETTINGS.test(fileTarget(j)))return null;
+    if(!SETTINGS.test(settingsTarget(j)))return null;
     const proposal=proposedFile(j),next=object(proposal.after);
     if(next.disableAllHooks!==undefined&&next.disableAllHooks!==false)return block('The resulting settings disable or invalidate hook enforcement. Review policy maintenance outside ordinary agent execution.');
     const manifest=manifestAt(proposal.root),name=relative(proposal.root,proposal.path).replace(/\\/g,'/');

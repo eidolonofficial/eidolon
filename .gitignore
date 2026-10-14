@@ -36,16 +36,12 @@ graphify-out/
 
 # Eidolon runtime state (transient, not committed)
 .claude/active-persona.json
-.claude/.drift-count
+.eidolon/sessions/
 .claude/.session-state
 .claude/.memory-synced-head
-.claude/.orient-gate.*.json
-
-# Security-awareness: the REAL answer key, the issued attestation, and grader keys are never
-# committed (only the .example files are). *.pem above already covers the grader signing keys.
-references/security-awareness/answer-key.json
-.claude/security-attestation.json
-security-keys/
+.claude/.dispatch-log.jsonl
+.claude/.hook-debug.jsonl
+.claude/waves/
 
 # Transient cold-context verify packets
 verify-packet/

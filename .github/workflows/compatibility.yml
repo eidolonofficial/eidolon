@@ -1,7 +1,7 @@
 name: Compatibility
 on:
   push:
-    branches: [main, release/codex-claude-compat, fix/reviewed-persona-pipelines]
+    branches: [main, release/v0.1.0]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -29,7 +29,6 @@ jobs:
           node --version | tee .ci-evidence/node-version.txt
           git rev-parse HEAD > .ci-evidence/commit.txt
           node --test hooks/*.test.mjs scripts/*.test.mjs 2>&1 | tee .ci-evidence/compatibility.txt
-          node scripts/platform-refresh.mjs --check 2>&1 | tee .ci-evidence/platform-freshness.txt
       - name: Full existing and new suite
         if: runner.os == 'Linux'
         shell: bash

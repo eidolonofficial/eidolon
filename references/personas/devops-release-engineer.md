@@ -183,6 +183,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about a build, deploy or rollback states its cause and mechanism, names the falsifier, and cites the evidence collected (pipeline log line, artifact digest, probe output).
+Falsifier example: "the rollback restores service" is wrong if a rehearsed rollback on staging leaves the health probe red or the previous digest unreachable.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

@@ -12,9 +12,9 @@
 // hook-integrity and protected-paths guards cover this file like any other
 // hook: removing the plumbing disables the suite.
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import {normalizeEvent} from "./operation.mjs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import {normalizeEvent, policyRoot} from "./operation.mjs";
 import {gitOperations, shellPathFacts} from "./shell-operation.mjs";
 
 // A real git-commit invocation: start of input or after a separator, optional
@@ -49,10 +49,12 @@ export function commitMessageOf(cmd, cwd) {
   return messages.join('\n\n');
 }
 
-// The command with its message spans removed, so text inside -m '...' is never
-// mistaken for a flag or a file operand of the command itself.
+// The command with its message spans (and the heredoc body of a commit) removed, so text inside
+// -m '...' is never mistaken for a flag, a file operand or a verb of the command itself.
+// A heredoc fed to git commit (git commit -F - <<'EOF' ... EOF) is a message too; only its opening line stays.
+const COMMIT_HEREDOC = /(git\b[^\n]*\bcommit\b[^\n]*<<-?[ \t]*(['"]?)(\w+)\2[^\n]*)\n[^]*?\n[ \t]*\3[ \t]*(?=\n|$)/g;
 export function withoutMessage(cmd) {
-  return String(cmd).replace(MESSAGE_FLAG, " ");
+  return String(cmd).replace(MESSAGE_FLAG, " ").replace(COMMIT_HEREDOC, "$1");
 }
 
 // True when the command references the governance hook suite: the hooks dir as
@@ -62,18 +64,8 @@ export function withoutMessage(cmd) {
 // code, not the suite, and does not match.
 const HOOKS_SEGMENT = /(?:^|[\s'"=:;&|])(?:\.[\/\\])?(?:\.git[\/\\])?hooks(?:[\/\\]|(?=['"\s;&|)]|$))/i;
 const HOOKS_GOV_FILE = /hooks[\/\\]\S*\.(?:mjs|cjs|ps1|sh|py)\b/i;
-// The vendored evolve engine (engine/asi-evolve/ and its on-demand venv at engine/.venv/)
-// carries third-party hooks/ paths that are NOT Eidolon's governance suite: pip alone vendors
-// pyproject_hooks/ and requests/hooks.py, and faiss/sentence-transformers bring more. A routine
-// rm/chmod inside the engine tree or its venv must not read as tampering with the suite. So
-// neutralize ONLY engine-prefixed path tokens before testing: a command that ALSO names a real
-// hook outside engine/ (e.g. `cp hooks/guard-bash.mjs engine/x`) keeps its real-hook token and
-// still trips - the true catch is preserved, only the vendored-tree false positive is removed.
-// Beneficial change (fewer false catches, never fewer true ones); proof + provenance in
-// docs/fixes/FIX-2026-06-16-engine-hook-suite-exemption.md.
-const ENGINE_TOKEN = /(^|[\s'"=:;&|(])(?:\.[\/\\])?engine[\/\\][^\s;&|]*/gi;
-export function touchesHookSuite(cmd, cwd = process.cwd(), root = cwd) {
-  return shellPathFacts(String(cmd), cwd, root).some(f => f.kind === 'hooks' || f.kind === 'authority');
+export function touchesHookSuite(cmd, j) {
+  return shellPathFacts(String(cmd), j.cwd || policyRoot(j), policyRoot(j), j.shell_language).some(f => f.kind === 'hooks' || f.kind === 'authority');
 }
 
 // Run a hook body against the parsed stdin JSON. A parse failure exits 0: a
@@ -143,6 +135,18 @@ export function emitVerdict(v) {
   if (v.kind === "advise") advise(v.label, v.why);
 }
 
+// EIDOLON_HOOK_DEBUG=1 appends the key names of each hook input (never the values), so a live run can show
+// whether a field such as agent_type reaches a worker's PreToolUse.
+function recordKeys(j) {
+  if (process.env.EIDOLON_HOOK_DEBUG !== "1") return;
+  try {
+    const dir = join(policyRoot(j), ".claude");
+    mkdirSync(dir, { recursive: true });
+    const keys = Object.keys(j).filter((k) => !/^eidolon_|^original_tool_name$|^shell_language$/.test(k));
+    appendFileSync(join(dir, ".hook-debug.jsonl"), JSON.stringify({ ts: new Date().toISOString(), keys }) + "\n");
+  } catch { /* a debug seam never fails a hook */ }
+}
+
 // Run an ordered suite of pure evaluators against one stdin payload: the
 // dispatcher shape, one spawn for a whole matcher instead of one per guard.
 // Precedence: the first block halts the call immediately (wiring order is
@@ -151,6 +155,7 @@ export function emitVerdict(v) {
 // when nothing blocks or asks do the advisories ride along together.
 export function runSuite(evaluators) {
   runHook((j) => {
+    recordKeys(j);
     const asks = [];
     const advisories = [];
     for (const evaluate of evaluators) {

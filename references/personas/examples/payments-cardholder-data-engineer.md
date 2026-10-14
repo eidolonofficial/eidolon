@@ -178,6 +178,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about card data states its cause and mechanism, names the falsifier, and cites the evidence collected (data-flow trace, file and line, a scan of stored output).
+Falsifier example: "the PAN never reaches storage" is wrong if a test card number sent through the path is found by a search of the database, logs or cache.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

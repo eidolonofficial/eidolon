@@ -10,6 +10,7 @@
 // stderr + exit 2.
 
 import { runHook, isGitCommit, commitMessageOf, emitVerdict } from "./lib.mjs";
+import { tolerant } from "./shell-operation.mjs";
 
 // A confirmed visual or runtime "it works" claim.
 const CLAIM = /(looks good|looks right|looks correct|renders? (?:correctly|fine|properly|now)|displays? (?:correctly|properly)|works (?:in|on) (?:the )?(?:browser|ui|app|page|screen)|works now|working now|verified (?:the )?(?:ui|visual|render|screen|output)|screenshot confirms|runs? (?:correctly|fine|now)|tested (?:it )?(?:in|on) (?:the )?(?:browser|ui|app)|visually verified|confirmed working|verified it works)/i;
@@ -19,7 +20,7 @@ const EVIDENCE = /(screenshot|evidence:|verified via|signal:|proof:|see\s+\S+\.(
 
 // Pure verdict for one payload, so the dispatcher and the standalone entry
 // share one behavior. Returns a verdict object or null (allow).
-export function evalVerification(j) {
+export const evalVerification = tolerant((j) => {
   const ti = j.tool_input || {};
   const cmd = String(ti.command || "");
   if ((j.tool_name && j.tool_name !== "Bash") || !isGitCommit(cmd)) return null;
@@ -34,7 +35,7 @@ export function evalVerification(j) {
       "or restate the message to describe the change, not an unverified result." };
   }
   return null;
-}
+});
 
 const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("verification-guard.mjs");
 if (invokedDirectly) runHook((j) => emitVerdict(evalVerification(j)));

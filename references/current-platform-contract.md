@@ -1,45 +1,69 @@
 # Current platform contract
 
-This file is the freshness boundary for host behavior. It supersedes dated model-version, skill-loading, and orchestration assumptions elsewhere in Eidolon when those notes conflict with current platform documentation or the running host.
+Claude Code only. Verified 2026-10-13. This file is the freshness boundary for host
+behavior: it supersedes dated model, skill-loading, hook, and orchestration assumptions
+elsewhere in Eidolon when they conflict with the running host or first-party docs.
 
-## Claude Code
+## Models and subagents
 
-- Do not hardcode a Claude point release as the conductor or escalation target. Resolve the strongest suitable model actually available in the session. Anthropic currently maintains multiple active Opus/Sonnet/Haiku generations and deprecates them over time.
-- Prefer adaptive reasoning on current Claude generations when the host exposes it. Do not carry forward obsolete sampling or fixed-thinking assumptions into generated configuration.
-- Claude's latest models can orchestrate subagents proactively. Eidolon should damp unnecessary delegation: use subagents for parallel work, isolated context, specialist lenses, or independent verification; work directly for simple sequential tasks and small edits where delegation adds no evidence.
-- Installed skills can be discovered and used automatically based on the task. Treat skill metadata, especially the description and narrow trigger language, as routing evidence rather than requiring the operator to remember every skill name.
-- Do not require a session restart merely because a project skill changed. Verify actual discovery/loading behavior in the current Claude Code version. A restart remains valid only when the specific host feature being changed demonstrably requires one.
-- Investigate referenced code before making claims about it. Repository state and executed evidence outrank remembered assumptions.
+```yaml
+# why: model and agent shape drift faster than doctrine; the generated agent files depend on these
+model_aliases:   [sonnet, opus, haiku, fable]   # resolve to the current generation, never a point release
+agent_frontmatter: [name, description, tools, model, effort, maxTurns]
+effort_values:   low | medium | high | xhigh | max     # per agent, via the effort key
+subagent_depth:  subagents can spawn subagents up to three layers
+                 # CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1 restricts spawning to one layer
+```
 
-## Codex
+- Do not hardcode a point release as a conductor or escalation target; use the aliases (conductor-standard.md section 4).
+- Damp unnecessary delegation: use subagents for parallel work, isolated context, specialist lenses, or independent verification; work directly otherwise.
 
-- `AGENTS.md` is the durable repository instruction surface. Skills may be selected explicitly or automatically from task fit.
-- Treat `.agents/skills` as the project skill surface when installed there. Do not assume ChatGPT workspace skill state and Codex project skill state are identical.
-- Codex hook transport is an adapter boundary. If a Claude-native approval response is unsupported, fail closed and request manual operator action instead of silently allowing the operation.
-- `apply_patch` payloads are proposed file changes, not shell commands. Normalize them before policy evaluation and fail closed on ambiguous transformation.
+## Hooks
 
-## Cross-host skill intelligence
+```yaml
+# why: the guard suite and the generated settings depend on exactly these behaviors
+command_entry:   command plus args; ${CLAUDE_PROJECT_DIR} is substituted inside args
+fail_mode:       a hook that exits 1 or is missing is non-blocking (fails open)
+on_failure:      "onFailure": "block" needs Claude Code 2.1.295 or later
+dispatch_matcher: Agent
+subagent_start:  SubagentStart carries agent_id and agent_type and can inject context into the worker
+subagent_stop:   SubagentStop can hold a worker with a reason
+```
 
-Before starting substantive work, the controller may run the skill-selection pass in `references/skill-selection.md` / `scripts/skill-router.mjs`. It must:
+- A guard that must block exits 2 (or sets `onFailure: "block"` where supported); never rely on exit 1.
+- Do not assume a hook is present because settings name it; the missing-file case fails open.
 
-1. honor an explicit user-selected skill when installed and in scope;
-2. match narrow trigger phrases before generic description overlap;
-3. incorporate repository evidence and risk signals;
-4. apply exclusions, scope and conflicts before selection;
-5. choose the smallest sufficient set;
-6. expose why each skill was chosen;
-7. return a gap instead of guessing when confidence is low.
+## Settings and skills
 
-Skill selection is advisory to the controller, not a permission bypass. Governance hooks, consent gates, tool permissions, and user instructions still win.
+```yaml
+# why: effort and model defaults are generated into settings; skills are edited live
+settings_keys:   effortLevel (low to xhigh), maxEffortLevel (low to max), modelSettings, alwaysThinkingEnabled
+skills:          change without a restart; verify discovery in the running version before asking for one
+```
+
+## Native autopilot surfaces
+
+```yaml
+# why: prefer the host's own loop carriers over a hand-built daemon
+carriers:        [/goal, /loop, CronCreate, /schedule routines, desktop scheduled tasks]
+guide:           references/autopilot-guide.md (pick the carrier), references/loop-suite.md (grind queues)
+```
+
+## Skill copies
+
+```yaml
+# why: observed on 2026-10-13 (Claude Code 2.1.206, headless): with a user-level and a project-level
+#      skill of the same name, the Skill tool loaded the user-level copy, which was the older one
+rule:            keep one copy of eidolon per machine, or keep both at the same commit
+novice_door:     installs user-level (~/.claude/skills), no hooks
+operator_door:   installs project-level (.claude/skills) and wires the project hooks
+check:           ls ~/.claude/skills and .claude/skills before trusting which SKILL.md a session reads
+```
 
 ## Freshness rule
 
-Platform-specific factual claims older than the current host documentation are hypotheses. Before changing model names, skill locations, hook schemas, restart behavior, or agent primitives, verify the running host or current first-party documentation and update this contract plus regression tests when the behavior materially changes.
-
-## Reviewed persona pipeline
-
-Read `orchestration-contract.md` for the current selection, actor-state,
-Interview Mode and context-injected dispatch contract. It resolves older mandatory
-swarm wording while preserving required coverage and human consent. Use the
-`deploy-plan` action in `scripts/orchestrate.mjs` before preparing native dispatch.
-Do not treat a printed plan as an agent execution or an approval.
+Platform-specific factual claims older than the current host documentation are hypotheses.
+Before changing model names, skill locations, hook schemas, restart behavior, or agent
+primitives, verify the running host or current first-party documentation, then update this
+contract and its regression tests. Repository state and executed evidence outrank remembered
+assumptions.

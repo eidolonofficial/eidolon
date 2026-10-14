@@ -1,10 +1,17 @@
 // Preserve the complete historical byte prefix, not only a size heuristic.
 import {runHook, emitVerdict} from './lib.mjs';
-import {proposedFile} from './operation.mjs';
+import {relative, posix} from 'node:path';
+import {proposedFile, fileTarget, policyRoot, outsideRoot} from './operation.mjs';
 const RECORD = /(?:^|[\/\\])docs[\/\\](?:fixes|insights|decisions)[\/\\]|(?:^|[\/\\])DECISIONS?\.md$/i;
+// The record test runs on the resolved path, so "docs/./decisions/x.md" and "docs//decisions/x.md"
+// are the record. A path that cannot be confined falls back to its normalized spelling.
+function recordPath(j) {
+  try { return relative(policyRoot(j), fileTarget(j)); }
+  catch { return posix.normalize(String(j.tool_input?.file_path || j.tool_input?.path || '').replace(/\\/g, '/')); }
+}
 export function evalAppendOnlyRecord(j) {
-  if (!['Write','Edit'].includes(j.tool_name)) return null;
-  if (!RECORD.test(String(j.tool_input?.file_path || j.tool_input?.path || ''))) return null;
+  if (!['Write','Edit'].includes(j.tool_name) || outsideRoot(j)) return null;
+  if (!RECORD.test(recordPath(j))) return null;
   const block = why => ({kind:'block',label:'APPEND-ONLY RECORD GUARD',why});
   try {
     const {before,after,present} = proposedFile(j);

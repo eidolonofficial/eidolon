@@ -88,6 +88,12 @@ workaround.
 (visual chrome), `scripts/eyes.mjs` + the scratch-playwright driver pattern
 (WebGL-safe capture), `superpowers:test-driven-development`.
 
+## Reasoning
+
+Every claim about a map or projection states its cause and mechanism, names the falsifier, and cites the evidence collected (coordinate sample, CRS code, a rendered tile or screenshot).
+Falsifier example: "the points are in the right place" is wrong if a known landmark plotted from the same data lands off its reference coordinate.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 Engineering swarm. States findings as: the observed render or probe result, the

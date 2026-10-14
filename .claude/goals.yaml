@@ -1,0 +1,41 @@
+# eidolon goals - human-curated. done = outcome observed, not merely gate green.
+north_star: >
+  Eidolon turns any repo into a verified Claude Code working environment and carries real
+  work through a human-gated, evidence-carrying pipeline, with nothing shipped that is
+  incomplete, redundant, unnecessary, or detracting from that goal.
+
+active_milestone: v0.1.0
+
+milestones:
+  - id: v0.1.0
+    title: "2026-10-13 re-cut: Claude Code only, native persona pipeline, tagged release"
+    spec: ~/.claude/plans/can-we-holistically-look-wise-brook.md
+    conditions:
+      - id: suites-green
+        signal: gate
+        check: 'node --test "hooks/*.test.mjs" "scripts/*.test.mjs" - 0 failures'
+        status: OPEN
+      - id: self-verification-green
+        signal: gate
+        check: "node scripts/selfcheck.mjs -> PASS; node scripts/eidolon-audit.mjs -> PASS; node scripts/hooks-readme-check.mjs -> PASS"
+        status: OPEN
+      - id: cuts-executed
+        signal: gate
+        check: "codex/, engine/, security/, examples/, AGENTS.md and the cut hooks, scripts and references are absent; no reference to them outside docs/decisions"
+        status: OPEN
+      - id: reds-fixed-test-first
+        signal: gate
+        check: "each red finding from the 2026-10-13 audit has a test that failed before its fix and passes after"
+        status: OPEN
+      - id: native-pipeline
+        signal: outcome
+        check: "G4 live gate: wave plan written, two persona agents dispatched, dispatch log has two lines, SubagentStop nudge seen, an out-of-lane worker write blocked"
+        status: OPEN
+      - id: front-door-honest
+        signal: gate
+        check: "SKILL.md under 160 lines; README proof-of-life commands run green; no doc claim the code does not implement"
+        status: OPEN
+      - id: tagged-release
+        signal: outcome
+        check: "v0.1.0 tag on eidolon, eidolon-setup and Hearth; Hearth release zip with SHA-256; live gates G1 to G5 recorded in the ADR"
+        status: OPEN

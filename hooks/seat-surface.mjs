@@ -8,7 +8,7 @@
 // and can drift into unseated, un-oriented work.
 //
 // Reads .claude/active-persona.json (the Stage-10 seat). Additive, never blocks, never
-// crashes a session start (sibling of session-restore / process-doctrine). Generic: it
+// crashes a session start (sibling of session-restore / the conductor standard Generic: it
 // reads the seat written by Stage 10 and any orchestration marker; no repo specifics.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

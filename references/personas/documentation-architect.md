@@ -183,6 +183,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim a document makes about the code states its cause and mechanism, names the falsifier, and cites the evidence collected (file and line, a command run, its output).
+Falsifier example: "the flag defaults to off" is wrong if the quoted command, run as written, prints the flag on.
+A page with a claim missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

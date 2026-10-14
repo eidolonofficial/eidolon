@@ -10,7 +10,8 @@
 
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const arg = (flag) => {
   const i = process.argv.indexOf(flag);
@@ -75,6 +76,12 @@ if (profile) {
       } catch { fail("profile is not valid JSON: " + profile); }
     }
   }
+}
+
+// 4. hooks/README.md matches the code (wiring, evaluator order, hook rows)
+if (existsSync(join(dir, "hooks", "README.md")) && existsSync(join(dir, "hooks", "suite-evaluators.mjs"))) {
+  try { execFileSync("node", [join(dirname(fileURLToPath(import.meta.url)), "hooks-readme-check.mjs"), dir], { stdio: "pipe" }); pass("hooks/README.md matches the code"); }
+  catch (e) { fail("hooks/README.md drifts from the code: " + String(e.stderr || e.message).trim()); }
 }
 
 for (const t of targets) {

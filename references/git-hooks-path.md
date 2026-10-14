@@ -1,7 +1,7 @@
 # Effective Git hook paths
 
 Applies to Stage 1 reconnaissance, Stage 7 capture wiring, Stage 9 verification,
-and the Stage 10 manifest, in both Claude Code and Codex. These are Git-native
+and the Stage 10 manifest. These are Git-native
 hooks, not the host's lifecycle hooks. This contract covers working-tree capture;
 receive-side push hooks run in the Git directory and need separate analysis.
 

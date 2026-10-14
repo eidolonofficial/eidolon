@@ -20,13 +20,14 @@
 
 import { execFileSync } from "node:child_process";
 import { runHook, isGitCommit, commitMessageOf, withoutMessage, emitVerdict } from "./lib.mjs";
+import { tolerant } from "./shell-operation.mjs";
 
 const VISUAL = /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|pdf)$/i;
 const VISUAL_TOKEN = /[\w.\/\\~-]+\.(?:png|jpe?g|gif|webp|svg|mp4|mov|webm|pdf)\b/gi;
 const EVIDENCE = /(screenshot|looked at it|viewed it|verified visually|see\s+\S+\.(png|jpe?g|gif|webp|mp4)|evidence:|user (confirmed|approved|saw))/i;
 
 // Pure verdict for one payload (the git reads are read-only probes of the index).
-export function evalVisualEvidence(j) {
+export const evalVisualEvidence = tolerant((j) => {
   if (j.tool_name && j.tool_name !== "Bash") return null;
   const cmd = String((j.tool_input || {}).command || "");
   if (!isGitCommit(cmd)) return null;
@@ -62,7 +63,7 @@ export function evalVisualEvidence(j) {
     "A render must be seen, not assumed; the user is the final eyes. Approve only if " +
     "you have actually looked at it; otherwise have the message reference the evidence " +
     "(a screenshot, that the user confirmed it) or restate it." };
-}
+});
 
 const invokedDirectly = process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("visual-evidence-gate.mjs");
 if (invokedDirectly) runHook((j) => emitVerdict(evalVisualEvidence(j)));

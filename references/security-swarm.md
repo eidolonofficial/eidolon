@@ -7,11 +7,6 @@ probes. The pair is paired by contract: every red finding becomes a blue task,
 and the pair closes only when blue's post-fix verify passes on a signal
 independent of the one that detected it.
 
-This swarm reviews the CODE under build. The agent-side comprehension layer that
-precedes a sensitive dispatch (read the policy, take the quiz, get externally
-graded, attest) is references/security-awareness.md; dispatching this red/blue
-swarm itself is one of the sensitive dispatches its consent gate covers.
-
 Every standard and tool here was verified against its primary source on
 2026-06-08. Versions are pinned because these standards move. Re-fetch every
 cited URL at CLOSE and require an exact match of the control identifier;
@@ -94,8 +89,8 @@ blue:
 
 ## The five anti-handwave gates
 
-The security pass cannot reach closeout unless all five hold. A hook enforces the
-last one, so the gate is a machine, not a promise.
+The security pass cannot reach closeout unless all five hold. The conductor judges the
+last one from the manifest and findings on disk, by state, never from the swarm's report.
 
 1. **Coverage manifest.** Emit every WSTG category and every ASVS chapter the pass
    ran, what each found, what it confirmed clean, and what it did not run and why.
@@ -109,9 +104,9 @@ last one, so the gate is a machine, not a promise.
 4. **Independent post-fix verify.** Every blue fix re-runs the red detection and the
    ASVS check on a signal independent of the one that made it. A cosmetic fix that
    renames the matched variable must still fail; a fix that does not pass is reopened.
-5. **Closeout hook.** The commit is blocked unless the manifest exists, the fire
-   drill passed, every finding carries evidence, and every fix passed post-fix
-   verify.
+5. **Closeout check.** The conductor does not close or commit unless the manifest
+   exists, the fire drill passed, every finding carries evidence, and every fix passed
+   post-fix verify; each is read from disk.
 
 ## How red and blue close a finding
 

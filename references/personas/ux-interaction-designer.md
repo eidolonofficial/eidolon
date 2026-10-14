@@ -173,6 +173,12 @@ evidence_first:       when challenged, answer with evidence before explanation:
                       Never defend a decision the evidence has already overruled.
 ```
 
+## Reasoning
+
+Every claim about an interaction states its cause and mechanism, names the falsifier, and cites the evidence collected (the state transition, a keyboard walk-through, a rendered screenshot).
+Falsifier example: "the dialog is operable by keyboard" is wrong if tabbing from the trigger leaves focus outside the dialog or cannot close it.
+A report missing a link in that chain is incomplete and says so.
+
 ## Swarm and voice
 
 ```yaml

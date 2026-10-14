@@ -2,9 +2,9 @@
 import { existsSync, readFileSync, statSync, realpathSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
-import { confinedPath } from './codex-patch.mjs';
+import { confinedPath, canonicalPath } from './confined-path.mjs';
 export const SHELL_TOOLS = ['Bash', 'PowerShell'];
-export const DISPATCH_TOOLS = ['Task', 'Agent', 'spawn_agent', 'send_input'];
+export const DISPATCH_TOOLS = ['Agent', 'Task'];
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const isShell = name => SHELL_TOOLS.some(n => n.toLowerCase() === String(name || '').toLowerCase());
@@ -13,7 +13,7 @@ export function normalizeEvent(raw, project) {
   if (!raw || Array.isArray(raw) || typeof raw !== 'object') throw Error('Invalid event');
   if (raw.tool_input != null && (Array.isArray(raw.tool_input) || typeof raw.tool_input !== 'object')) throw Error('Invalid tool input');
   const cwdAlias=resolve(raw.cwd||process.cwd()),rootAlias=resolve(project||cwdAlias);
-  const cwd=realpathSync(cwdAlias),root=realpathSync(rootAlias);
+  const cwd=realpathSync.native(cwdAlias),root=realpathSync.native(rootAlias);
   if (cwd !== root) confinedPath(root, root, cwd);
   const j = {...raw, cwd, eidolon_root: root, eidolon_path_root:rootAlias, eidolon_path_cwd:cwdAlias};
   delete j.eidolon_changes;
@@ -25,7 +25,9 @@ export function normalizeEvent(raw, project) {
   }
   return j;
 }
-export function policyRoot(j) { return resolve(j.eidolon_root || j.cwd || process.cwd()); }
+// The one canonical spelling of the root (normalizeEvent already stores it; an event built without it gets the same
+// treatment), so the root and every target compare equal under 8.3 aliases and symlinked temp directories.
+export function policyRoot(j) { return canonicalPath(resolve(j.eidolon_root || j.cwd || process.cwd())); }
 export function boundedRead(path, max = MAX_FILE_BYTES) {
   if (statSync(path).size > max) throw Error('File exceeds policy input limit');
   const bytes = readFileSync(path);
@@ -38,7 +40,7 @@ export function proposedFile(j) {
   const given = ti.file_path ?? ti.path;
   if (typeof given !== 'string' || !given) throw Error('Missing file path');
   const root = policyRoot(j);
-  const path = confinedPath(j.eidolon_path_root||root, j.eidolon_path_cwd||j.cwd||root, given);
+  const path = escapesRoot(j) && SETTINGS_FILE.test(rawTarget(j)) ? rawTarget(j) : confinedPath(j.eidolon_path_root||root, j.eidolon_path_cwd||j.cwd||root, given);
   const present = existsSync(path);
   const before = present ? boundedRead(path) : Buffer.alloc(0);
   let after;
@@ -85,3 +87,21 @@ export function fileTarget(j) {
   const root=policyRoot(j), given=j.tool_input?.file_path ?? j.tool_input?.path;
   return confinedPath(j.eidolon_path_root||root,j.eidolon_path_cwd||j.cwd||root,given);
 }
+// The path a Write or Edit names, resolved against the event cwd with no confinement, in its real spelling (an 8.3 short
+// name such as SETTIN~1.JSO is the settings file it names).
+const rawTarget = j => {
+  const given = j.tool_input?.file_path ?? j.tool_input?.path;
+  return typeof given === 'string' && given ? canonicalPath(resolve(j.eidolon_path_cwd || j.cwd || policyRoot(j), given)) : '';
+};
+// A Claude Code settings file is a policy authority wherever it lives, in this project or in a home directory.
+const SETTINGS_FILE = /[\\/]\.claude[\\/]settings(?:\.local)?\.json$/i;
+// True when the target leaves the project root. Symlinks and malformed paths inside the root still fail in
+// confinedPath, and keep blocking.
+export function escapesRoot(j) {
+  try { fileTarget(j); return false; } catch (e) { return e.message === 'Path escapes project'; }
+}
+// A Write or Edit aimed outside the project root (a plan file, a scratchpad) is not this suite's business,
+// except a settings file, which settings-integrity still judges.
+export function outsideRoot(j) { return escapesRoot(j) && !SETTINGS_FILE.test(rawTarget(j)); }
+// The path settings-integrity judges: the confined target, or an outside settings file as named.
+export function settingsTarget(j) { return escapesRoot(j) ? rawTarget(j) : fileTarget(j); }

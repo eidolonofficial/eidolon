@@ -3,29 +3,13 @@ import {existsSync,mkdirSync,readFileSync,writeFileSync,renameSync,rmSync,openSy
 import {dirname,relative} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {runHook,emitVerdict} from './lib.mjs';
-import {actorIdentity,actorPath,policyRoot,boundedRead,sha256} from './operation.mjs';
-import {parsePatch,confinedPath} from './codex-patch.mjs';
+import {actorIdentity,actorPath,policyRoot,boundedRead,sha256,escapesRoot,fileTarget} from './operation.mjs';
 import {manifestAt} from './policy-manifest.mjs';
 const WALL=10,WARN=6;
 const SCAFFOLD=/(^|[\\/])(hooks[\\/]|\.claude[\\/]|scripts[\\/]|\.github[\\/]|Dockerfile|Makefile|\.gitignore$|[^\\/]*\.(ya?ml|toml|ini|cfg)$|[^\\/]*\.config\.[jt]s$)/i;
-export function mutationPaths(j,{after=false}={}) {
-  const root=policyRoot(j),cwd=j.cwd||root,ti=j.tool_input||{};
-  if(['Write','Edit'].includes(j.tool_name))return [confinedPath(root,cwd,ti.file_path??ti.path)];
-  if(j.tool_name!=='apply_patch')return [];
-  if(!after)return parsePatch(ti.command,cwd,root).map(c=>c.destination||c.path);
-  if(typeof ti.command!=='string'||Buffer.byteLength(ti.command)>4*1024*1024)throw Error('Invalid completed patch');
-  const text=ti.command.replace(/\r\n/g,'\n');
-  if(!text.startsWith('*** Begin Patch\n')||!text.trimEnd().endsWith('*** End Patch'))throw Error('Invalid completed patch envelope');
-  const paths=[];let lastKind='';
-  for(const m of text.matchAll(/^\*\*\* (Add File|Update File|Delete File|Move to): (.+)$/gm)) {
-    const path=confinedPath(root,cwd,m[2]);
-    if(m[1]==='Move to') {
-      if(lastKind!=='Update File'||!paths.length)throw Error('Invalid completed move');
-      paths[paths.length-1]=path;
-    } else paths.push(path);
-    lastKind=m[1];
-  }
-  return paths;
+export function mutationPaths(j) {
+  if(['Write','Edit'].includes(j.tool_name))return escapesRoot(j)?[]:[fileTarget(j)];
+  return [];
 }
 function state(j) {
   const file=actorPath(j,'drift.json');
@@ -56,13 +40,12 @@ export function successfulOutcome(j,host='claude') {
     if(r.success===true||r.exit_code===0||r.exitCode===0)return true;
   }
   // Claude's PostToolUse itself denotes success; failed tools use PostToolUseFailure.
-  if(host==='claude'&&r!=null)return true;
-  return j.tool_name==='apply_patch'&&typeof r==='string'&&/^Success\. Updated the following files:/m.test(r);
+  return host==='claude'&&r!=null;
 }
 export function commitDrift(j,host='claude') {
   if(!successfulOutcome(j,host))return {changed:false,reason:'No successful host outcome'};
   if(typeof j.tool_use_id!=='string'||!j.tool_use_id||typeof j.session_id!=='string'||!j.session_id)return {changed:false,reason:'Missing host operation/session identity'};
-  const paths=mutationPaths(j,{after:true});if(!paths.length)return {changed:false};
+  const paths=mutationPaths(j);if(!paths.length)return {changed:false};
   const file=actorPath(j,'drift.json'),lock=file+'.lock';mkdirSync(dirname(file),{recursive:true});
   // A live or abandoned lock requires reconciliation; never steal another writer's lock.
   mkdirSync(lock);
