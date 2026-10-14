@@ -138,7 +138,8 @@ test('N2 SubagentStart injects the lane, the brief contract and the matching dis
   const ctx = out.additionalContext;
   assert.match(ctx, /read: src\/\*\*, docs\//); assert.match(ctx, /write: src\/\*\*, docs\/notes\/, hooks\/x\.mjs/);
   assert.match(ctx, /1 to 2K token summary/); assert.match(ctx, /what you did not do/); assert.match(ctx, /cause, falsifier, evidence/);
-  assert.match(ctx, /newest builder/); assert.doesNotMatch(ctx, /older|other type/);
+  // the dispatch descriptions, quoted: a bare /older/ would also match "folders" in a macOS temp path
+  assert.match(ctx, /newest builder/); assert.doesNotMatch(ctx, /"description":"(older|other type)"/);
   const bare = JSON.parse(run(root, 'subagent-start.mjs', {hook_event_name: 'SubagentStart', agent_id: 'w2', agent_type: 'nobody'}).stdout).hookSpecificOutput.additionalContext;
   assert.match(bare, /no lane recorded/);
   const none = repo(t, {scopes: null});
