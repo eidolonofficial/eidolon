@@ -303,7 +303,7 @@ test('N7 a Write outside the project root (a plan file, a scratchpad) gets no ve
   blocked(wr(root, '.claude/skills/eidolon/x.md', {}), 'RUNTIME INTEGRITY GUARD', 'managed paths inside the root stay blocked');
 });
 
-test('N7 .gitignore drops the orient gate and ignores the pipeline runtime files', () => {
+test('N7 .gitignore drops the orient gate and ignores the pipeline runtime files', {skip: !existsSync(join(REPO, '.gitignore')) && 'the repository .gitignore is not bundled'}, () => {
   const lines = readFileSync(join(REPO, '.gitignore'), 'utf8').split(/\r?\n/);
   assert.ok(!lines.includes('.claude/.orient-gate.*.json'));
   for (const entry of ['.claude/.dispatch-log.jsonl', '.claude/.hook-debug.jsonl', '.claude/waves/']) assert.ok(lines.includes(entry), entry);
