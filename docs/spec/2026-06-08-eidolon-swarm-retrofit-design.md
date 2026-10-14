@@ -230,11 +230,11 @@ Each swarm carries a named toolkit. Installed skills come first, then public ope
 
 ### Correction on the multi- skills (verified)
 
-The multi- set is a multi-model build harness, not a defensive one. Claude orchestrates and is the sole filesystem writer; Codex is the backend authority and Gemini the frontend authority, both with zero write access. Verified placements:
+The multi- set is a multi-model build harness, not a defensive one. Claude orchestrates and is the sole filesystem writer; a second model is the backend authority and a third the frontend authority, both with zero write access. Verified placements:
 
 - multi-backend, multi-frontend, multi-workflow: engineering (build execution)
 - multi-plan: solutions architect (planning only, never touches code)
-- multi-execute: code-review (its post-change Codex-plus-Gemini audit-and-fix loop)
+- multi-execute: code-review (its post-change two-model audit-and-fix loop)
 
 They are not blue-team tools. Blue team is bolstered with real defense instead.
 

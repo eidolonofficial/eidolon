@@ -4,7 +4,7 @@
 
 Re-cut to the product the owner stated on 2026-10-13: Claude Code only.
 
-Removed: the Codex adapter and dual-host text, the vendored ASI-Evolve engine
+Removed: the second-host adapter and dual-host text, the vendored ASI-Evolve engine
 and evolve mode, the security-attestation and review-receipt ceremonies, the
 Sept persona-pipeline CLI (orchestrate, dispatch-plan, task-contract,
 persona-selection, skill-router, skill-inventory, persona-registry), the

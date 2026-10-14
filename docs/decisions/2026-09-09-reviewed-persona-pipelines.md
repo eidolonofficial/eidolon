@@ -37,7 +37,7 @@ changed fail-open/shrinkage/preflight-mutation behavior are strengthened.
 
 ## Approval transport
 
-Raw Codex PreToolUse permissionDecision ask remains unsupported in the current
+A raw second-host PreToolUse permissionDecision ask remains unsupported in the current
 first-party contract. The shared ask decision therefore maps to an explicit block
 there. PermissionRequest preserves an existing native human dialog without
 inventing an allow result. This preserves the user's intent to ask rather than
