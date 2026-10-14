@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.1.0 (unreleased)
+## v0.1.0 (2026-10-13)
 
 Re-cut to the product the owner stated on 2026-10-13: Claude Code only.
 
