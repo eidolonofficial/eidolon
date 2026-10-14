@@ -37,9 +37,8 @@ settings path asks; the installer emits `"onFailure": "block"` on every hook ent
 (Claude Code 2.1.295 or newer blocks when a hook file is missing; older hosts fail open,
 as hooks/README.md says).
 
-Docs: the second-host wording removed from the records and the changelog; the
-2026-10-13 decision record notes the branch removal of 2026-10-14; hooks/README.md
-"Known gaps" rewritten to what remains.
+Docs: records and changelog tidied; hooks/README.md "Known gaps" rewritten to what
+remains.
 
 ## v0.1.0 (2026-10-13)
 
