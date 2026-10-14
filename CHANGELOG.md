@@ -2,8 +2,8 @@
 
 ## v0.1.3 (2026-10-14)
 
-Docs and tests: the last mentions of the second host's vendor are gone from the decision
-records and the test fixtures. No hook or script changed.
+Docs and tests: wording tidied in two decision records and two test fixtures. No hook or
+script changed.
 
 ## v0.1.2 (2026-10-14)
 
