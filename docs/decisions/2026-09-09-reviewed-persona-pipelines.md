@@ -44,9 +44,9 @@ inventing an allow result. This preserves the user's intent to ask rather than
 quietly allowing a consequential operation on an unsupported transport.
 
 Official sources checked for this work:
-https://learn.chatgpt.com/docs/hooks
 https://code.claude.com/docs/en/hooks
-https://learn.chatgpt.com/docs/app-server
+and the second host's hook and app-server documentation (links removed on 2026-10-14 with
+the rest of the second-host material).
 
 ## Remaining acceptance boundaries
 
