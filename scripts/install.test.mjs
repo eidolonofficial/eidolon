@@ -20,7 +20,7 @@ test('dry-run makes no filesystem changes', t => {
 test('a project install writes the Claude skill, hooks and instructions only', t => {
   const root = tmp(t); const result = install({ project: root, dryRun: false }); assert.ok(result.changed > 0);
   assert.ok(existsSync(join(root, '.claude/skills/eidolon/SKILL.md')));
-  assert.ok(!existsSync(join(root, '.agents')) && !existsSync(join(root, '.codex')) && !existsSync(join(root, 'AGENTS.md')));
+  assert.ok(!existsSync(join(root, '.agents')) && !existsSync(join(root, 'AGENTS.md')));
   const claude = readFileSync(join(root, 'CLAUDE.md'), 'utf8'); assert.match(claude, /## Eidolon for Claude Code/);
   const matchers = settings(root).hooks.PreToolUse.map(g => g.matcher);
   assert.deepEqual(matchers, ['Bash|PowerShell', 'Write|Edit', 'Agent|Task']);
@@ -73,7 +73,7 @@ test('installed Claude hook executes from a nested working directory', t => {
 });
 test('CLI rejects unknown arguments, including the removed --host, without creating output', t => {
   const root = tmp(t);
-  for (const extra of [['--host', 'codex'], ['--bogus', 'x']]) {
+  for (const extra of [['--host', 'other'], ['--bogus', 'x']]) {
     const out = spawnSync(process.execPath, [script, '--project', root, ...extra, '--yes'], { encoding: 'utf8' });
     assert.equal(out.status, 1); assert.deepEqual(readdirSync(root), []);
   }
@@ -197,7 +197,7 @@ test('I9 a SKILL.md in the source is never swapped for a host variant, and no de
   install({ home, sources: [{ name: 'sample', source: src }], dryRun: false });
   assert.equal(readFileSync(join(home, '.claude/skills/sample/SKILL.md'), 'utf8'), 'real skill\n');
   const code = readFileSync(script, 'utf8');
-  assert.doesNotMatch(code, /codex|\.agents|security-grader|security-attestation|claude-workflow/i);
+  assert.doesNotMatch(code, /\.agents|security-grader|security-attestation|claude-workflow/i);
   const root = tmp(t); install({ project: root, dryRun: false });
   assert.doesNotMatch(readFileSync(join(root, '.eidolon/policy-manifest.json'), 'utf8') + readFileSync(join(root, '.claude/settings.json'), 'utf8'), /security-grader|security-attestation/);
 });

@@ -28,7 +28,7 @@ enforcement (Opus audit of the hooks by code read; the Sept 13
    branch, and a JWT-shaped one (the textbook example token, now assembled at run
    time) so the history scan in CI passes. The archive is otherwise byte for byte
    the uncommitted tree it preserves. On 2026-10-14 the owner decided to remove
-   that line and the `release/codex-claude-compat` branches from the public
+   that line and the second-host compatibility branches from the public
    remotes of all three repositories; the six branches live on as git bundles in
    the owner's private files. The main branches were not rewritten.
 3. Claude Code is the product. The second-host adapter, the vendored ASI-Evolve

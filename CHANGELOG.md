@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3 (2026-10-14)
+
+Docs and tests: the last mentions of the second host's vendor are gone from the decision
+records and the test fixtures. No hook or script changed.
+
 ## v0.1.2 (2026-10-14)
 
 Tests: the two tests that read this repository's `.gitignore` skip when the file is absent,

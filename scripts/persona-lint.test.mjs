@@ -123,8 +123,8 @@ test("rejects an agent whose tools include Agent", () => {
   assert.ok(r.problems.some((p) => /Agent/.test(p)));
 });
 
-test("rejects an agent with model gpt-5", () => {
-  const r = validateAgent(agent({ model: "gpt-5" }));
+test("rejects an agent with an unknown model name", () => {
+  const r = validateAgent(agent({ model: "made-up-model" }));
   assert.equal(r.ok, false);
   assert.ok(r.problems.some((p) => /model/.test(p)));
 });
