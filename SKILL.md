@@ -115,6 +115,7 @@ procedures:
   references/autopilot-guide.md: loops, goals and routines, guided from a brain dump
   references/interview.md: the question bank, the brain dump, the reflect-back format
   references/engineering-principles.md: the principles behind workflows, loops, retrieval, DAGs, context
+  references/token-economy.md: the vetted compressors, graphs and presets that make each token go further; the Stage 4 offer
 orchestration:
   references/conductor-standard.md: conductor lanes, swarm-first law, preflight, model cascade, gates
   references/loop-suite.md: bounded autonomous iteration and the heartbeat

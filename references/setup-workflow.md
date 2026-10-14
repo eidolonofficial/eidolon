@@ -151,6 +151,12 @@ install  -> on the explicit yes, the controller installs (marketplace add +
             operator: the skill activates on the next session restart.
 ```
 
+Then the token economy offer (references/token-economy.md): detect what is present,
+offer the rest of the vetted set one AskUserQuestion at a time (ponytail, caveman with
+cavecrew, rtk, headroom, repomix), with name, source, license and what it changes;
+install only on a yes, verify, record. Compressed output is never evidence, and
+instruction, memory and record files are never compressed; the reference states both.
+
 #### Stage 5 - Subagents
 
 Generate `.claude/agents/<persona>.md` for each roster persona the repo needs. Each agent file:

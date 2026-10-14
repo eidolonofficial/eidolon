@@ -141,6 +141,7 @@ Rule: give each agent the minimum tools, with no two tools covering the same job
 Rule: the task journal is the structured note store and survives compaction. Source: CE. Carrier: fable-long-horizon journal.
 Rule: CLAUDE.md carries compaction instructions naming what to keep. Source: CC best-practices. Carrier: generated CLAUDE.md.
 Rule: load references on demand through the skill map, not all at once. Source: CE (progressive disclosure). Carrier: references directory.
+Rule: compress what a leg reads and returns with vetted local tools, and never treat compressed output as evidence. Source: owner doctrine (2026-10-14). Carrier: references/token-economy.md.
 
 ## 7. Evaluation
 
